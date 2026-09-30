@@ -1,0 +1,6 @@
+name: ElotecraftAPI
+version: '${version}'
+
+main: me.angylo.elotecraftAPI.ElotecraftAPI
+api-version: '1.21.11'
+load: POSTWORLD

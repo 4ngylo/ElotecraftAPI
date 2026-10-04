@@ -7,7 +7,7 @@
     <parent>
         <groupId>me.angylo</groupId>
         <artifactId>elotecraft-parent</artifactId>
-        <version>1.0.0</version>
+        <version>1.1.0</version>
     </parent>
 
     <artifactId>elotecraft-api</artifactId>
@@ -15,12 +15,51 @@
 
     <name>ElotecraftAPI</name>
 
+    <dependencies>
+        <!-- Shaded and relocated below. The SQLite/MySQL drivers and slf4j come with the Paper server. -->
+        <dependency>
+            <groupId>com.zaxxer</groupId>
+            <artifactId>HikariCP</artifactId>
+            <version>7.1.0</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.slf4j</groupId>
+                    <artifactId>slf4j-api</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+            <version>2.0.17</version>
+            <scope>provided</scope>
+        </dependency>
+    </dependencies>
+
     <build>
         <plugins>
-            <!-- Bundles future runtime libraries into the plugin jar; relocate them to avoid clashes. -->
+            <!-- Bundles runtime libraries into the plugin jar, relocated to avoid clashes with other plugins. -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
+                <configuration>
+                    <relocations>
+                        <relocation>
+                            <pattern>com.zaxxer.hikari</pattern>
+                            <shadedPattern>me.angylo.elotecraftAPI.libs.hikari</shadedPattern>
+                        </relocation>
+                    </relocations>
+                    <filters>
+                        <filter>
+                            <artifact>*:*</artifact>
+                            <excludes>
+                                <exclude>module-info.class</exclude>
+                                <exclude>META-INF/versions/*/module-info.class</exclude>
+                                <exclude>META-INF/MANIFEST.MF</exclude>
+                            </excludes>
+                        </filter>
+                    </filters>
+                </configuration>
             </plugin>
             <!-- Sources and javadoc jars for consumers' IDEs (published by JitPack). -->
             <plugin>

@@ -20,18 +20,22 @@ class ExampleCommandTest {
 
     private ServerMock server;
     private PlayerMock player;
+    private ExampleCommand example;
 
     @BeforeEach
     void setUp() {
         server = MockBukkit.mock();
         // MockBukkit.load cannot subclass the final ElotecraftExample; bundled YAML still resolves from the classpath.
-        ExampleCommand.register(MockBukkit.createMockPlugin("ElotecraftExample"));
+        example = ExampleCommand.register(MockBukkit.createMockPlugin("ElotecraftExample"));
         player = server.addPlayer();
         player.setOp(true);
     }
 
     @AfterEach
     void tearDown() {
+        if (example != null) {
+            example.shutdown();
+        }
         MockBukkit.unmock();
     }
 

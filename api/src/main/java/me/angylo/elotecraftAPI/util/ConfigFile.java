@@ -3,6 +3,7 @@ package me.angylo.elotecraftAPI.util;
 import org.bukkit.configuration.InvalidConfigurationException;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.Plugin;
+import org.bukkit.scheduler.BukkitTask;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -13,6 +14,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.logging.Level;
 
 /**
@@ -22,11 +24,16 @@ import java.util.logging.Level;
  */
 public final class ConfigFile {
 
+    private static final long SAVE_DELAY_TICKS = 20;
+
     private final Plugin plugin;
     private final String name;
     private final Path path;
+    private final AtomicLong snapshots = new AtomicLong();
     private volatile YamlConfiguration config;
     private volatile boolean writable;
+    private long writtenSnapshot;
+    private BukkitTask pendingSave;
 
     public ConfigFile(Plugin plugin, String name) {
         this.plugin = plugin;
@@ -62,9 +69,23 @@ public final class ConfigFile {
         return true;
     }
 
-    /** Live config; edit on the main thread, then {@link #save()}. */
+    /** Live config; edit on the main thread, then {@link #saveLater()} or {@link #save()}. */
     public YamlConfiguration get() {
         return config;
+    }
+
+    /**
+     * Saves about a second from now; every call until then is folded into that one write.
+     * Use this for frequent changes (per command, per click). Main thread only.
+     * Call {@link #saveNow()} in {@code onDisable}, since a pending save is cancelled with the plugin.
+     */
+    public void saveLater() {
+        if (pendingSave == null) {
+            pendingSave = Tasks.later(plugin, () -> {
+                pendingSave = null;
+                save();
+            }, SAVE_DELAY_TICKS);
+        }
     }
 
     /**
@@ -75,26 +96,35 @@ public final class ConfigFile {
         if (!writable) {
             return CompletableFuture.failedFuture(new IllegalStateException(name + " failed to load; not saving over it"));
         }
+        long snapshot = snapshots.incrementAndGet();
         String yaml = config.saveToString();
-        return CompletableFuture.runAsync(() -> write(yaml), task -> Tasks.async(plugin, task));
+        return CompletableFuture.runAsync(() -> write(snapshot, yaml), task -> Tasks.async(plugin, task));
     }
 
-    /** Blocking save for {@code onDisable}. */
+    /** Blocking save for {@code onDisable}; also cancels a pending {@link #saveLater()}. */
     public void saveNow() {
+        if (pendingSave != null) {
+            pendingSave.cancel();
+            pendingSave = null;
+        }
         if (!writable) {
             plugin.getLogger().warning(name + " failed to load; not saving over it");
             return;
         }
-        write(config.saveToString());
+        write(snapshots.incrementAndGet(), config.saveToString());
     }
 
-    // ponytail: saves are serialized but two async saves may land out of order; queue them if that ever matters
-    private synchronized void write(String yaml) {
+    /** Writes are serialized, and a snapshot older than the last one written is skipped. */
+    private synchronized void write(long snapshot, String yaml) {
+        if (snapshot <= writtenSnapshot) {
+            return;
+        }
         try {
             Files.createDirectories(path.getParent());
             Path temp = path.resolveSibling(path.getFileName() + ".tmp");
             Files.writeString(temp, yaml, StandardCharsets.UTF_8);
             Files.move(temp, path, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            writtenSnapshot = snapshot;
         } catch (IOException e) {
             plugin.getLogger().log(Level.SEVERE, "Could not save " + name, e);
             throw new UncheckedIOException("Could not save " + name, e);

@@ -7,6 +7,7 @@ Shared library plugin for Elotecraft Paper plugins (Paper 1.21.11, Java 21).
 | `util` | `Text` (MiniMessage), `Durations`, `Cooldowns`, `Tasks`, `Events`, `ItemBuilder`, `ConfigFile`, `Messages` |
 | `menu` | `Button`, `Menu`, `PaginatedMenu`, `MenuListener` |
 | `command` | `CommandBuilder`: subcommands, permissions, tab completion, no `plugin.yml` entry |
+| `storage` | `Database`: async SQLite/MySQL (HikariCP), parameterized queries, transactions, results on the main thread |
 
 The `example` module is a separate demo plugin (`/example`, `/countdown`) showing every feature.
 

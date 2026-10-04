@@ -6,7 +6,7 @@
 
     <groupId>me.angylo</groupId>
     <artifactId>elotecraft-parent</artifactId>
-    <version>1.0.0</version>
+    <version>1.1.0</version>
     <packaging>pom</packaging>
 
     <name>ElotecraftAPI Parent</name>
@@ -56,6 +56,13 @@
             <groupId>org.mockbukkit.mockbukkit</groupId>
             <artifactId>mockbukkit-v1.21</artifactId>
             <version>4.116.3</version>
+            <scope>test</scope>
+        </dependency>
+        <!-- The server supplies the driver at runtime; same version Paper 1.21.11 bundles. -->
+        <dependency>
+            <groupId>org.xerial</groupId>
+            <artifactId>sqlite-jdbc</artifactId>
+            <version>3.49.1.0</version>
             <scope>test</scope>
         </dependency>
     </dependencies>

@@ -58,6 +58,7 @@ public final class ExampleCommand {
     private final ConfigFile settings;
     private final Cooldowns<UUID> giveCooldowns = new Cooldowns<>();
     private final NamespacedKey demoKey;
+    private final BlockStats blockStats;
     private Duration giveCooldown;
 
     private ExampleCommand(Plugin plugin) {
@@ -66,9 +67,10 @@ public final class ExampleCommand {
         this.settings = new ConfigFile(plugin, "example.yml");
         this.demoKey = new NamespacedKey(plugin, "demo_amount");
         this.giveCooldown = readCooldown();
+        this.blockStats = new BlockStats(plugin, messages);
     }
 
-    /** Registers both demo commands; call {@link #saveNow()} from {@code onDisable}. */
+    /** Registers both demo commands; call {@link #shutdown()} from {@code onDisable}. */
     public static ExampleCommand register(Plugin plugin) {
         ExampleCommand example = new ExampleCommand(plugin);
 
@@ -85,6 +87,9 @@ public final class ExampleCommand {
                 .sub("cooldown", ADMIN_PERMISSION, example::setCooldown, (sender, args) -> List.of("10s", "1m", "1h30m"))
                 .playerSub("sneak", null, (player, args) -> example.waitForSneak(player))
                 .sub("async", null, (sender, args) -> example.runAsync(sender))
+                .sub("blocks", null, (sender, args) -> example.blockStats.show(sender, args.length > 0 ? args[0] : sender.getName()),
+                        (sender, args) -> onlineNames(args.length > 0 ? args[0] : ""))
+                .sub("topblocks", null, (sender, args) -> example.blockStats.showTop(sender))
                 .sub("reload", ADMIN_PERMISSION, (sender, args) -> example.reload(sender))
                 .register(plugin);
 
@@ -97,8 +102,18 @@ public final class ExampleCommand {
         return example;
     }
 
-    public void saveNow() {
+    /** Saves example.yml and block stats, then closes the database. */
+    public void shutdown() {
         settings.saveNow();
+        blockStats.shutdown();
+    }
+
+    private static List<String> onlineNames(String prefix) {
+        String lower = prefix.toLowerCase(Locale.ROOT);
+        return Bukkit.getOnlinePlayers().stream()
+                .map(Player::getName)
+                .filter(name -> name.toLowerCase(Locale.ROOT).startsWith(lower))
+                .toList();
     }
 
     private void openMenu(Player player) {
@@ -167,10 +182,8 @@ public final class ExampleCommand {
         String path = "gives." + player.getUniqueId();
         int total = settings.get().getInt(path) + amount;
         settings.get().set(path, total);
-        settings.save().exceptionally(error -> {
-            plugin.getLogger().log(Level.WARNING, "Could not save example.yml", error);
-            return null;
-        });
+        // Frequent change: many gives in a short time become one disk write.
+        settings.saveLater();
         messages.send(player, "example.given",
                 Placeholder.unparsed("amount", String.valueOf(amount)), Placeholder.unparsed("total", String.valueOf(total)));
     }
@@ -188,7 +201,11 @@ public final class ExampleCommand {
             giveCooldowns.clear(player.getUniqueId());
         }
         settings.get().set("give-cooldown", input);
-        settings.save();
+        // Rare admin change: save right away and report failures.
+        settings.save().exceptionally(error -> {
+            plugin.getLogger().log(Level.WARNING, "Could not save example.yml", error);
+            return null;
+        });
         messages.send(sender, "example.cooldown-set", Placeholder.unparsed("time", Durations.format(giveCooldown)));
     }
 

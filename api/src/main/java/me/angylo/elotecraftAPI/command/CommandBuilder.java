@@ -1,22 +1,22 @@
 package me.angylo.elotecraftAPI.command;
 
-import me.angylo.elotecraftAPI.util.Text;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.Bukkit;
 import org.bukkit.command.Command;
+import org.bukkit.command.CommandMap;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.PluginIdentifiableCommand;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.Plugin;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 
@@ -27,21 +27,26 @@ import java.util.function.BiFunction;
  *         .permission("elotecraft.shop")
  *         .sub("open", null, (sender, args) -> ...)
  *         .playerSub("buy", "elotecraft.shop.buy", (player, args) -> ...)
+ *         .sub(CommandBuilder.create("admin").permission("elotecraft.shop.admin")   // /shop admin reset
+ *                 .sub("reset", null, (sender, args) -> ...))
  *         .register(plugin);
  * }</pre>
  * Handlers receive the arguments after the subcommand name. A {@code null} permission means none.
+ * Commands are unregistered automatically when their plugin disables.
  */
 public final class CommandBuilder {
 
-    private final String name;
-    private final Map<String, Sub> subs = new LinkedHashMap<>();
+    private static final Map<Plugin, List<Command>> REGISTERED = new ConcurrentHashMap<>();
+
+    final String name;
+    final Map<String, Object> subs = new LinkedHashMap<>();
+    String permission;
+    BiConsumer<CommandSender, String[]> rootHandler;
+    BiFunction<CommandSender, String[], List<String>> rootSuggester;
+    String noPermissionMessage = "<red>You do not have permission to do that.";
+    String playerOnlyMessage = "<red>Only players can use this command.";
     private List<String> aliases = List.of();
     private String description = "";
-    private String permission;
-    private BiConsumer<CommandSender, String[]> rootHandler;
-    private BiFunction<CommandSender, String[], List<String>> rootSuggester;
-    private String noPermissionMessage = "<red>You do not have permission to do that.";
-    private String playerOnlyMessage = "<red>Only players can use this command.";
 
     private CommandBuilder(String name) {
         this.name = validName(name);
@@ -62,7 +67,7 @@ public final class CommandBuilder {
         return this;
     }
 
-    /** Required for the whole command; players without it do not see it in tab completion. */
+    /** Required for the whole command (or nested group); players without it do not see it in tab completion. */
     public CommandBuilder permission(String permission) {
         this.permission = permission;
         return this;
@@ -89,7 +94,7 @@ public final class CommandBuilder {
 
     public CommandBuilder sub(String name, String permission, BiConsumer<CommandSender, String[]> handler,
                               BiFunction<CommandSender, String[], List<String>> suggester) {
-        return addSub(name, new Sub(permission, false, handler, suggester));
+        return addSub(name, new CommandNode.Leaf(permission, false, handler, suggester));
     }
 
     /** Subcommand only players can run; the console gets an error message. */
@@ -99,7 +104,16 @@ public final class CommandBuilder {
 
     public CommandBuilder playerSub(String name, String permission, BiConsumer<Player, String[]> handler,
                                     BiFunction<CommandSender, String[], List<String>> suggester) {
-        return addSub(name, new Sub(permission, true, (sender, args) -> handler.accept((Player) sender, args), suggester));
+        return addSub(name, new CommandNode.Leaf(permission, true,
+                (sender, args) -> handler.accept((Player) sender, args), suggester));
+    }
+
+    /**
+     * Nested group named after {@code group}, with its own permission and subcommands,
+     * e.g. {@code /shop admin reset}. The group's aliases and description are ignored.
+     */
+    public CommandBuilder sub(CommandBuilder group) {
+        return addSub(group.name, group);
     }
 
     /** MiniMessage overrides for the built-in error messages. */
@@ -112,15 +126,44 @@ public final class CommandBuilder {
     /** Registers under {@code /name} and {@code /plugin:name}. Call from {@code onEnable}. */
     public Command register(Plugin plugin) {
         BuiltCommand command = new BuiltCommand(plugin, this);
-        if (!Bukkit.getCommandMap().register(plugin.getName().toLowerCase(Locale.ROOT), command)) {
-            plugin.getLogger().warning("/" + name + " is taken by another plugin; use /"
-                    + plugin.getName().toLowerCase(Locale.ROOT) + ":" + name);
+        String prefix = plugin.getName().toLowerCase(Locale.ROOT);
+        if (!Bukkit.getCommandMap().register(prefix, command)) {
+            plugin.getLogger().warning("/" + name + " is taken by another plugin; use /" + prefix + ":" + name);
         }
+        REGISTERED.computeIfAbsent(plugin, key -> new CopyOnWriteArrayList<>()).add(command);
         Bukkit.getOnlinePlayers().forEach(Player::updateCommands);
         return command;
     }
 
-    private CommandBuilder addSub(String name, Sub sub) {
+    /** Removes a command returned by {@link #register(Plugin)} from every label it was registered under. */
+    public static void unregister(Command command) {
+        CommandMap map = Bukkit.getCommandMap();
+        command.unregister(map);
+        // Paper's known-commands map forwards to the Brigadier tree; its values() view ignores removals, so remove by label.
+        Map<String, Command> known = map.getKnownCommands();
+        List<String> labels = known.entrySet().stream()
+                .filter(entry -> entry.getValue() == command)
+                .map(Map.Entry::getKey)
+                .toList();
+        labels.forEach(known::remove);
+        if (command instanceof PluginIdentifiableCommand owned) {
+            List<Command> commands = REGISTERED.get(owned.getPlugin());
+            if (commands != null) {
+                commands.remove(command);
+            }
+        }
+        Bukkit.getOnlinePlayers().forEach(Player::updateCommands);
+    }
+
+    /** Removes every command {@code plugin} registered here; called automatically when it disables. */
+    public static void unregisterAll(Plugin plugin) {
+        List<Command> commands = REGISTERED.remove(plugin);
+        if (commands != null) {
+            new ArrayList<>(commands).forEach(CommandBuilder::unregister);
+        }
+    }
+
+    private CommandBuilder addSub(String name, Object sub) {
         if (subs.putIfAbsent(validName(name), sub) != null) {
             throw new IllegalArgumentException("Duplicate subcommand: " + name);
         }
@@ -135,98 +178,36 @@ public final class CommandBuilder {
         return name;
     }
 
-    private record Sub(String permission, boolean playersOnly, BiConsumer<CommandSender, String[]> handler,
-                       BiFunction<CommandSender, String[], List<String>> suggester) {
-
-        boolean allows(CommandSender sender) {
-            return permission == null || sender.hasPermission(permission);
-        }
-    }
-
     private static final class BuiltCommand extends Command implements PluginIdentifiableCommand {
 
-        private static final Component UNAVAILABLE = Text.mm("<red>This command is currently unavailable.");
-
         private final Plugin plugin;
-        private final Map<String, Sub> subs;
-        private final BiConsumer<CommandSender, String[]> rootHandler;
-        private final BiFunction<CommandSender, String[], List<String>> rootSuggester;
-        private final Component noPermission;
-        private final Component playerOnly;
+        private final CommandNode root;
 
         BuiltCommand(Plugin plugin, CommandBuilder builder) {
             super(builder.name, builder.description, "/" + builder.name, builder.aliases);
             setPermission(builder.permission);
             this.plugin = plugin;
-            this.subs = Collections.unmodifiableMap(new LinkedHashMap<>(builder.subs));
-            this.rootHandler = builder.rootHandler;
-            this.rootSuggester = builder.rootSuggester;
-            this.noPermission = Text.mm(builder.noPermissionMessage);
-            this.playerOnly = Text.mm(builder.playerOnlyMessage);
+            this.root = new CommandNode(builder);
         }
 
         @Override
         public boolean execute(@NotNull CommandSender sender, @NotNull String label, @NotNull String @NotNull [] args) {
             if (!plugin.isEnabled()) {
-                sender.sendMessage(UNAVAILABLE);
+                sender.sendMessage(CommandNode.UNAVAILABLE);
                 return true;
             }
-            if (!testPermissionSilent(sender)) {
-                sender.sendMessage(noPermission);
-                return true;
-            }
-            if (rootHandler != null && (args.length == 0 || subs.isEmpty())) {
-                rootHandler.accept(sender, args);
-                return true;
-            }
-            Sub sub = args.length == 0 ? null : subs.get(args[0].toLowerCase(Locale.ROOT));
-            if (sub == null) {
-                sendUsage(sender, label);
-            } else if (!sub.allows(sender)) {
-                sender.sendMessage(noPermission);
-            } else if (sub.playersOnly() && !(sender instanceof Player)) {
-                sender.sendMessage(playerOnly);
-            } else {
-                sub.handler().accept(sender, Arrays.copyOfRange(args, 1, args.length));
-            }
+            root.execute(sender, label, args);
             return true;
         }
 
         @Override
         public @NotNull List<String> tabComplete(@NotNull CommandSender sender, @NotNull String alias, @NotNull String @NotNull [] args) {
-            if (!plugin.isEnabled() || !testPermissionSilent(sender)) {
-                return List.of();
-            }
-            if (subs.isEmpty()) {
-                return rootSuggester == null ? List.of() : rootSuggester.apply(sender, args);
-            }
-            String first = args[0].toLowerCase(Locale.ROOT);
-            if (args.length == 1) {
-                return subs.entrySet().stream()
-                        .filter(entry -> entry.getKey().startsWith(first) && entry.getValue().allows(sender))
-                        .map(Map.Entry::getKey)
-                        .toList();
-            }
-            Sub sub = subs.get(first);
-            if (sub == null || sub.suggester() == null || !sub.allows(sender)) {
-                return List.of();
-            }
-            return sub.suggester().apply(sender, Arrays.copyOfRange(args, 1, args.length));
+            return plugin.isEnabled() ? root.complete(sender, args) : List.of();
         }
 
         @Override
         public @NotNull Plugin getPlugin() {
             return plugin;
-        }
-
-        private void sendUsage(CommandSender sender, String label) {
-            sender.sendMessage(Text.mm("<yellow>Usage:"));
-            subs.forEach((subName, sub) -> {
-                if (sub.allows(sender)) {
-                    sender.sendMessage(Text.mm("<gray>/<label> <sub>",
-                            Placeholder.unparsed("label", label), Placeholder.unparsed("sub", subName)));
-                }
-            });
         }
     }
 }

@@ -15,7 +15,21 @@
 
     <name>ElotecraftAPI</name>
 
+    <repositories>
+        <repository>
+            <id>placeholderapi</id>
+            <url>https://repo.extendedclip.com/releases/</url>
+        </repository>
+    </repositories>
+
     <dependencies>
+        <!-- Optional at runtime: Messages uses it only when the PlaceholderAPI plugin is enabled. -->
+        <dependency>
+            <groupId>me.clip</groupId>
+            <artifactId>placeholderapi</artifactId>
+            <version>2.12.3</version>
+            <scope>provided</scope>
+        </dependency>
         <!-- Shaded and relocated below. The SQLite/MySQL drivers and slf4j come with the Paper server. -->
         <dependency>
             <groupId>com.zaxxer</groupId>

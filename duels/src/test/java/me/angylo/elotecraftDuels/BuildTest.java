@@ -11,6 +11,7 @@ import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.event.Cancellable;
 import org.bukkit.event.Event;
+import org.bukkit.event.block.Action;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.event.block.BlockBurnEvent;
@@ -28,6 +29,7 @@ import org.bukkit.event.block.BlockSpreadEvent;
 import org.bukkit.event.block.TNTPrimeEvent;
 import org.bukkit.event.player.PlayerBucketEmptyEvent;
 import org.bukkit.event.player.PlayerBucketFillEvent;
+import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.util.Vector;
 import org.junit.jupiter.api.BeforeEach;
@@ -40,6 +42,7 @@ import java.util.concurrent.CompletableFuture;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** Build kits: what fighters may change, and the arena being put back afterwards. */
@@ -94,6 +97,28 @@ class BuildTest extends DuelsTestBase {
         assertFalse(breakPlaced.isCancelled());
         assertFalse(breakPlaced.isDropItems());
         assertEquals(Material.AIR, inside().getBlock().getType());
+    }
+
+    /**
+     * On Paper, denying block use also stops placing blocks against it, so build fighters must keep it in
+     * their arena. Found with mineflayer bots on a real server; MockBukkit does not model it.
+     */
+    @Test
+    void buildFightersMayUseBlocksInTheirArenaOnly() {
+        Block door = arenaWorld.getBlockAt(8, 64, 8);
+        door.setType(Material.OAK_DOOR);
+        fight(kit);
+
+        PlayerInteractEvent inside = new PlayerInteractEvent(alex, Action.RIGHT_CLICK_BLOCK, ItemStack.of(Material.OAK_PLANKS), door, BlockFace.UP);
+        server.getPluginManager().callEvent(inside);
+        PlayerInteractEvent outside = new PlayerInteractEvent(alex, Action.RIGHT_CLICK_BLOCK, ItemStack.of(Material.OAK_PLANKS),
+                arenaWorld.getBlockAt(30, 63, 30), BlockFace.UP);
+        server.getPluginManager().callEvent(outside);
+
+        assertNotEquals(Event.Result.DENY, inside.useInteractedBlock());
+        assertEquals(Event.Result.DENY, outside.useInteractedBlock());
+        // Remembered so the door is put back, but not breakable like a placed block.
+        assertTrue(alex.simulateBlockBreak(door).isCancelled());
     }
 
     @Test

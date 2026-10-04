@@ -14,9 +14,11 @@ import org.bukkit.block.BlockState;
 import org.bukkit.entity.FallingBlock;
 import org.bukkit.entity.Player;
 import org.bukkit.event.Cancellable;
+import org.bukkit.event.Event;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.event.block.Action;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockBurnEvent;
 import org.bukkit.event.block.BlockDispenseEvent;
@@ -37,6 +39,7 @@ import org.bukkit.event.entity.EntityChangeBlockEvent;
 import org.bukkit.event.entity.EntityExplodeEvent;
 import org.bukkit.event.player.PlayerBucketEmptyEvent;
 import org.bukkit.event.player.PlayerBucketFillEvent;
+import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.world.StructureGrowEvent;
 
 import java.util.List;
@@ -85,6 +88,24 @@ public final class BuildListener implements Listener {
         }
         replaced.forEach(instance.changes()::record);
         replaced.forEach(state -> recordNeighbours(instance, state.getBlock()));
+    }
+
+    /**
+     * Build fighters use blocks normally in their arena ({@link ProtectionListener} lets them, as denying
+     * it would stop block placing too); what they click (doors, levers, both halves) is put back afterwards.
+     */
+    @EventHandler(priority = EventPriority.HIGH)
+    public void onInteract(PlayerInteractEvent event) {
+        Block clicked = event.getClickedBlock();
+        if (event.getAction() != Action.RIGHT_CLICK_BLOCK || clicked == null || event.useInteractedBlock() == Event.Result.DENY
+                || !matches.isBusy(event.getPlayer())) {
+            return;
+        }
+        ArenaInstance instance = buildable(event.getPlayer(), clicked);
+        if (instance != null) {
+            instance.changes().remember(clicked);
+            recordNeighbours(instance, clicked);
+        }
     }
 
     @EventHandler(priority = EventPriority.LOW, ignoreCancelled = true)
@@ -308,11 +329,7 @@ public final class BuildListener implements Listener {
     /** The build duel {@code player} may change {@code block} in right now, or null. */
     private ArenaInstance buildable(Player player, Block block) {
         Match match = matches.matchOf(player).orElse(null);
-        if (match == null || !match.isFighting(player)) {
-            return null;
-        }
-        ArenaInstance instance = match.instance();
-        return instance.isBuild() && !instance.isClosing() && instance.contains(block.getLocation()) ? instance : null;
+        return match != null && match.canBuild(player, block.getLocation()) ? match.instance() : null;
     }
 
     private boolean mayRemove(ArenaInstance instance, Block block) {
@@ -336,14 +353,14 @@ public final class BuildListener implements Listener {
     }
 
     /**
-     * Fences, panes, walls and chests next to a placed or broken block change shape to connect; they are
-     * recorded so they get their old shape back.
+     * Fences, panes, walls, chests and door halves next to a changed block change shape with it; they are
+     * remembered so they get their old shape back.
      */
     private static void recordNeighbours(ArenaInstance instance, Block block) {
         for (BlockFace face : NEIGHBOURS) {
             Block neighbour = block.getRelative(face);
             if (instance.contains(neighbour.getLocation())) {
-                instance.changes().record(neighbour);
+                instance.changes().remember(neighbour);
             }
         }
     }

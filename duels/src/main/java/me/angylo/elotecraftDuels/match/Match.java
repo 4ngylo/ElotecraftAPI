@@ -114,6 +114,11 @@ public final class Match {
         return state == State.FIGHTING && isFighter(player) && snapshots.containsKey(player.getUniqueId());
     }
 
+    /** Whether {@code player} may change blocks at {@code location} now: fighting in a build duel, inside its arena. */
+    public boolean canBuild(Player player, Location location) {
+        return isFighting(player) && instance.isBuild() && !instance.isClosing() && instance.contains(location);
+    }
+
     /** The other fighter. */
     public Player opponentOf(Player fighter) {
         return first.getUniqueId().equals(fighter.getUniqueId()) ? second : first;

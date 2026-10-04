@@ -46,7 +46,8 @@ Kits are stored in `kits.yml` with Paper's item format, so they survive server u
 `/duels kit build <kit>` turns a kit into a build kit (run it again to undo): while fighting, its
 fighters may place blocks inside the arena box, use buckets and flint and steel, and break blocks placed
 during the duel. With `build.break-arena-blocks: true` they may break the arena itself too. Broken blocks
-drop nothing.
+drop nothing. They can also use doors, levers and the like in the arena; those are put back too. Beds and
+respawn anchors never set anyone's respawn point during a duel.
 
 Every block a build duel changes is recorded the first time it changes, whether a player, water, lava,
 fire, falling sand or an explosion changed it, and put back after the duel exactly as it was (chests and

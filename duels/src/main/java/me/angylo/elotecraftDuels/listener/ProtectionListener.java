@@ -1,5 +1,6 @@
 package me.angylo.elotecraftDuels.listener;
 
+import com.destroystokyo.paper.event.player.PlayerSetSpawnEvent;
 import me.angylo.elotecraftAPI.util.Messages;
 import me.angylo.elotecraftDuels.Settings;
 import me.angylo.elotecraftDuels.match.Match;
@@ -23,6 +24,7 @@ import org.bukkit.event.hanging.HangingPlaceEvent;
 import org.bukkit.event.inventory.InventoryOpenEvent;
 import org.bukkit.event.inventory.InventoryType;
 import org.bukkit.event.player.PlayerArmorStandManipulateEvent;
+import org.bukkit.event.player.PlayerBedEnterEvent;
 import org.bukkit.event.player.PlayerCommandPreprocessEvent;
 import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerInteractAtEntityEvent;
@@ -96,17 +98,34 @@ public final class ProtectionListener implements Listener {
         cancelIfBusy(CombatListener.attacker(event.getEntity()), event);
     }
 
-    /** Blocks are never used (doors, chests, buttons...); items in hand still work. */
+    /**
+     * Blocks are not used (doors, buttons, beds...); items in hand still work. Build fighters use blocks in
+     * their arena normally: denying block use also stops placing blocks against them.
+     */
     @EventHandler(priority = EventPriority.LOW)
     public void onInteract(PlayerInteractEvent event) {
-        if (!matches.isBusy(event.getPlayer())) {
+        Player player = event.getPlayer();
+        Match match = matches.matchOf(player).orElse(null);
+        if (match == null) {
             return;
         }
         if (event.getAction() == Action.PHYSICAL) {
             event.setCancelled(true);
-        } else if (event.getAction() == Action.RIGHT_CLICK_BLOCK) {
+        } else if (event.getAction() == Action.RIGHT_CLICK_BLOCK && event.getClickedBlock() != null
+                && !match.canBuild(player, event.getClickedBlock().getLocation())) {
             event.setUseInteractedBlock(Event.Result.DENY);
         }
+    }
+
+    /** A bed or respawn anchor in an arena must not become anyone's respawn point. */
+    @EventHandler(priority = EventPriority.LOW, ignoreCancelled = true)
+    public void onSetSpawn(PlayerSetSpawnEvent event) {
+        cancelIfBusy(event.getPlayer(), event);
+    }
+
+    @EventHandler(priority = EventPriority.LOW, ignoreCancelled = true)
+    public void onBedEnter(PlayerBedEnterEvent event) {
+        cancelIfBusy(event.getPlayer(), event);
     }
 
     @EventHandler(priority = EventPriority.LOW, ignoreCancelled = true)

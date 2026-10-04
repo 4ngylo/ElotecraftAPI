@@ -25,6 +25,7 @@ jobs:
           path: |
             api/target/elotecraft-api-*.jar
             example/target/elotecraft-example-*.jar
+            duels/target/elotecraft-duels-*.jar
             !**/original-*.jar
             !**/*-sources.jar
             !**/*-javadoc.jar

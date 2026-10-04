@@ -14,6 +14,8 @@ Shared library plugin for Elotecraft Paper plugins (Paper 1.21.11, Java 21).
 
 The `example` module is a separate demo plugin (`/example`, `/countdown`) showing every feature.
 
+The `duels` module is ElotecraftDuels, a production 1v1 duels plugin built on the library; see [duels/README.md](duels/README.md).
+
 ## Server
 
 Put `elotecraft-api-<version>.jar` in `plugins/`. Add `elotecraft-example-<version>.jar` only to try the demo.

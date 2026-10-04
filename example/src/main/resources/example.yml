@@ -5,3 +5,26 @@ menu-lore:
   - "<gray>Lore read from example.yml"
 # Written by the plugin: total demo diamonds given per player UUID.
 gives: {}
+# Menu built by MenuConfig: layout here, click actions in ExtrasDemo.openShop.
+shop:
+  title: "<gold><bold>Config Shop"
+  rows: 3
+  fill: BLACK_STAINED_GLASS_PANE
+  items:
+    diamond:
+      slot: 11
+      material: DIAMOND
+      name: "<aqua>Diamond"
+      lore: ["<gray>Free! Click to take one"]
+      action: take-diamond
+    emerald:
+      slot: 13
+      material: EMERALD
+      name: "<green>Emerald"
+      lore: ["<gray>Free! Click to take one"]
+      action: take-emerald
+    close:
+      slot: 15
+      material: BARRIER
+      name: "<red>Close"
+      action: close

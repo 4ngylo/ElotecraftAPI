@@ -1,5 +1,6 @@
 package me.angylo.elotecraftExample;
 
+import me.angylo.elotecraftAPI.command.Args;
 import me.angylo.elotecraftAPI.command.CommandBuilder;
 import me.angylo.elotecraftAPI.menu.Button;
 import me.angylo.elotecraftAPI.menu.Menu;
@@ -59,15 +60,17 @@ public final class ExampleCommand {
     private final Cooldowns<UUID> giveCooldowns = new Cooldowns<>();
     private final NamespacedKey demoKey;
     private final BlockStats blockStats;
+    private final ExtrasDemo extras;
     private Duration giveCooldown;
 
     private ExampleCommand(Plugin plugin) {
         this.plugin = plugin;
-        this.messages = new Messages(plugin);
+        this.messages = new Messages(plugin, "es");
         this.settings = new ConfigFile(plugin, "example.yml");
         this.demoKey = new NamespacedKey(plugin, "demo_amount");
         this.giveCooldown = readCooldown();
         this.blockStats = new BlockStats(plugin, messages);
+        this.extras = new ExtrasDemo(plugin, messages, settings);
     }
 
     /** Registers both demo commands; call {@link #shutdown()} from {@code onDisable}. */
@@ -83,14 +86,23 @@ public final class ExampleCommand {
                 .playerSub("menu", null, (player, args) -> example.openMenu(player))
                 .playerSub("pages", null, (player, args) -> example.openPages(player))
                 .playerSub("roulette", null, (player, args) -> RouletteMenu.open(plugin, example.messages, player))
-                .playerSub("give", null, example::give, (sender, args) -> List.of("1", "16", "64"))
-                .sub("cooldown", ADMIN_PERMISSION, example::setCooldown, (sender, args) -> List.of("10s", "1m", "1h30m"))
+                .playerSub("shop", null, (player, args) -> example.extras.openShop(player))
+                .playerSub("give", null, example::give, (sender, args) -> Args.filter(List.of("1", "16", "64"), args))
                 .playerSub("sneak", null, (player, args) -> example.waitForSneak(player))
+                .playerSub("input", null, (player, args) -> example.extras.askName(player))
+                .playerSub("hud", null, (player, args) -> example.extras.toggleHud(player))
+                .playerSub("hologram", null, (player, args) -> example.extras.hologram(player))
+                .playerSub("skull", null, (player, args) -> example.extras.giveSkull(player, Args.get(args, 0)),
+                        (sender, args) -> Args.players(args))
                 .sub("async", null, (sender, args) -> example.runAsync(sender))
-                .sub("blocks", null, (sender, args) -> example.blockStats.show(sender, args.length > 0 ? args[0] : sender.getName()),
-                        (sender, args) -> onlineNames(args.length > 0 ? args[0] : ""))
+                .sub("blocks", null, (sender, args) -> example.blockStats.show(sender,
+                        args.length > 0 ? args[0] : sender.getName()), (sender, args) -> Args.players(args))
                 .sub("topblocks", null, (sender, args) -> example.blockStats.showTop(sender))
-                .sub("reload", ADMIN_PERMISSION, (sender, args) -> example.reload(sender))
+                // Nested group: /example admin cooldown <duration> and /example admin reload.
+                .sub(CommandBuilder.create("admin").permission(ADMIN_PERMISSION)
+                        .sub("cooldown", null, example::setCooldown,
+                                (sender, args) -> Args.filter(List.of("10s", "1m", "1h30m"), args))
+                        .sub("reload", null, (sender, args) -> example.reload(sender)))
                 .register(plugin);
 
         // No subcommands: the executes() handler receives every argument and its suggester completes them.
@@ -106,14 +118,6 @@ public final class ExampleCommand {
     public void shutdown() {
         settings.saveNow();
         blockStats.shutdown();
-    }
-
-    private static List<String> onlineNames(String prefix) {
-        String lower = prefix.toLowerCase(Locale.ROOT);
-        return Bukkit.getOnlinePlayers().stream()
-                .map(Player::getName)
-                .filter(name -> name.toLowerCase(Locale.ROOT).startsWith(lower))
-                .toList();
     }
 
     private void openMenu(Player player) {
@@ -164,7 +168,7 @@ public final class ExampleCommand {
     }
 
     private void give(Player player, String[] args) {
-        int amount = parseInRange(args.length == 0 ? "1" : args[0], MAX_AMOUNT);
+        int amount = Args.integer(args.length == 0 ? "1" : args[0], 1, MAX_AMOUNT).orElse(0);
         if (amount < 1) {
             messages.send(player, "example.invalid-amount");
             return;
@@ -253,7 +257,7 @@ public final class ExampleCommand {
     }
 
     private void countdown(CommandSender sender, String[] args) {
-        int seconds = parseInRange(args.length == 0 ? "" : args[0], MAX_SECONDS);
+        int seconds = Args.integer(Args.get(args, 0), 1, MAX_SECONDS).orElse(0);
         if (seconds < 1) {
             messages.send(sender, "example.invalid-seconds");
             return;
@@ -283,16 +287,6 @@ public final class ExampleCommand {
         } catch (IllegalArgumentException e) {
             plugin.getLogger().warning("Invalid give-cooldown '" + raw + "' in example.yml; using 30s");
             return Duration.ofSeconds(30);
-        }
-    }
-
-    /** Parses {@code 1..max}; returns 0 for anything else. */
-    private static int parseInRange(String input, int max) {
-        try {
-            int value = Integer.parseInt(input);
-            return value >= 1 && value <= max ? value : 0;
-        } catch (NumberFormatException e) {
-            return 0;
         }
     }
 

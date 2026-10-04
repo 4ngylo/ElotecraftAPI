@@ -29,13 +29,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class MenuTest {
 
+    private ServerMock server;
     private PluginMock plugin;
     private PlayerMock player;
     private final List<String> clicks = new ArrayList<>();
 
     @BeforeEach
     void setUp() {
-        ServerMock server = MockBukkit.mock();
+        server = MockBukkit.mock();
         plugin = MockBukkit.createMockPlugin();
         player = server.addPlayer();
     }
@@ -107,6 +108,22 @@ class MenuTest {
         button.item().setAmount(7);
 
         assertEquals(1, button.item().getAmount());
+    }
+
+    @Test
+    void refreshRunsOnlyWhileViewed() {
+        List<Integer> updates = new ArrayList<>();
+        Menu menu = new Menu(plugin, 1, "Live").refresh(5, refreshed -> updates.add(updates.size()));
+
+        menu.open(player);
+        server.getScheduler().performTicks(11);
+        int whileOpen = updates.size();
+        player.closeInventory();
+        server.getScheduler().performTicks(20);
+
+        assertEquals(2, whileOpen);
+        assertEquals(2, updates.size());
+        assertThrows(IllegalArgumentException.class, () -> menu.refresh(0, refreshed -> { }));
     }
 
     @Test

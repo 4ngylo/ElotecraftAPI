@@ -9,6 +9,7 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.Plugin;
 
 import java.util.List;
+import java.util.function.Consumer;
 
 /**
  * A {@link Menu} that splits a list of buttons into pages.
@@ -85,6 +86,12 @@ public class PaginatedMenu extends Menu {
     public PaginatedMenu fill(ItemStack item) {
         this.filler = item.clone();
         render();
+        return this;
+    }
+
+    @Override
+    public PaginatedMenu refresh(long periodTicks, Consumer<? super Menu> update) {
+        super.refresh(periodTicks, update);
         return this;
     }
 

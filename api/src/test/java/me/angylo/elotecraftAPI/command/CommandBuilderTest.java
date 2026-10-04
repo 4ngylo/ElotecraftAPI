@@ -1,5 +1,6 @@
 package me.angylo.elotecraftAPI.command;
 
+import me.angylo.elotecraftAPI.CleanupListener;
 import me.angylo.elotecraftAPI.util.Text;
 import net.kyori.adventure.text.Component;
 import org.bukkit.command.Command;
@@ -12,8 +13,12 @@ import org.mockbukkit.mockbukkit.command.ConsoleCommandSenderMock;
 import org.mockbukkit.mockbukkit.entity.PlayerMock;
 import org.mockbukkit.mockbukkit.plugin.PluginMock;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
+import java.util.OptionalDouble;
+import java.util.OptionalInt;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -141,6 +146,81 @@ class CommandBuilderTest {
 
         assertEquals("This command is currently unavailable.", plain(player.nextComponentMessage()));
         assertTrue(calls.isEmpty());
+    }
+
+    private Command registerWithAdminGroup() {
+        return CommandBuilder.create("shop")
+                .aliases("s")
+                .sub("open", null, (sender, args) -> calls.add("open"))
+                .sub(CommandBuilder.create("admin").permission("shop.admin")
+                        .sub("reset", null, (sender, args) -> calls.add("reset " + String.join(" ", args)),
+                                (sender, args) -> List.of("all", "prices")))
+                .register(plugin);
+    }
+
+    @Test
+    void nestedGroupRoutesWithItsOwnPermission() {
+        registerWithAdminGroup();
+
+        server.dispatchCommand(player, "shop admin reset all");
+        assertEquals("You do not have permission to do that.", plain(player.nextComponentMessage()));
+
+        player.addAttachment(plugin, "shop.admin", true);
+        server.dispatchCommand(player, "shop ADMIN reset all");
+        server.dispatchCommand(player, "shop admin");
+
+        assertEquals(List.of("reset all"), calls);
+        assertEquals("Usage:", plain(player.nextComponentMessage()));
+        assertEquals("/shop admin reset", plain(player.nextComponentMessage()));
+    }
+
+    @Test
+    void nestedGroupTabCompletes() {
+        Command command = registerWithAdminGroup();
+
+        assertEquals(List.of("open"), command.tabComplete(player, "shop", new String[]{""}));
+        player.addAttachment(plugin, "shop.admin", true);
+        assertEquals(List.of("open", "admin"), command.tabComplete(player, "shop", new String[]{""}));
+        assertEquals(List.of("reset"), command.tabComplete(player, "shop", new String[]{"admin", "r"}));
+        assertEquals(List.of("all", "prices"), command.tabComplete(player, "shop", new String[]{"admin", "reset", ""}));
+    }
+
+    @Test
+    void unregisterRemovesEveryLabel() {
+        Command command = registerShop();
+
+        CommandBuilder.unregister(command);
+
+        assertNull(server.getCommandMap().getCommand("shop"));
+        assertNull(server.getCommandMap().getCommand("s"));
+        assertNull(server.getCommandMap().getCommand("shop:shop"));
+    }
+
+    @Test
+    void commandsAreUnregisteredWhenTheirPluginDisables() {
+        server.getPluginManager().registerEvents(new CleanupListener(), MockBukkit.createMockPlugin("Api"));
+        registerShop();
+
+        server.getPluginManager().disablePlugin(plugin);
+
+        assertNull(server.getCommandMap().getCommand("shop"));
+    }
+
+    @Test
+    void argsParseAndSuggest() {
+        assertEquals(OptionalInt.of(5), Args.integer("5", 1, 64));
+        assertEquals(OptionalInt.empty(), Args.integer("99", 1, 64));
+        assertEquals(OptionalInt.empty(), Args.integer("abc", 1, 64));
+        assertEquals(OptionalDouble.empty(), Args.decimal("NaN", 0, 10));
+        assertEquals(OptionalDouble.of(2.5), Args.decimal("2.5", 0, 10));
+        assertEquals(Optional.of(Duration.ofMinutes(90)), Args.duration("1h30m"));
+        assertEquals(Optional.empty(), Args.duration("soon"));
+        assertEquals(Optional.of(player), Args.player(player.getName().toUpperCase()));
+        assertEquals(Optional.empty(), Args.player(""));
+        assertEquals("", Args.get(new String[]{"a"}, 3));
+        assertEquals("b c", Args.join(new String[]{"a", "b", "c"}, 1));
+        assertEquals(List.of("Prices"), Args.filter(List.of("all", "Prices"), new String[]{"reset", "pr"}));
+        assertEquals(List.of(player.getName()), Args.players(new String[]{""}));
     }
 
     @Test

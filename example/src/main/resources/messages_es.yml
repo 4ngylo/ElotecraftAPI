@@ -1,0 +1,9 @@
+# Spanish overrides; any key missing here falls back to messages.yml.
+prefix: "<gradient:gold:yellow><bold>Ejemplo</bold></gradient> <dark_gray>» "
+example:
+  input-ask: "<prefix><yellow>Escribe un apodo en el chat (o 'cancel'); tienes 30 segundos."
+  input-done: "<prefix><green>¡Encantado, <white><name></white>!"
+  input-cancelled: "<prefix><gray>Sin apodo entonces."
+  hud-shown: "<prefix><green>Barra lateral y barra de jefe activadas. Repite el comando para ocultar la barra lateral."
+  hud-hidden: "<prefix><gray>Barra lateral oculta."
+  hologram-spawned: "<prefix><green>Holograma creado delante de ti; desaparece en 15 segundos."

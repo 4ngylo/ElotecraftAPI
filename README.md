@@ -4,9 +4,12 @@ Shared library plugin for Elotecraft Paper plugins (Paper 1.21.11, Java 21).
 
 | Package | What |
 |---|---|
-| `util` | `Text` (MiniMessage), `Durations`, `Cooldowns`, `Tasks`, `Events`, `ItemBuilder`, `ConfigFile`, `Messages` |
-| `menu` | `Button`, `Menu`, `PaginatedMenu`, `MenuListener` |
-| `command` | `CommandBuilder`: subcommands, permissions, tab completion, no `plugin.yml` entry |
+| `util` | `Text` (MiniMessage), `Durations`, `Cooldowns`, `Tasks`, `Events`, `ItemBuilder` (incl. skulls), `ConfigFile`, `Messages` (prefix, per-player language, PlaceholderAPI) |
+| `menu` | `Button`, `Menu` (incl. `refresh`), `PaginatedMenu`, `MenuConfig` (menus from YAML), `MenuListener` |
+| `command` | `CommandBuilder`: nested subcommands, permissions, tab completion, unregister, no `plugin.yml` entry; `Args` parsers and suggestions |
+| `input` | `ChatInput`: ask a player to type something in chat |
+| `hud` | `Bossbars` (timed bars), `Sidebar` (per-player scoreboard) |
+| `hologram` | `Hologram`: floating MiniMessage text (`TextDisplay`) |
 | `storage` | `Database`: async SQLite/MySQL (HikariCP), parameterized queries, transactions, results on the main thread |
 
 The `example` module is a separate demo plugin (`/example`, `/countdown`) showing every feature.

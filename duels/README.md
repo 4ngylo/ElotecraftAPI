@@ -72,8 +72,9 @@ default) grants all player permissions; `duels.admin` (operators) grants all adm
 
 While in a duel or spectating, players cannot drop, pick up or store items, open containers or other
 menus, change blocks, use commands other than `/duel` and `rules.allowed-commands`, or teleport out of
-the arena (pearls inside it work). Only the two fighters can hurt each other. Explosions never break
-arena blocks.
+the arena (pearls inside it work). Among players only the two fighters can hurt each other; mobs, fall
+damage and the like still apply, so keep arenas mob-free and protected (e.g. WorldGuard). Explosions
+never break arena blocks, and arrows, tridents and pearls left in an arena are removed when a duel ends.
 
 A crash, kick or reload never leaves anyone stuck: on shutdown everyone is put back, and a duel that was
 cut short by a crash is undone when the player next joins.
@@ -87,8 +88,10 @@ cut short by a crash is undone when the player next joins.
   Add `messages_<language>.yml` (e.g. `messages_es.yml`) for players whose client uses that language.
 - `menus.yml`: titles, sizes, filler and button items of the kit and arena menus.
 
-Rewards run for wins and losses (not draws or cancelled duels): money through Vault and console commands
-with `<winner>`, `<loser>`, `<kit>` and `<arena>`.
+Rewards are paid when a duel ends with a lethal hit (not for forfeits, quits, draws or cancelled duels, so
+accounts cannot farm them): money through Vault and console commands with `<winner>`, `<loser>`, `<kit>`
+and `<arena>`. Commands are skipped for players whose name is not letters, digits and underscores
+(offline-mode servers allow names such as `@a`). Wins and losses by forfeit or quit still count in the stats.
 
 ## Placeholders
 

@@ -13,9 +13,12 @@ import org.bukkit.plugin.Plugin;
 import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.regex.Pattern;
 
 /** Pays out config.yml's {@code rewards} for a won duel: money through Vault and console commands. */
 final class Rewards {
+
+    private static final Pattern SAFE_NAME = Pattern.compile("[A-Za-z0-9_]{1,16}");
 
     private final Logger logger;
     private final Messages messages;
@@ -40,8 +43,13 @@ final class Rewards {
             economy.deposit(player, reward.money()).ifPresent(amount ->
                     messages.send(player, messageKey, Placeholder.unparsed("amount", amount)));
         }
+        if (!reward.commands().isEmpty() && !(SAFE_NAME.matcher(winner.getName()).matches()
+                && SAFE_NAME.matcher(loser.getName()).matches())) {
+            // Offline-mode servers accept names like "@a", which would become a selector in the command.
+            logger.warning("Skipped duel reward commands: " + winner.getName() + " or " + loser.getName() + " is not a normal player name");
+            return;
+        }
         for (String command : reward.commands()) {
-            // Player names are only letters, digits and underscores, so they cannot add arguments.
             String filled = command.replace("<winner>", winner.getName())
                     .replace("<loser>", loser.getName())
                     .replace("<kit>", match.kit().name())

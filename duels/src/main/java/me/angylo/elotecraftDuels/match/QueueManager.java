@@ -157,7 +157,7 @@ public final class QueueManager {
     private void dropUnavailable(LinkedHashMap<UUID, Long> queue) {
         for (UUID uuid : Set.copyOf(queue.keySet())) {
             Player player = Bukkit.getPlayer(uuid);
-            if (player == null || matches.isBusy(player)) {
+            if (player == null || !matches.available(player)) {
                 remove(uuid);
             }
         }

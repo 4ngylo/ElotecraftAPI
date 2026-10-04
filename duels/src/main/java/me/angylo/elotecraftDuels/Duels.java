@@ -37,6 +37,7 @@ public final class Duels {
 
     private static final long SECOND_TICKS = 20;
     private static final int SECONDS_PER_RETRY = 60;
+    private static final long SHUTDOWN_WAIT_SECONDS = 5;
 
     private final Plugin plugin;
     private final ConfigFile config;
@@ -171,6 +172,7 @@ public final class Duels {
         ticker.cancel();
         placeholders.unregister();
         matches.shutdown();
+        snapshots.awaitSaves(SHUTDOWN_WAIT_SECONDS);
         requests.clear();
         queues.clear();
         stats.retryFailed();

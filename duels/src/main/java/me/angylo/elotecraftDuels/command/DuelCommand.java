@@ -2,6 +2,8 @@ package me.angylo.elotecraftDuels.command;
 
 import me.angylo.elotecraftAPI.command.Args;
 import me.angylo.elotecraftAPI.command.CommandBuilder;
+import me.angylo.elotecraftAPI.util.Cooldowns;
+import me.angylo.elotecraftAPI.util.Durations;
 import me.angylo.elotecraftAPI.util.Messages;
 import me.angylo.elotecraftAPI.util.Text;
 import me.angylo.elotecraftDuels.Duels;
@@ -16,6 +18,7 @@ import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 import java.util.logging.Level;
@@ -26,11 +29,14 @@ public final class DuelCommand {
     static final String DUEL = "duels.duel";
     static final String SELECT_ARENA = "duels.select-arena";
     private static final int TOP_SIZE = 10;
+    /** Between database lookups and spectate attempts by one player, so they cannot be spammed. */
+    private static final Duration LOOKUP_COOLDOWN = Duration.ofSeconds(3);
 
     private final Duels duels;
     private final Messages messages;
     private final KitMenu kitMenu;
     private final ArenaMenu arenaMenu;
+    private final Cooldowns<String> lookups = new Cooldowns<>();
 
     public DuelCommand(Duels duels, KitMenu kitMenu, ArenaMenu arenaMenu) {
         this.duels = duels;
@@ -52,9 +58,20 @@ public final class DuelCommand {
                 .playerSub("queue", "duels.queue", this::queue, (sender, args) -> Args.filter(usableKits(sender), args))
                 .playerSub("leave", null, this::leave)
                 .playerSub("spectate", "duels.spectate", this::spectate, (sender, args) -> Args.players(args))
-                .sub("stats", "duels.stats", this::stats, (sender, args) -> Args.players(args))
-                .sub("top", "duels.top", (sender, args) -> top(sender))
+                .sub("stats", "duels.stats", (sender, args) -> limited(sender, () -> stats(sender, args)),
+                        (sender, args) -> Args.players(args))
+                .sub("top", "duels.top", (sender, args) -> limited(sender, () -> top(sender)))
                 .register(duels.plugin());
+    }
+
+    /** Runs {@code action} unless {@code sender} did a lookup moments ago; the console is never limited. */
+    private void limited(CommandSender sender, Runnable action) {
+        if (sender instanceof Player && !lookups.tryUse(sender.getName(), LOOKUP_COOLDOWN)) {
+            messages.send(sender, "general.slow-down",
+                    Placeholder.unparsed("time", Durations.format(lookups.remaining(sender.getName()))));
+            return;
+        }
+        action.run();
     }
 
     private void challengeOrHelp(CommandSender sender, String[] args) {
@@ -172,8 +189,11 @@ public final class DuelCommand {
             messages.send(player, "general.busy-self");
             return;
         }
-        duels.queues().leave(player);
-        duels.matches().spectate(player, match.get());
+        // Each spectate saves the player's state, so starting one is rate limited.
+        limited(player, () -> {
+            duels.queues().leave(player);
+            duels.matches().spectate(player, match.get());
+        });
     }
 
     private void stats(CommandSender sender, String[] args) {

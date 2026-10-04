@@ -17,7 +17,9 @@ import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver;
 import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
+import org.bukkit.World;
 import org.bukkit.entity.Player;
+import org.bukkit.entity.Projectile;
 import org.bukkit.event.player.PlayerTeleportEvent.TeleportCause;
 import org.bukkit.plugin.Plugin;
 
@@ -135,7 +137,7 @@ public final class MatchManager {
      * @return false if either player is busy or the arena is not ready and free; callers check and explain first
      */
     public boolean start(Player first, Player second, Kit kit, Arena arena) {
-        if (first.equals(second) || isBusy(first) || isBusy(second) || isArenaBusy(arena.name()) || !arena.isReady()) {
+        if (first.equals(second) || !available(first) || !available(second) || isArenaBusy(arena.name()) || !arena.isReady()) {
             return false;
         }
         Match match = new Match(arena, kit, first, second);
@@ -146,11 +148,23 @@ public final class MatchManager {
             PlayerSnapshot snapshot = PlayerSnapshot.capture(fighter);
             match.addSnapshot(fighter, snapshot);
             taken.put(fighter.getUniqueId(), snapshot);
+        }
+        // Saved before anyone is registered: if serializing throws, nobody is left half in a duel.
+        CompletableFuture<Void> saved;
+        try {
+            saved = snapshots.save(taken);
+        } catch (RuntimeException e) {
+            logger.log(Level.SEVERE, "Could not save " + first.getName() + " and " + second.getName() + " before their duel", e);
+            messages.send(first, "general.storage-error");
+            messages.send(second, "general.storage-error");
+            return true;
+        }
+        for (Player fighter : List.of(first, second)) {
             byPlayer.put(fighter.getUniqueId(), match);
         }
         byArena.put(arena.name(), match);
         display.starting(match);
-        snapshots.save(taken).whenComplete((ignored, error) -> guarded(match, () -> {
+        saved.whenComplete((ignored, error) -> guarded(match, () -> {
             if (match.isOver()) {
                 return;
             }
@@ -163,6 +177,11 @@ public final class MatchManager {
             teleportFighters(match);
         }));
         return true;
+    }
+
+    /** Online, alive and not already fighting or spectating. */
+    public boolean available(Player player) {
+        return player.isOnline() && !player.isDead() && !isBusy(player);
     }
 
     /** A lethal hit on a fighter: the opponent wins. */
@@ -257,9 +276,17 @@ public final class MatchManager {
     public void spectate(Player spectator, Match match) {
         spectator.closeInventory();
         PlayerSnapshot snapshot = PlayerSnapshot.capture(spectator);
+        CompletableFuture<Void> saved;
+        try {
+            saved = snapshots.save(Map.of(spectator.getUniqueId(), snapshot));
+        } catch (RuntimeException e) {
+            logger.log(Level.SEVERE, "Could not save " + spectator.getName() + " before spectating", e);
+            messages.send(spectator, "general.storage-error");
+            return;
+        }
         match.addSpectator(spectator, snapshot);
         byPlayer.put(spectator.getUniqueId(), match);
-        snapshots.save(Map.of(spectator.getUniqueId(), snapshot)).whenComplete((ignored, error) -> guardedSpectator(match, spectator, () -> {
+        saved.whenComplete((ignored, error) -> guardedSpectator(match, spectator, () -> {
             if (match.isOver() || !match.isSpectator(spectator)) {
                 return;
             }
@@ -313,8 +340,13 @@ public final class MatchManager {
             display.removeBossBar(match);
             for (Player participant : match.participants()) {
                 messages.send(participant, "match.cancelled");
+                // No respawn listener after disable: bring a dead player back now so they can be restored.
+                if (participant.isDead()) {
+                    participant.spigot().respawn();
+                }
                 release(match, participant, true);
             }
+            clearProjectiles(match.arena());
         }
         byPlayer.clear();
         byArena.clear();
@@ -435,7 +467,10 @@ public final class MatchManager {
         Player loser = winner == null ? null : match.opponentOf(winner);
         if (winner != null) {
             stats.recordResult(winner, loser);
-            rewards.give(winner, loser, match);
+            // Only a real fight pays out, so two accounts cannot farm rewards by forfeiting to each other.
+            if (reason == EndReason.ELIMINATED) {
+                rewards.give(winner, loser, match);
+            }
             display.result(match, winner, loser, reason);
             if (match.isParticipant(loser) && !loser.isDead()) {
                 loser.setGameMode(GameMode.SPECTATOR);
@@ -505,7 +540,21 @@ public final class MatchManager {
         for (Player participant : match.participants()) {
             release(match, participant, false);
         }
+        clearProjectiles(match.arena());
         byArena.remove(match.arena().name(), match);
+    }
+
+    /**
+     * Removes arrows, tridents and pearls left in the arena: kit items must not be picked up later, and a
+     * pearl landing after the duel would pull its thrower back in.
+     */
+    private static void clearProjectiles(Arena arena) {
+        World world = Bukkit.getWorld(arena.world());
+        if (world != null) {
+            world.getEntitiesByClass(Projectile.class).stream()
+                    .filter(projectile -> arena.contains(projectile.getLocation()))
+                    .forEach(Projectile::remove);
+        }
     }
 
     /** Takes {@code player} out of {@code match} and restores their snapshot. */

@@ -127,11 +127,11 @@ public final class RequestManager {
             messages.send(target, "general.player-not-found", Placeholder.unparsed("player", request.senderName()));
             return;
         }
-        if (matches.isBusy(target)) {
+        if (!matches.available(target)) {
             messages.send(target, "general.busy-self");
             return;
         }
-        if (matches.isBusy(sender)) {
+        if (!matches.available(sender)) {
             messages.send(target, "general.busy-other", Placeholder.unparsed("player", sender.getName()));
             return;
         }
@@ -139,6 +139,10 @@ public final class RequestManager {
         if (kit.isEmpty()) {
             remove(request);
             messages.send(target, "general.kit-not-found", Placeholder.unparsed("kit", request.kit()));
+            return;
+        }
+        if (!kit.get().canUse(target)) {
+            messages.send(target, "general.kit-locked", kitTag(kit.get()));
             return;
         }
         Optional<Arena> arena = request.arena() == null ? matches.randomFreeArena() : freeArena(target, request.arena());

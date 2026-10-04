@@ -90,6 +90,14 @@ class MatchFlowTest extends DuelsTestBase {
     }
 
     @Test
+    void deadPlayersCannotBeStarted() {
+        steve.setHealth(0);
+
+        assertFalse(duels.matches().start(alex, steve, kit, arena));
+        assertFalse(duels.matches().isBusy(alex));
+    }
+
+    @Test
     void quittingMidFightLosesAndIsRestoredAtOnce() {
         startAndFight();
 

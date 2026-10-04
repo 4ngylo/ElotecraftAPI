@@ -8,6 +8,7 @@ import org.bukkit.inventory.ItemStack;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -31,9 +32,14 @@ class AdminCommandTest extends DuelsTestBase {
     private List<String> run(String command) {
         messages(admin);
         server.dispatchCommand(admin, command);
-        server.getScheduler().waitAsyncTasksFinished();
-        ticks(2);
-        return messages(admin);
+        List<String> lines = new ArrayList<>();
+        long deadline = System.currentTimeMillis() + 5000;
+        while (lines.isEmpty() && System.currentTimeMillis() < deadline) {
+            tick();
+            lines.addAll(messages(admin));
+            Thread.onSpinWait();
+        }
+        return lines;
     }
 
     private boolean said(String command, String text) {

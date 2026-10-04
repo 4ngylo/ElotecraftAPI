@@ -59,6 +59,7 @@ general:
   restored: "<prefix><gray>Your items and position were restored from a duel that didn't finish."
   nothing-to-leave: "<prefix><red>You're not in a queue, a duel or spectating."
   random-arena: "Random arena"
+  slow-down: "<prefix><red>Wait <time> before doing that again."
 
 request:
   sent: "<prefix><gray>Challenged <white><player></white> to a <white><kit></white> duel <dark_gray>(<arena>)</dark_gray>."

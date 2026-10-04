@@ -33,7 +33,8 @@ rules:
 
 rewards:
   # Money needs Vault and an economy plugin. Commands run from the console and may use
-  # <winner>, <loser>, <kit> and <arena>, e.g. "give <winner> diamond 1". Draws give nothing.
+  # <winner>, <loser>, <kit> and <arena>, e.g. "give <winner> diamond 1". Only paid for a lethal hit:
+  # forfeits, quits and draws give nothing.
   win:
     money: 0
     commands: []

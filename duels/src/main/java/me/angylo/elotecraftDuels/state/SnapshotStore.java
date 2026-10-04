@@ -16,6 +16,9 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -156,6 +159,24 @@ public final class SnapshotStore {
     /** Like {@link #findBlocking} without blocking; for players already online. */
     public CompletableFuture<Optional<String>> find(UUID player) {
         return schema.thenCompose(ignored -> db.queryOne(FIND, row -> row.getString("data"), player));
+    }
+
+    /**
+     * Waits (up to {@code timeoutSeconds}) for saves still being written, so the deletes chained after them
+     * reach the database before it closes. For {@code onDisable}, where results complete on database threads.
+     */
+    public void awaitSaves(long timeoutSeconds) {
+        CompletableFuture<?>[] pending = savesInFlight.values().toArray(CompletableFuture[]::new);
+        if (pending.length == 0) {
+            return;
+        }
+        try {
+            CompletableFuture.allOf(pending).get(timeoutSeconds, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } catch (ExecutionException | TimeoutException e) {
+            logger.log(Level.WARNING, "Duel snapshots still saving at shutdown; they are restored on next join", e);
+        }
     }
 
     /** Retries deletes that failed, so a restored snapshot is not applied a second time. */

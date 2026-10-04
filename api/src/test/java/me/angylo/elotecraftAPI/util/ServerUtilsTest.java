@@ -1,5 +1,6 @@
 package me.angylo.elotecraftAPI.util;
 
+import com.destroystokyo.paper.profile.PlayerProfile;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.TextDecoration;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
@@ -10,12 +11,14 @@ import org.bukkit.event.Event;
 import org.bukkit.event.HandlerList;
 import org.bukkit.event.Listener;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.SkullMeta;
 import org.bukkit.persistence.PersistentDataType;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockbukkit.mockbukkit.MockBukkit;
 import org.mockbukkit.mockbukkit.ServerMock;
+import org.mockbukkit.mockbukkit.entity.PlayerMock;
 import org.mockbukkit.mockbukkit.plugin.PluginMock;
 
 import java.io.IOException;
@@ -93,6 +96,34 @@ class ServerUtilsTest {
         assertEquals(2, first.getAmount());
         assertEquals("Second", Text.plain(second.getItemMeta().displayName()));
         assertEquals(5, second.getAmount());
+    }
+
+    @Test
+    void itemBuilderSkullShowsOwner() {
+        PlayerMock steve = server.addPlayer("Steve");
+
+        ItemStack head = ItemBuilder.of(Material.PLAYER_HEAD).skull(steve).build();
+
+        // MockBukkit's SkullMeta stores the owner by name and returns an offline-mode UUID, so compare names.
+        assertEquals("Steve", ((SkullMeta) head.getItemMeta()).getOwningPlayer().getName());
+    }
+
+    @Test
+    void itemBuilderSkullTextureSetsTexturesProperty() {
+        String texture = "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvYWJjIn19fQ==";
+
+        ItemStack head = ItemBuilder.of(Material.PLAYER_HEAD).skullTexture(texture).build();
+        ItemStack same = ItemBuilder.of(Material.PLAYER_HEAD).skullTexture(texture).build();
+
+        PlayerProfile profile = ((SkullMeta) head.getItemMeta()).getPlayerProfile();
+        assertEquals(texture, profile.getProperties().iterator().next().getValue());
+        assertEquals(profile.getId(), ((SkullMeta) same.getItemMeta()).getPlayerProfile().getId());
+    }
+
+    @Test
+    void itemBuilderSkullRejectsWrongItemAndBlankTexture() {
+        assertThrows(IllegalStateException.class, () -> ItemBuilder.of(Material.STONE).skullTexture("abc"));
+        assertThrows(IllegalArgumentException.class, () -> ItemBuilder.of(Material.PLAYER_HEAD).skullTexture(" "));
     }
 
     @Test

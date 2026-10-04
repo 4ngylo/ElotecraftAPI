@@ -1,17 +1,24 @@
 package me.angylo.elotecraftAPI.util;
 
+import com.destroystokyo.paper.profile.PlayerProfile;
+import com.destroystokyo.paper.profile.ProfileProperty;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.TextDecoration;
+import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
+import org.bukkit.OfflinePlayer;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.inventory.meta.SkullMeta;
 import org.bukkit.persistence.PersistentDataType;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * Fluent {@link ItemStack} builder. Names and lore are non-italic unless the text says otherwise.
@@ -108,6 +115,33 @@ public final class ItemBuilder {
         return this;
     }
 
+    /**
+     * Player head showing {@code owner}'s skin.
+     *
+     * @throws IllegalStateException if the item is not a {@link Material#PLAYER_HEAD}
+     */
+    public ItemBuilder skull(OfflinePlayer owner) {
+        skullMeta().setOwningPlayer(owner);
+        return this;
+    }
+
+    /**
+     * Player head with a custom texture: the base64 "Value" from sites like minecraft-heads.com.
+     * Heads with the same texture stack, because the profile id is derived from it.
+     *
+     * @throws IllegalStateException    if the item is not a {@link Material#PLAYER_HEAD}
+     * @throws IllegalArgumentException if {@code base64} is blank
+     */
+    public ItemBuilder skullTexture(String base64) {
+        if (base64 == null || base64.isBlank()) {
+            throw new IllegalArgumentException("Skull texture is empty");
+        }
+        PlayerProfile profile = Bukkit.createProfile(UUID.nameUUIDFromBytes(base64.getBytes(StandardCharsets.UTF_8)));
+        profile.setProperty(new ProfileProperty("textures", base64));
+        skullMeta().setPlayerProfile(profile);
+        return this;
+    }
+
     public <P, C> ItemBuilder data(NamespacedKey key, PersistentDataType<P, C> type, C value) {
         meta.getPersistentDataContainer().set(key, type, value);
         return this;
@@ -117,6 +151,13 @@ public final class ItemBuilder {
         ItemStack built = item.clone();
         built.setItemMeta(meta);
         return built;
+    }
+
+    private SkullMeta skullMeta() {
+        if (!(meta instanceof SkullMeta skull)) {
+            throw new IllegalStateException("Skulls need a PLAYER_HEAD, not " + item.getType());
+        }
+        return skull;
     }
 
     private static Component noItalic(Component component) {

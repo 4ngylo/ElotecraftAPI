@@ -56,6 +56,27 @@ class PureUtilsTest {
     }
 
     @Test
+    void cooldownSweepsExpiredEntriesAsItGrows() {
+        AtomicLong now = new AtomicLong();
+        Cooldowns<Integer> cooldowns = new Cooldowns<>(now::get);
+        Duration oneSecond = Duration.ofSeconds(1);
+
+        // First sweep at 64 entries finds nothing expired, so the next one waits for 128.
+        for (int key = 0; key < 100; key++) {
+            cooldowns.tryUse(key, oneSecond);
+        }
+        assertEquals(100, cooldowns.size());
+
+        now.addAndGet(Duration.ofSeconds(2).toNanos());
+        for (int key = 100; key < 128; key++) {
+            cooldowns.tryUse(key, oneSecond);
+        }
+
+        assertEquals(28, cooldowns.size());
+        assertFalse(cooldowns.tryUse(127, oneSecond));
+    }
+
+    @Test
     void textParsesMiniMessage() {
         assertEquals("Hello world", Text.plain(Text.mm("<red>Hello <bold>world")));
         assertEquals(NamedTextColor.RED, Text.mm("<red>Hi").color());

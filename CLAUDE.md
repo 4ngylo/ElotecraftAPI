@@ -26,7 +26,7 @@ Library packages (under `api/src/main/java/me/angylo/elotecraftAPI/`):
 - `mvn compile` — fast compile check. `mvn -pl api test` — one module only.
 - `mvn verify` — what CI (`.github/workflows/build.yml`) runs. JaCoCo reports land in `<module>/target/site/jacoco/index.html`.
 - Publishing: JitPack builds tags (`jitpack.yml`); consumers use `com.github.4ngylo.ElotecraftAPI:elotecraft-api:<tag>`.
-- `mvn test` — JUnit 6 + MockBukkit (`mockbukkit-v1.21` 4.116.3, built for Paper 1.21.11). MockBukkit gaps: `Inventory#getHolder(boolean)` is unimplemented (so `MenuListener` is untested) and `ItemMetaMock` drops `itemModel` when copied.
+- `mvn test` — JUnit 6 + MockBukkit (`mockbukkit-v1.21` 4.116.3, built for Paper 1.21.11). MockBukkit gaps: `Inventory#getHolder(boolean)` is unimplemented (so `MenuListener` is untested) and `ItemMetaMock` drops `itemModel` when copied. `BukkitSchedulerMock.waitAsyncTasksFinished()` keeps ticking until every scheduled task (including delayed sync ones) has run, so do not call it before asserting that a delayed task has not run yet.
 
 ## How the pieces connect
 

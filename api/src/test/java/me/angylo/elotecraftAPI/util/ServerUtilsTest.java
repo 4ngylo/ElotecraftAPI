@@ -29,6 +29,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -78,6 +79,30 @@ class ServerUtilsTest {
     @Test
     void itemBuilderRejectsAir() {
         assertThrows(IllegalArgumentException.class, () -> ItemBuilder.of(Material.AIR));
+        assertThrows(IllegalArgumentException.class, () -> ItemBuilder.from(new ItemStack(Material.AIR)));
+    }
+
+    @Test
+    void itemBuilderChangesAfterBuildDoNotTouchEarlierItems() {
+        ItemBuilder builder = ItemBuilder.of(Material.STONE).name("First").amount(2);
+        ItemStack first = builder.build();
+
+        ItemStack second = builder.name("Second").amount(5).build();
+
+        assertEquals("First", Text.plain(first.getItemMeta().displayName()));
+        assertEquals(2, first.getAmount());
+        assertEquals("Second", Text.plain(second.getItemMeta().displayName()));
+        assertEquals(5, second.getAmount());
+    }
+
+    @Test
+    void itemBuilderFromKeepsOriginalUntouched() {
+        ItemStack original = ItemBuilder.of(Material.STONE).name("Original").build();
+
+        ItemStack copy = ItemBuilder.from(original).name("Copy").build();
+
+        assertEquals("Original", Text.plain(original.getItemMeta().displayName()));
+        assertEquals("Copy", Text.plain(copy.getItemMeta().displayName()));
     }
 
     @Test
@@ -134,6 +159,91 @@ class ServerUtilsTest {
         assertTrue(file.save().isCompletedExceptionally());
         file.saveNow();
         assertEquals("coins: [unclosed", Files.readString(path));
+    }
+
+    @Test
+    void saveLaterFoldsChangesIntoOneDelayedWrite() throws IOException {
+        Path path = freshFile("later.yml");
+        ConfigFile file = new ConfigFile(plugin, "later.yml");
+
+        file.get().set("coins", 1);
+        file.saveLater();
+        file.get().set("coins", 2);
+        file.saveLater();
+        // No waitAsyncTasksFinished() here: MockBukkit ticks until every scheduled task has run.
+        server.getScheduler().performTicks(10);
+        assertFalse(Files.exists(path));
+
+        server.getScheduler().performTicks(15);
+        server.getScheduler().waitAsyncTasksFinished();
+        assertEquals("coins: 2", Files.readString(path).strip());
+    }
+
+    @Test
+    void saveNowCancelsPendingSaveLater() throws IOException {
+        Path path = freshFile("now.yml");
+        ConfigFile file = new ConfigFile(plugin, "now.yml");
+
+        file.get().set("coins", 1);
+        file.saveLater();
+        file.get().set("coins", 2);
+        file.saveNow();
+        assertEquals("coins: 2", Files.readString(path).strip());
+
+        Files.delete(path);
+        server.getScheduler().performTicks(30);
+        server.getScheduler().waitAsyncTasksFinished();
+        assertFalse(Files.exists(path));
+    }
+
+    @Test
+    void olderAsyncSnapshotNeverOverwritesNewerSave() throws IOException {
+        Path path = freshFile("order.yml");
+        ConfigFile file = new ConfigFile(plugin, "order.yml");
+
+        file.get().set("coins", 1);
+        CompletableFuture<Void> older = file.save();
+        file.get().set("coins", 2);
+        file.saveNow();
+        server.getScheduler().waitAsyncTasksFinished();
+
+        assertTrue(older.isDone());
+        assertEquals("coins: 2", Files.readString(path).strip());
+    }
+
+    private Path freshFile(String name) throws IOException {
+        Path path = plugin.getDataFolder().toPath().resolve(name);
+        Files.deleteIfExists(path);
+        return path;
+    }
+
+    @Test
+    void messagesWithoutPlaceholdersAreCachedUntilReload() throws IOException {
+        Path file = writeMessages("hello: \"<green>Hi\"\n");
+        Messages messages = new Messages(plugin);
+
+        Component first = messages.get("hello");
+        Files.writeString(file, "hello: \"<red>Bye\"\n");
+
+        assertSame(first, messages.get("hello"));
+        assertTrue(messages.reload());
+        assertEquals("Bye", Text.plain(messages.get("hello")));
+    }
+
+    @Test
+    void messagesWithPlaceholdersAreNotCached() throws IOException {
+        writeMessages("greet: \"Hi <name>\"\n");
+        Messages messages = new Messages(plugin);
+
+        assertEquals("Hi Steve", Text.plain(messages.get("greet", Placeholder.unparsed("name", "Steve"))));
+        assertEquals("Hi Alex", Text.plain(messages.get("greet", Placeholder.unparsed("name", "Alex"))));
+    }
+
+    private Path writeMessages(String yaml) throws IOException {
+        Path file = plugin.getDataFolder().toPath().resolve("messages.yml");
+        Files.createDirectories(file.getParent());
+        Files.writeString(file, yaml);
+        return file;
     }
 
     @Test

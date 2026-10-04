@@ -7,6 +7,7 @@ import org.bukkit.NamespacedKey;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
 
 import java.util.Arrays;
@@ -14,14 +15,17 @@ import java.util.List;
 
 /**
  * Fluent {@link ItemStack} builder. Names and lore are non-italic unless the text says otherwise.
- * {@link #build()} returns a copy, so one builder can produce many items.
+ * Changes are collected on one {@link ItemMeta} and applied once in {@link #build()}, which returns
+ * a new stack each time, so one builder can produce many items.
  */
 public final class ItemBuilder {
 
     private final ItemStack item;
+    private final ItemMeta meta;
 
     private ItemBuilder(ItemStack item) {
         this.item = item;
+        this.meta = item.getItemMeta();
     }
 
     /**
@@ -34,8 +38,15 @@ public final class ItemBuilder {
         return new ItemBuilder(ItemStack.of(material));
     }
 
-    /** Starts from a copy of {@code item}; the original is not changed. */
+    /**
+     * Starts from a copy of {@code item}; the original is not changed.
+     *
+     * @throws IllegalArgumentException if {@code item} is air
+     */
     public static ItemBuilder from(ItemStack item) {
+        if (item.getType().isAir()) {
+            throw new IllegalArgumentException("Cannot build an item from " + item.getType());
+        }
         return new ItemBuilder(item.clone());
     }
 
@@ -45,7 +56,7 @@ public final class ItemBuilder {
     }
 
     public ItemBuilder name(Component name) {
-        item.editMeta(meta -> meta.displayName(noItalic(name)));
+        meta.displayName(noItalic(name));
         return this;
     }
 
@@ -55,7 +66,7 @@ public final class ItemBuilder {
     }
 
     public ItemBuilder lore(Component... lines) {
-        item.editMeta(meta -> meta.lore(Arrays.stream(lines).map(ItemBuilder::noItalic).toList()));
+        meta.lore(Arrays.stream(lines).map(ItemBuilder::noItalic).toList());
         return this;
     }
 
@@ -71,39 +82,41 @@ public final class ItemBuilder {
 
     /** Adds an enchantment; levels above the vanilla maximum are allowed. */
     public ItemBuilder enchant(Enchantment enchantment, int level) {
-        item.editMeta(meta -> meta.addEnchant(enchantment, level, true));
+        meta.addEnchant(enchantment, level, true);
         return this;
     }
 
     public ItemBuilder flags(ItemFlag... flags) {
-        item.editMeta(meta -> meta.addItemFlags(flags));
+        meta.addItemFlags(flags);
         return this;
     }
 
     public ItemBuilder unbreakable(boolean unbreakable) {
-        item.editMeta(meta -> meta.setUnbreakable(unbreakable));
+        meta.setUnbreakable(unbreakable);
         return this;
     }
 
     /** Forces the enchantment glint on or off; {@code null} restores the default. */
     public ItemBuilder glint(Boolean glint) {
-        item.editMeta(meta -> meta.setEnchantmentGlintOverride(glint));
+        meta.setEnchantmentGlintOverride(glint);
         return this;
     }
 
     /** Resource-pack model, e.g. {@code new NamespacedKey("elotecraft", "ruby_sword")}. */
     public ItemBuilder itemModel(NamespacedKey model) {
-        item.editMeta(meta -> meta.setItemModel(model));
+        meta.setItemModel(model);
         return this;
     }
 
     public <P, C> ItemBuilder data(NamespacedKey key, PersistentDataType<P, C> type, C value) {
-        item.editMeta(meta -> meta.getPersistentDataContainer().set(key, type, value));
+        meta.getPersistentDataContainer().set(key, type, value);
         return this;
     }
 
     public ItemStack build() {
-        return item.clone();
+        ItemStack built = item.clone();
+        built.setItemMeta(meta);
+        return built;
     }
 
     private static Component noItalic(Component component) {

@@ -167,10 +167,8 @@ public final class ExampleCommand {
         String path = "gives." + player.getUniqueId();
         int total = settings.get().getInt(path) + amount;
         settings.get().set(path, total);
-        settings.save().exceptionally(error -> {
-            plugin.getLogger().log(Level.WARNING, "Could not save example.yml", error);
-            return null;
-        });
+        // Frequent change: many gives in a short time become one disk write.
+        settings.saveLater();
         messages.send(player, "example.given",
                 Placeholder.unparsed("amount", String.valueOf(amount)), Placeholder.unparsed("total", String.valueOf(total)));
     }
@@ -188,7 +186,11 @@ public final class ExampleCommand {
             giveCooldowns.clear(player.getUniqueId());
         }
         settings.get().set("give-cooldown", input);
-        settings.save();
+        // Rare admin change: save right away and report failures.
+        settings.save().exceptionally(error -> {
+            plugin.getLogger().log(Level.WARNING, "Could not save example.yml", error);
+            return null;
+        });
         messages.send(sender, "example.cooldown-set", Placeholder.unparsed("time", Durations.format(giveCooldown)));
     }
 

@@ -22,7 +22,7 @@ Library packages (under `api/src/main/java/me/angylo/elotecraftAPI/`):
 
 ## Build
 
-- `mvn` — default goal is `clean package` for all modules; jars land in `api/target/elotecraft-api-1.0-SNAPSHOT.jar` and `example/target/elotecraft-example-1.0-SNAPSHOT.jar`. Drop them into a Paper server's `plugins/` folder.
+- `mvn` — default goal is `clean package` for all modules; jars land in `api/target/elotecraft-api-<version>.jar` and `example/target/elotecraft-example-<version>.jar`. Drop them into a Paper server's `plugins/` folder.
 - `mvn compile` — fast compile check. `mvn -pl api test` — one module only.
 - `mvn verify` — what CI (`.github/workflows/build.yml`) runs. JaCoCo reports land in `<module>/target/site/jacoco/index.html`.
 - Publishing: JitPack builds tags (`jitpack.yml`); consumers use `com.github.4ngylo.ElotecraftAPI:elotecraft-api:<tag>`.

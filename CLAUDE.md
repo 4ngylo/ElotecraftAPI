@@ -14,10 +14,15 @@ Multi-module Maven build (parent `pom.xml` holds versions, Paper/JUnit/MockBukki
 Library packages (under `api/src/main/java/me/angylo/elotecraftAPI/`):
 
 - `util/` — static helpers: `Text`, `Durations`, `Cooldowns`, `Tasks`, `Events`, `ItemBuilder`, `ConfigFile`, `Messages`.
-- `menu/` — `Button` (item + `(player, click)` handler), `Menu` (an `InventoryHolder` GUI of buttons), `PaginatedMenu` (content rows + arrows in the bottom row) and `MenuListener`, which `ElotecraftAPI.onEnable` must register; without it menus do not cancel clicks.
+- `menu/` — `Button` (item + `(player, click)` handler), `Menu` (an `InventoryHolder` GUI of buttons, `refresh` for live menus), `PaginatedMenu` (content rows + arrows in the bottom row), `MenuConfig` (menus from YAML) and `MenuListener`, which `ElotecraftAPI.onEnable` must register; without it menus do not cancel clicks.
+- `input/` — `ChatInput` (ask a player to type in chat) and `InputListener` (registered by `ElotecraftAPI`).
+- `hud/` — `Bossbars` (timed boss bars) and `Sidebar` (per-player scoreboard, numbers hidden).
+- `hologram/` — `Hologram` (non-persistent `TextDisplay`).
+- `CleanupListener` (root package, registered by `ElotecraftAPI`) removes a plugin's commands, chat prompts, boss bars, sidebars and holograms when it disables. New features that create per-plugin state must hook in there.
 - Every util that owns a resource (tasks, listeners, files, menus) takes the caller's `Plugin`, never the ElotecraftAPI instance, so resources die with the consumer plugin.
 - `storage/` — `Database`: SQLite or MySQL over HikariCP (shaded, relocated to `me.angylo.elotecraftAPI.libs.hikari`). Queries run on its own threads with `?` parameters and complete on the main thread. The JDBC drivers and slf4j are **not** shaded: Paper 1.21.11 bundles `sqlite-jdbc` 3.49.1.0, `mysql-connector-j` 9.2.0 and `slf4j-api` 2.0.17 (checked in the server jar's `META-INF/libraries.list`). Never expose HikariCP types in the public API.
-- `command/` — `CommandBuilder` builds a Bukkit `Command` with subcommands, permissions and tab completion, registered at runtime via `Bukkit.getCommandMap()` (no `plugin.yml` entry).
+- `command/` — `CommandBuilder` builds a Bukkit `Command` with nested subcommands, permissions and tab completion, registered at runtime via `Bukkit.getCommandMap()` (no `plugin.yml` entry); routing lives in `CommandNode`; `Args` has parsers and suggestions. Unregister by label: Paper's known-commands map forwards to Brigadier and ignores `values().remove`.
+- PlaceholderAPI is an optional `provided` dependency (`softdepend` in `plugin.yml`); only `util/PlaceholderHook`'s nested class touches it, so the library loads without it.
 - Do not use experimental Paper API (`@ApiStatus.Experimental`). In 1.21.11 that is the whole `io.papermc.paper.datacomponent` package and `CustomModelDataComponent`, plus individual members elsewhere (e.g. `Commands.getDispatcher()`, some `ArgumentTypes` methods, `LifecycleEvents.TAGS`). Check with IntelliJ's "Unstable API usage" inspection; a grep cannot see member-level annotations. Use `ItemMeta.setItemModel` for custom models.
 - Do not use Paper's command API (Brigadier `Commands`, `BasicCommand`, `LifecycleEvents.COMMANDS`, `JavaPlugin.registerCommand`). Commands use `CommandBuilder`.
 
@@ -27,7 +32,7 @@ Library packages (under `api/src/main/java/me/angylo/elotecraftAPI/`):
 - `mvn compile` — fast compile check. `mvn -pl api test` — one module only.
 - `mvn verify` — what CI (`.github/workflows/build.yml`) runs. JaCoCo reports land in `<module>/target/site/jacoco/index.html`.
 - Publishing: JitPack builds tags (`jitpack.yml`); consumers use `com.github.4ngylo.ElotecraftAPI:elotecraft-api:<tag>`.
-- `mvn test` — JUnit 6 + MockBukkit (`mockbukkit-v1.21` 4.116.3, built for Paper 1.21.11). MockBukkit gaps: `Inventory#getHolder(boolean)` is unimplemented (so `MenuListener` is untested) and `ItemMetaMock` drops `itemModel` when copied. `BukkitSchedulerMock.waitAsyncTasksFinished()` keeps ticking until every scheduled task (including delayed sync ones) has run, so do not call it before asserting that a delayed task has not run yet.
+- `mvn test` — JUnit 6 + MockBukkit (`mockbukkit-v1.21` 4.116.3, built for Paper 1.21.11). MockBukkit gaps: `Inventory#getHolder(boolean)` is unimplemented (so `MenuListener` is untested) `ItemMetaMock` drops `itemModel` when copied, `DisplayMock.setBillboard` and `ObjectiveMock.numberFormat` are unimplemented (so `Hologram` and `Sidebar` tests are reported as skipped), and `SkullMetaMock` returns an offline-mode UUID for owners. `BukkitSchedulerMock.waitAsyncTasksFinished()` keeps ticking until every scheduled task (including delayed sync ones) has run, so do not call it before asserting that a delayed task has not run yet.
 
 ## How the pieces connect
 

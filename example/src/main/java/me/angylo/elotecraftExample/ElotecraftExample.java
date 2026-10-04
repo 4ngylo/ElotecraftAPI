@@ -15,7 +15,7 @@ public final class ElotecraftExample extends JavaPlugin {
     @Override
     public void onDisable() {
         if (example != null) {
-            example.saveNow();
+            example.shutdown();
         }
     }
 }

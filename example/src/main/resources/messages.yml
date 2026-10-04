@@ -1,6 +1,6 @@
 # Messages for the /example demo command (MiniMessage format).
 example:
-  help: "<gold>/example</gold> <gray>menu | pages | roulette | give [amount] | cooldown <duration> | sneak | async | reload"
+  help: "<gold>/example</gold> <gray>menu | pages | roulette | give [amount] | cooldown <duration> | sneak | async | blocks [player] | topblocks | reload"
   given: "<green>Gave you <amount> demo diamonds. <gray>(total given: <total>)"
   on-cooldown: "<red>Wait <time> before using this again."
   invalid-amount: "<red>Amount must be a number from 1 to 64."
@@ -22,4 +22,11 @@ example:
   roulette-title: "<gradient:gold:yellow><bold>WINNER!"
   roulette-title-rare: "<gradient:#ff8a00:#e52e71><bold>JACKPOT!"
   roulette-subtitle: "<gray>You won <prize>"
+  blocks-header: "<gold>⛏ <white><player></white>'s broken blocks: <yellow><total>"
+  blocks-line: "<gray>  • <white><block></white>: <yellow><amount>"
+  blocks-unknown: "<gray>No blocks broken by '<white><player></white>' yet."
+  blocks-error: "<red>Could not load block stats; check the console."
+  top-header: "<gold>⛏ Top miners"
+  top-line: "<yellow>#<rank> <white><player> <gray>- <yellow><total>"
+  top-empty: "<gray>Nobody has broken any blocks yet."
   roulette-broadcast: "<gold>★ <white><player></white> hit the jackpot and won <prize><gold>! ★"

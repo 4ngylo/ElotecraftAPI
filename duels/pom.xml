@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>me.angylo</groupId>
+        <artifactId>elotecraft-parent</artifactId>
+        <version>1.2.0</version>
+    </parent>
+
+    <artifactId>elotecraft-duels</artifactId>
+    <packaging>jar</packaging>
+
+    <name>ElotecraftDuels</name>
+
+    <repositories>
+        <repository>
+            <id>placeholderapi</id>
+            <url>https://repo.extendedclip.com/releases/</url>
+        </repository>
+        <!-- Only for VaultAPI; snapshots off so Paper snapshot checks never go to JitPack. -->
+        <repository>
+            <id>jitpack.io</id>
+            <url>https://jitpack.io</url>
+            <snapshots>
+                <enabled>false</enabled>
+            </snapshots>
+        </repository>
+    </repositories>
+
+    <!-- All supplied by the server: ElotecraftAPI is required, Vault and PlaceholderAPI are optional. -->
+    <dependencies>
+        <dependency>
+            <groupId>me.angylo</groupId>
+            <artifactId>elotecraft-api</artifactId>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>me.clip</groupId>
+            <artifactId>placeholderapi</artifactId>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.github.MilkBowl</groupId>
+            <artifactId>VaultAPI</artifactId>
+            <scope>provided</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <!-- Plugin code must not use deprecated API; tests may. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>default-compile</id>
+                        <configuration>
+                            <compilerArgs>
+                                <arg>-Xlint:deprecation</arg>
+                                <arg>-Werror</arg>
+                            </compilerArgs>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+</project>

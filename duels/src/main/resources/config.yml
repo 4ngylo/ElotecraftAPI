@@ -1,0 +1,61 @@
+# ElotecraftDuels settings. Text lives in messages.yml and menu layouts in menus.yml.
+# Durations use d/h/m/s, e.g. 30s, 5m or 1m30s. Apply changes with /duels reload;
+# the database section needs a restart.
+
+database:
+  type: sqlite            # sqlite or mysql
+  file: duels.db          # sqlite only
+  host: localhost         # mysql only, as are the keys below
+  port: 3306
+  name: duels
+  user: minecraft
+  password: ""
+  pool-size: 10
+
+match:
+  countdown-seconds: 5    # 1 to 30; fighters cannot move until it ends
+  max-duration: 5m        # the fight ends in a draw after this
+  end-delay-seconds: 4    # 0 to 30; time to celebrate before everyone is sent back
+  boss-bar: true          # show the time left during the fight
+  boss-bar-color: RED     # PINK, BLUE, RED, GREEN, YELLOW, PURPLE or WHITE
+  log-results: true       # write every result to the console
+
+requests:
+  expiry: 30s             # how long a duel request can be accepted
+  cooldown: 5s            # between requests sent by one player; duels.bypass.cooldown skips it
+  rematch-window: 30s     # how long after a duel /duel rematch works
+
+rules:
+  hunger: false                # false keeps food full while dueling
+  natural-regeneration: true   # false: only potions, golden apples and the like heal
+  # Commands fighters and spectators may use besides /duel (their aliases too), without the slash.
+  allowed-commands: [msg, tell, w, r, reply]
+
+rewards:
+  # Money needs Vault and an economy plugin. Commands run from the console and may use
+  # <winner>, <loser>, <kit> and <arena>, e.g. "give <winner> diamond 1". Draws give nothing.
+  win:
+    money: 0
+    commands: []
+  loss:
+    money: 0
+    commands: []
+
+titles:                   # ticks (20 ticks = 1 second)
+  fade-in: 5
+  stay: 30
+  fade-out: 10
+
+# Sounds use Minecraft sound ids (https://minecraft.wiki/w/Sounds.json), e.g. entity.player.levelup.
+# Particles use Bukkit names of particles that need no extra data, e.g. TOTEM_OF_UNDYING, FLAME, HEART.
+# Remove an entry, or one of its keys, to turn that part off.
+effects:
+  request-received: {sound: entity.experience_orb.pickup, volume: 1.0, pitch: 1.2}
+  countdown: {sound: block.note_block.hat, volume: 1.0, pitch: 1.0}
+  fight-start: {sound: entity.ender_dragon.growl, volume: 0.6, pitch: 1.6}
+  victory: {sound: ui.toast.challenge_complete, volume: 1.0, pitch: 1.0, particle: TOTEM_OF_UNDYING, count: 60}
+  defeat: {sound: entity.wither.death, volume: 0.5, pitch: 1.6, particle: LARGE_SMOKE, count: 30}
+  draw: {sound: block.note_block.bass, volume: 1.0, pitch: 0.8}
+  queue-join: {sound: block.note_block.pling, volume: 0.8, pitch: 1.4}
+  menu-click: {sound: ui.button.click, volume: 0.6, pitch: 1.2}
+  denied: {sound: entity.villager.no, volume: 0.8, pitch: 1.0}

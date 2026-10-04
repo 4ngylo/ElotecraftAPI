@@ -1,0 +1,71 @@
+package me.angylo.elotecraftDuels.kit;
+
+import org.bukkit.Material;
+import org.bukkit.entity.Player;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.PlayerInventory;
+import org.bukkit.permissions.Permissible;
+
+import java.util.Arrays;
+import java.util.List;
+
+/**
+ * Items given to both fighters: a full player inventory (storage, armor and off hand). Immutable:
+ * items are copied in and out, and the {@code with...} methods return a changed copy.
+ *
+ * @param displayName MiniMessage, set by admins
+ * @param permission  needed to pick the kit, or null for everyone
+ */
+public record Kit(String name, String displayName, Material icon, String permission, List<ItemStack> items) {
+
+    public static final Material DEFAULT_ICON = Material.IRON_SWORD;
+
+    public Kit {
+        items = items.stream().map(item -> item == null ? ItemStack.empty() : item.clone()).toList();
+    }
+
+    /** A kit holding a copy of everything in {@code inventory}, armor and off hand included. */
+    static Kit of(String name, Material icon, PlayerInventory inventory) {
+        return new Kit(name, name, icon, null, Arrays.asList(inventory.getContents()));
+    }
+
+    @Override
+    public List<ItemStack> items() {
+        return items.stream().map(ItemStack::clone).toList();
+    }
+
+    public boolean isEmpty() {
+        return items.stream().allMatch(ItemStack::isEmpty);
+    }
+
+    public boolean canUse(Permissible permissible) {
+        return permission == null || permissible.hasPermission(permission);
+    }
+
+    /** Replaces {@code player}'s whole inventory with this kit. */
+    public void apply(Player player) {
+        PlayerInventory inventory = player.getInventory();
+        ItemStack[] contents = new ItemStack[inventory.getSize()];
+        for (int slot = 0; slot < contents.length; slot++) {
+            contents[slot] = slot < items.size() ? items.get(slot).clone() : ItemStack.empty();
+        }
+        inventory.setContents(contents);
+    }
+
+    public Kit withItems(PlayerInventory inventory) {
+        return new Kit(name, displayName, icon, permission, Arrays.asList(inventory.getContents()));
+    }
+
+    public Kit withIcon(Material newIcon) {
+        return new Kit(name, displayName, newIcon, permission, items);
+    }
+
+    public Kit withDisplayName(String newDisplayName) {
+        return new Kit(name, newDisplayName, icon, permission, items);
+    }
+
+    /** @param newPermission null for everyone */
+    public Kit withPermission(String newPermission) {
+        return new Kit(name, displayName, icon, newPermission, items);
+    }
+}

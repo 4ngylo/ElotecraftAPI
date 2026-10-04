@@ -1,0 +1,54 @@
+# Menu layouts. Text is MiniMessage, materials are Bukkit item names.
+# rows counts the bottom row too (2 to 6). The bottom row holds the page arrows in its first and
+# last slot; a button's slot is its position in that row (1 to 7, counting from 0 on the left).
+
+kits:
+  title: "<gradient:#ff416c:#ff4b2b><bold>⚔ Choose a kit"
+  rows: 4
+  filler: {material: BLACK_STAINED_GLASS_PANE, name: " "}
+  # One button per kit, shown with the kit's icon. <kit>, <queued> and <dueling> are filled in.
+  kit:
+    name: "<gradient:#f7971e:#ffd200><bold><kit>"
+    lore:                       # when challenging someone
+      - "<dark_gray>▪ <gray>In queue: <white><queued>"
+      - "<dark_gray>▪ <gray>Dueling: <white><dueling>"
+      - ""
+      - "<yellow>▶ Click to choose"
+    queue-lore:                 # in /duel queue
+      - "<dark_gray>▪ <gray>In queue: <white><queued>"
+      - "<dark_gray>▪ <gray>Dueling: <white><dueling>"
+      - ""
+      - "<yellow>▶ Click to join the queue"
+    queued-lore:                # in /duel queue, for the queue you are in
+      - "<dark_gray>▪ <gray>In queue: <white><queued>"
+      - "<dark_gray>▪ <gray>Dueling: <white><dueling>"
+      - ""
+      - "<green>✔ You're in this queue"
+      - "<red>▶ Click to leave it"
+  previous: {material: ARROW, name: "<yellow>« Previous page"}
+  next: {material: ARROW, name: "<yellow>Next page »"}
+  close: {slot: 4, material: BARRIER, name: "<red>Close"}
+
+arenas:
+  title: "<gradient:#4facfe:#00f2fe><bold>⛰ Choose an arena"
+  rows: 4
+  filler: {material: BLACK_STAINED_GLASS_PANE, name: " "}
+  # One button per ready arena, shown with the arena's icon. <arena> is filled in.
+  arena:
+    name: "<aqua><bold><arena>"
+    lore:
+      - "<dark_gray>▪ <green>Free"
+      - ""
+      - "<yellow>▶ Click to choose"
+    busy-lore:
+      - "<dark_gray>▪ <red>In use"
+      - ""
+      - "<gray>Pick another arena or a random one"
+  previous: {material: ARROW, name: "<yellow>« Previous page"}
+  next: {material: ARROW, name: "<yellow>Next page »"}
+  random:
+    slot: 3
+    material: ENDER_EYE
+    name: "<light_purple><bold>Random arena"
+    lore: ["<gray>Any free arena", "", "<yellow>▶ Click to choose"]
+  close: {slot: 5, material: BARRIER, name: "<red>Close"}

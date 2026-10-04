@@ -1,0 +1,197 @@
+# ElotecraftDuels text, in MiniMessage (https://docs.advntr.dev/minimessage/format.html).
+# <prefix> works in every message. Tags such as <player> or <kit> are filled in by the plugin.
+# Add messages_<language>.yml (e.g. messages_es.yml) next to this file for players whose client
+# uses that language; keys it lacks come from this file. PlaceholderAPI placeholders work too.
+prefix: "<gradient:#ff416c:#ff4b2b><bold>Duels</bold></gradient> <dark_gray>»</dark_gray> "
+
+command:
+  no-permission: "<prefix><red>You don't have permission to do that."
+  player-only: "<prefix><red>Only players can do that."
+  duel-description: "Challenge players to 1v1 duels"
+  admin-description: "Manage duel arenas and kits"
+  help: |-
+    <gradient:#ff416c:#ff4b2b><bold>⚔ Duels</bold></gradient>
+    <yellow>/duel <player> [kit] [arena]</yellow> <dark_gray>-</dark_gray> <gray>challenge someone
+    <yellow>/duel accept|deny [player]</yellow> <dark_gray>-</dark_gray> <gray>answer a challenge
+    <yellow>/duel rematch</yellow> <dark_gray>-</dark_gray> <gray>challenge your last opponent again
+    <yellow>/duel queue [kit]</yellow> <dark_gray>-</dark_gray> <gray>find an opponent
+    <yellow>/duel spectate <player></yellow> <dark_gray>-</dark_gray> <gray>watch a duel
+    <yellow>/duel leave</yellow> <dark_gray>-</dark_gray> <gray>leave the queue, stop spectating or forfeit
+    <yellow>/duel stats [player]</yellow> <dark_gray>·</dark_gray> <yellow>/duel top</yellow> <dark_gray>-</dark_gray> <gray>statistics
+  admin-help: |-
+    <gradient:#ff416c:#ff4b2b><bold>⚔ Duels admin</bold></gradient>
+    <yellow>/duels arena</yellow> <dark_gray>-</dark_gray> <gray>create and edit arenas
+    <yellow>/duels kit</yellow> <dark_gray>-</dark_gray> <gray>create and edit kits
+    <yellow>/duels stop <player></yellow> <dark_gray>-</dark_gray> <gray>stop someone's duel
+    <yellow>/duels reload</yellow> <dark_gray>-</dark_gray> <gray>reload config, messages, menus, arenas and kits
+  arena-help: |-
+    <gradient:#4facfe:#00f2fe><bold>Arena setup</bold></gradient> <dark_gray>(stand where each point should be)</dark_gray>
+    <yellow>/duels arena create <name></yellow> <dark_gray>-</dark_gray> <gray>new arena in your world
+    <yellow>/duels arena setspawn <name> <1|2></yellow> <dark_gray>-</dark_gray> <gray>where each fighter starts
+    <yellow>/duels arena setcorner <name> <1|2></yellow> <dark_gray>-</dark_gray> <gray>opposite corners around the whole arena
+    <yellow>/duels arena setspectator <name></yellow> <dark_gray>-</dark_gray> <gray>where spectators appear (optional)
+    <yellow>/duels arena seticon <name></yellow> <dark_gray>-</dark_gray> <gray>menu icon: the item in your hand
+    <yellow>/duels arena setname <name> <text></yellow> <dark_gray>-</dark_gray> <gray>name shown to players
+    <yellow>/duels arena toggle|info|tp|delete <name></yellow> <dark_gray>·</dark_gray> <yellow>/duels arena list</yellow>
+  kit-help: |-
+    <gradient:#f7971e:#ffd200><bold>Kit setup</bold></gradient> <dark_gray>(uses your inventory, armor and off hand)</dark_gray>
+    <yellow>/duels kit create <name></yellow> <dark_gray>-</dark_gray> <gray>new kit from your inventory
+    <yellow>/duels kit save <name></yellow> <dark_gray>-</dark_gray> <gray>overwrite a kit with your inventory
+    <yellow>/duels kit load <name></yellow> <dark_gray>-</dark_gray> <gray>put a kit in your empty inventory to edit it
+    <yellow>/duels kit seticon <name></yellow> <dark_gray>-</dark_gray> <gray>menu icon: the item in your hand
+    <yellow>/duels kit setname <name> <text></yellow> <dark_gray>-</dark_gray> <gray>name shown to players
+    <yellow>/duels kit setpermission <name> <permission|none></yellow> <dark_gray>-</dark_gray> <gray>who may use it
+    <yellow>/duels kit delete <name></yellow> <dark_gray>·</dark_gray> <yellow>/duels kit list</yellow>
+
+general:
+  player-not-found: "<prefix><red>'<player>' is not online."
+  kit-not-found: "<prefix><red>There is no kit called '<kit>'."
+  arena-not-found: "<prefix><red>There is no arena called '<arena>'."
+  no-kits: "<prefix><red>No kits have been set up yet."
+  kit-locked: "<prefix><red>You can't use the <kit> kit."
+  busy-self: "<prefix><red>You're already in a duel, a queue or spectating. <gray>Use <white>/duel leave</white> first."
+  busy-other: "<prefix><red><player> is busy right now."
+  no-free-arena: "<prefix><red>Every arena is in use; try again in a moment."
+  arena-busy: "<prefix><red><arena> is in use; pick another arena or a random one."
+  not-dueling: "<prefix><red><player> isn't in a duel."
+  storage-error: "<prefix><red>Your duel data couldn't be saved, so nothing changed. Try again or tell an admin."
+  menu-error: "<prefix><red>That menu is misconfigured; please tell an admin."
+  restored: "<prefix><gray>Your items and position were restored from a duel that didn't finish."
+  nothing-to-leave: "<prefix><red>You're not in a queue, a duel or spectating."
+  random-arena: "Random arena"
+
+request:
+  sent: "<prefix><gray>Challenged <white><player></white> to a <white><kit></white> duel <dark_gray>(<arena>)</dark_gray>."
+  received: |-
+    <prefix><white><player></white> <gray>challenged you to a duel!
+     <dark_gray>▪</dark_gray> <gray>Kit: <white><kit>
+     <dark_gray>▪</dark_gray> <gray>Arena: <white><arena>
+     <accept><green><bold>[ACCEPT]</bold></green></accept>  <deny><red><bold>[DENY]</bold></red></deny>
+  accept-hover: "<green>Click to accept"
+  deny-hover: "<red>Click to deny"
+  accepted: "<prefix><white><player></white> <green>accepted your duel!"
+  denied: "<prefix><white><player></white> <red>denied your duel."
+  you-denied: "<prefix><gray>You denied <white><player></white>'s duel."
+  expired-sender: "<prefix><gray>Your duel request to <white><player></white> expired."
+  expired-target: "<prefix><gray>The duel request from <white><player></white> expired."
+  cancelled-quit: "<prefix><gray><white><player></white> left, so the duel request was cancelled."
+  none: "<prefix><red>Nobody has challenged you."
+  none-from: "<prefix><red><player> hasn't challenged you."
+  choose: "<prefix><red>Several players challenged you; use <white>/duel accept <name></white>."
+  already-sent: "<prefix><red>You already challenged <player>; wait for an answer."
+  self: "<prefix><red>You can't duel yourself."
+  cooldown: "<prefix><red>Wait <time> before sending another duel request."
+  rematch-none: "<prefix><red>There is nobody to rematch right now."
+
+queue:
+  joined: "<prefix><green>Joined the <white><kit></white> queue. <gray>(<queued> waiting)"
+  left: "<prefix><gray>You left the <white><kit></white> queue."
+  action-bar: "<gray>Looking for an opponent <dark_gray>·</dark_gray> <white><kit></white> <dark_gray>·</dark_gray> <yellow><time>"
+  waiting-arena: "<prefix><yellow>Opponent found! Waiting for a free arena..."
+  kit-removed: "<prefix><red>The <kit> kit is gone, so you left its queue."
+
+match:
+  starting: "<prefix><gray>Duel against <white><opponent></white> <dark_gray>·</dark_gray> <white><kit></white> <dark_gray>·</dark_gray> <white><arena>"
+  countdown-title: "<gradient:#f7971e:#ffd200><bold><seconds>"
+  countdown-subtitle: "<gray>vs <white><opponent>"
+  fight-title: "<gradient:#ff416c:#ff4b2b><bold>FIGHT!"
+  fight-subtitle: "<gray>Good luck"
+  boss-bar: "<gray>Time left <dark_gray>·</dark_gray> <white><time>"
+  victory-title: "<gradient:#56ab2f:#a8e063><bold>VICTORY"
+  victory-subtitle: "<gray>You defeated <white><opponent>"
+  defeat-title: "<gradient:#cb2d3e:#ef473a><bold>DEFEAT"
+  defeat-subtitle: "<white><opponent></white> <gray>won with <red><health>❤"
+  draw-title: "<yellow><bold>DRAW"
+  draw-subtitle: "<gray>Time ran out"
+  result: "<prefix><white><winner></white> <gray>defeated</gray> <white><loser></white> <dark_gray>(<red><health>❤</red> left · <time> · <kit>)"
+  result-quit: "<prefix><white><loser></white> <gray>left the duel, so <white><winner></white> wins."
+  result-forfeit: "<prefix><white><loser></white> <gray>forfeited, so <white><winner></white> wins."
+  result-draw: "<prefix><gray>The duel between <white><first></white> and <white><second></white> ended in a draw."
+  cancelled: "<prefix><red>The duel was cancelled."
+  cancelled-quit: "<prefix><red><player> left before the fight, so the duel was cancelled."
+  cancelled-admin: "<prefix><red>An admin stopped the duel."
+  teleport-failed: "<prefix><red>Couldn't teleport everyone to the arena, so the duel was cancelled."
+  rematch-offer: "<prefix><rematch><gold><bold>[REMATCH]</bold></gold></rematch> <gray>Challenge <white><opponent></white> again"
+  rematch-hover: "<gold>Click to request a rematch"
+  out-of-bounds: "<prefix><red>You can't leave the arena."
+  blocked-command: "<prefix><red>You can't use that command during a duel."
+  blocked-teleport: "<prefix><red>You can't teleport away during a duel."
+  reward-win: "<prefix><green>+<amount> <gray>for winning."
+  reward-loss: "<prefix><gray>+<amount> for playing."
+
+spectate:
+  started: "<prefix><gray>Spectating <white><player></white>'s duel. <dark_gray>Use /duel leave to stop."
+  joined: "<prefix><white><player></white> <gray>is watching your duel."
+  stopped: "<prefix><gray>You stopped spectating."
+  ended: "<prefix><gray>The duel you were watching ended."
+  failed: "<prefix><red>Couldn't take you to that duel."
+
+stats:
+  show: |-
+    <gradient:#ff416c:#ff4b2b><bold>⚔ <player></bold></gradient>
+     <gray>Wins <green><wins></green> <dark_gray>·</dark_gray> Losses <red><losses></red> <dark_gray>·</dark_gray> Win rate <white><rate>%
+     <gray>Win streak <gold><streak></gold> <dark_gray>·</dark_gray> Best <gold><best>
+  unknown: "<prefix><red>No duel stats for '<player>' yet."
+  error: "<prefix><red>Couldn't load duel stats; try again later."
+
+top:
+  header: "<gradient:#f7971e:#ffd200><bold>⚔ Top duelists"
+  line: " <gold>#<rank></gold> <white><player></white> <dark_gray>·</dark_gray> <green><wins> wins</green> <dark_gray>·</dark_gray> <red><losses> losses"
+  empty: "<prefix><gray>No duels have been played yet."
+
+admin:
+  reloaded: "<prefix><green>Reloaded the config, messages, menus, arenas and kits."
+  reload-failed: "<prefix><red>Some files failed to load; check the console. Their previous values were kept."
+  invalid-name: "<prefix><red>Names use 1 to 32 lowercase letters, digits, - or _."
+  hold-item: "<prefix><red>Hold the item to use as the icon."
+  stopped: "<prefix><green>Stopped <white><player></white>'s duel."
+  use-number: "<prefix><red>Use 1 or 2."
+  invalid-display-name: "<prefix><red>Type the name to show, e.g. <white><gold>Desert"
+  save-failed: "<prefix><red>The change couldn't be saved; check the console."
+  arena:
+    created: "<prefix><green>Created arena <white><id></white> in <white><world></white>. <gray>Now set both spawns and both corners."
+    exists: "<prefix><red>Arena <id> already exists."
+    deleted: "<prefix><green>Deleted arena <white><id></white>."
+    in-use: "<prefix><red><arena> is in use; try again after the duel."
+    wrong-world: "<prefix><red><arena> is in world <world>; go there first."
+    spawn-set: "<prefix><green>Set spawn <white><number></white> of <white><arena></white>."
+    corner-set: "<prefix><green>Set corner <white><number></white> of <white><arena></white>."
+    spectator-set: "<prefix><green>Set the spectator spawn of <white><arena></white>."
+    icon-set: "<prefix><green>Set the icon of <white><arena></white>."
+    name-set: "<prefix><green>Arena <white><id></white> is now shown as <white><arena></white>."
+    enabled: "<prefix><green><arena> is enabled."
+    disabled: "<prefix><yellow><arena> is disabled; new duels won't use it."
+    teleported: "<prefix><gray>Teleported to <white><arena></white>."
+    not-ready: "<prefix><red><arena> isn't ready: <problems>"
+    info: |-
+      <gradient:#4facfe:#00f2fe><bold><arena></bold></gradient> <dark_gray>(<id>)</dark_gray>
+       <gray>World: <white><world></white> <dark_gray>·</dark_gray> <gray>Enabled: <white><enabled></white> <dark_gray>·</dark_gray> <gray>In use: <white><in-use>
+       <gray>Status: <status>
+    ready: "<green>ready"
+    list-header: "<prefix><gray>Arenas (<count>):"
+    list-entry: " <dark_gray>▪</dark_gray> <arena> <dark_gray>(<id>)</dark_gray> <status>"
+    list-empty: "<prefix><gray>No arenas yet. Create one with <white>/duels arena create <name>"
+    problems:
+      world-not-loaded: "<red>its world isn't loaded"
+      missing-spawn-1: "<red>spawn 1 isn't set"
+      missing-spawn-2: "<red>spawn 2 isn't set"
+      missing-corners: "<red>both corners aren't set"
+      spawn-outside: "<red>a spawn is outside the corners"
+      spectator-outside: "<red>the spectator spawn is outside the corners"
+      disabled: "<yellow>disabled"
+  kit:
+    created: "<prefix><green>Created kit <white><id></white> from your inventory."
+    exists: "<prefix><red>Kit <id> already exists; use /duels kit save to overwrite it."
+    saved: "<prefix><green>Saved your inventory to kit <white><kit></white>."
+    loaded: "<prefix><green>Loaded kit <white><kit></white>. <gray>Edit it, then use /duels kit save <id>."
+    inventory-not-empty: "<prefix><red>Empty your inventory and armor first so nothing is lost."
+    empty-inventory: "<prefix><red>Your inventory is empty; put the kit's items in it first."
+    deleted: "<prefix><green>Deleted kit <white><id></white>."
+    icon-set: "<prefix><green>Set the icon of <white><kit></white>."
+    name-set: "<prefix><green>Kit <white><id></white> is now shown as <white><kit></white>."
+    permission-set: "<prefix><green><kit> now needs <white><permission></white>."
+    permission-cleared: "<prefix><green>Everyone can use <white><kit></white>."
+    invalid-permission: "<prefix><red>Permissions use letters, digits, dots, - and _."
+    list-header: "<prefix><gray>Kits (<count>):"
+    list-entry: " <dark_gray>▪</dark_gray> <kit> <dark_gray>(<id>)</dark_gray> <gray><permission>"
+    list-empty: "<prefix><gray>No kits yet. Create one with <white>/duels kit create <name>"

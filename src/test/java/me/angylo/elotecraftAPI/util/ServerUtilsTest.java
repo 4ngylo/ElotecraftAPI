@@ -1,0 +1,163 @@
+package me.angylo.elotecraftAPI.util;
+
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.TextDecoration;
+import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
+import org.bukkit.Bukkit;
+import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
+import org.bukkit.event.Event;
+import org.bukkit.event.HandlerList;
+import org.bukkit.event.Listener;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.persistence.PersistentDataType;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.mockbukkit.mockbukkit.MockBukkit;
+import org.mockbukkit.mockbukkit.ServerMock;
+import org.mockbukkit.mockbukkit.plugin.PluginMock;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+class ServerUtilsTest {
+
+    private ServerMock server;
+    private PluginMock plugin;
+
+    @BeforeEach
+    void setUp() {
+        server = MockBukkit.mock();
+        plugin = MockBukkit.createMockPlugin();
+    }
+
+    @AfterEach
+    void tearDown() {
+        MockBukkit.unmock();
+    }
+
+    @Test
+    void itemBuilderAppliesMeta() {
+        NamespacedKey key = new NamespacedKey(plugin, "id");
+        NamespacedKey model = new NamespacedKey("elotecraft", "ruby_sword");
+        ItemBuilder builder = ItemBuilder.of(Material.DIAMOND_SWORD)
+                .name("<gold>Ruby")
+                .lore("one", "<italic>two")
+                .itemModel(model)
+                .data(key, PersistentDataType.STRING, "ruby");
+
+        ItemStack item = builder.build();
+
+        assertEquals("Ruby", Text.plain(item.getItemMeta().displayName()));
+        assertEquals(TextDecoration.State.FALSE, item.getItemMeta().displayName().decoration(TextDecoration.ITALIC));
+        assertEquals(TextDecoration.State.TRUE, item.getItemMeta().lore().get(1).decoration(TextDecoration.ITALIC));
+        // itemModel is not asserted: MockBukkit's ItemMetaMock copy constructor drops it, so getItemMeta() loses it.
+        assertEquals("ruby", item.getItemMeta().getPersistentDataContainer().get(key, PersistentDataType.STRING));
+        assertNotSame(item, builder.build());
+    }
+
+    @Test
+    void itemBuilderLoreFromStringList() {
+        ItemStack item = ItemBuilder.of(Material.STONE).lore(List.of("<gray>first", "second")).build();
+
+        assertEquals(List.of("first", "second"), item.getItemMeta().lore().stream().map(Text::plain).toList());
+    }
+
+    @Test
+    void itemBuilderRejectsAir() {
+        assertThrows(IllegalArgumentException.class, () -> ItemBuilder.of(Material.AIR));
+    }
+
+    @Test
+    void supplyAsyncCompletesOnMainThread() {
+        AtomicBoolean onMain = new AtomicBoolean();
+        CompletableFuture<Integer> future = Tasks.supplyAsync(plugin, () -> 42);
+        CompletableFuture<Void> callback = future.thenAccept(value -> onMain.set(Bukkit.isPrimaryThread()));
+
+        server.getScheduler().waitAsyncTasksFinished();
+        server.getScheduler().performOneTick();
+
+        assertEquals(42, future.join());
+        assertTrue(callback.isDone());
+        assertTrue(onMain.get());
+    }
+
+    @Test
+    void supplyAsyncPropagatesFailure() {
+        CompletableFuture<Object> future = Tasks.supplyAsync(plugin, () -> {
+            throw new IllegalStateException("boom");
+        });
+
+        server.getScheduler().waitAsyncTasksFinished();
+        server.getScheduler().performOneTick();
+
+        assertTrue(future.isCompletedExceptionally());
+    }
+
+    @Test
+    void eventsListenAndUnregister() {
+        AtomicInteger calls = new AtomicInteger();
+        Listener listener = Events.listen(plugin, TestEvent.class, event -> calls.incrementAndGet());
+
+        server.getPluginManager().callEvent(new TestEvent());
+        HandlerList.unregisterAll(listener);
+        server.getPluginManager().callEvent(new TestEvent());
+
+        assertEquals(1, calls.get());
+    }
+
+    @Test
+    void configFileRoundTripsAndRefusesToOverwriteBrokenFile() throws IOException {
+        ConfigFile file = new ConfigFile(plugin, "data.yml");
+        file.get().set("coins", 5);
+        file.saveNow();
+
+        assertTrue(file.reload());
+        assertEquals(5, file.get().getInt("coins"));
+
+        Path path = plugin.getDataFolder().toPath().resolve("data.yml");
+        Files.writeString(path, "coins: [unclosed");
+        assertFalse(file.reload());
+        assertEquals(5, file.get().getInt("coins"));
+        assertTrue(file.save().isCompletedExceptionally());
+        file.saveNow();
+        assertEquals("coins: [unclosed", Files.readString(path));
+    }
+
+    @Test
+    void messagesParseKnownAndFallBackOnMissing() throws IOException {
+        Files.createDirectories(plugin.getDataFolder().toPath());
+        Files.writeString(plugin.getDataFolder().toPath().resolve("messages.yml"), "hello: \"<green>Hi <name>\"\n");
+        Messages messages = new Messages(plugin);
+
+        Component hello = messages.get("hello", Placeholder.unparsed("name", "<red>Steve"));
+
+        assertEquals("Hi <red>Steve", Text.plain(hello));
+        assertEquals("missing.key", Text.plain(messages.get("missing.key")));
+    }
+
+    public static final class TestEvent extends Event {
+        private static final HandlerList HANDLERS = new HandlerList();
+
+        public static HandlerList getHandlerList() {
+            return HANDLERS;
+        }
+
+        @Override
+        public HandlerList getHandlers() {
+            return HANDLERS;
+        }
+    }
+}

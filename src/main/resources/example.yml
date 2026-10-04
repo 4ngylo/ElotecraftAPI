@@ -1,0 +1,7 @@
+# Settings and data for the /example demo command.
+give-cooldown: 30s
+menu-lore:
+  - "<gray>Built with ItemBuilder"
+  - "<gray>Lore read from example.yml"
+# Written by the plugin: total demo diamonds given per player UUID.
+gives: {}

@@ -3,6 +3,7 @@ package me.angylo.elotecraftAPI.storage;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import me.angylo.elotecraftAPI.util.Tasks;
+import org.bukkit.Bukkit;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.plugin.IllegalPluginAccessException;
 import org.bukkit.plugin.Plugin;
@@ -201,6 +202,26 @@ public final class Database implements AutoCloseable {
                 connection.setAutoCommit(true);
             }
         });
+    }
+
+    /**
+     * Runs {@code work} on the calling thread and returns its result, for threads that may wait, such as an
+     * {@code AsyncPlayerPreLoginEvent} handler loading a player's data before they join. It uses its own
+     * pooled connection, so it is not queued behind earlier queries.
+     *
+     * @throws IllegalStateException if called on the main thread or after {@link #close()}
+     * @throws SQLException          if the work fails
+     */
+    public <T> T runBlocking(SqlWork<T> work) throws SQLException {
+        if (Bukkit.isPrimaryThread()) {
+            throw new IllegalStateException("runBlocking would freeze the server; call it off the main thread");
+        }
+        if (executor.isShutdown()) {
+            throw new IllegalStateException("Database is closed");
+        }
+        try (Connection connection = dataSource.getConnection()) {
+            return work.run(connection);
+        }
     }
 
     /**

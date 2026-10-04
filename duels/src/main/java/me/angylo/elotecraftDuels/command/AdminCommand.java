@@ -8,23 +8,31 @@ import me.angylo.elotecraftAPI.util.Text;
 import me.angylo.elotecraftDuels.Duels;
 import me.angylo.elotecraftDuels.arena.Arena;
 import me.angylo.elotecraftDuels.arena.ArenaRegistry;
+import me.angylo.elotecraftDuels.arena.ArenaTemplate;
+import me.angylo.elotecraftDuels.hook.SlimeWorlds;
 import me.angylo.elotecraftDuels.kit.Kit;
 import me.angylo.elotecraftDuels.kit.KitRegistry;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.JoinConfiguration;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver;
+import org.bukkit.Bukkit;
+import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.World;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.event.player.PlayerTeleportEvent.TeleportCause;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
 
+import java.nio.file.NoSuchFileException;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
@@ -40,6 +48,8 @@ public final class AdminCommand {
     private final Messages messages;
     private final ArenaRegistry arenas;
     private final KitRegistry kits;
+    /** Arenas whose snapshot is being written, so two cannot write the same file at once. */
+    private final Set<String> snapshotting = new HashSet<>();
 
     public AdminCommand(Duels duels) {
         this.duels = duels;
@@ -82,7 +92,15 @@ public final class AdminCommand {
                         }), arenaNames)
                         .sub("info", null, (sender, args) -> withArena(sender, args, (arena, rest) -> info(sender, arena)), arenaNames)
                         .playerSub("tp", null, (player, args) -> withArena(player, args, (arena, rest) -> teleport(player, arena)), arenaNames)
-                        .sub("list", null, (sender, args) -> listArenas(sender)))
+                        .sub("list", null, (sender, args) -> listArenas(sender))
+                        .sub("snapshot", null, (sender, args) -> withArena(sender, args, (arena, rest) -> snapshot(sender, arena)), arenaNames)
+                        .sub("reset", null, (sender, args) -> withArena(sender, args, (arena, rest) -> reset(sender, arena)), arenaNames)
+                        .sub(CommandBuilder.create("world")
+                                .executes((sender, args) -> messages.send(sender, "command.world-help"))
+                                .playerSub("create", null, this::createWorld)
+                                .sub("import", null, this::importWorld)
+                                .sub("save", null, this::saveWorld, (sender, args) -> args.length == 1
+                                        ? Args.filter(templateWorlds(), args) : List.of())))
                 .sub(CommandBuilder.create("kit").permission("duels.admin.kit")
                         .executes((sender, args) -> messages.send(sender, "command.kit-help"))
                         .playerSub("create", null, this::createKit)
@@ -112,6 +130,10 @@ public final class AdminCommand {
                         .sub("setpermission", null, (sender, args) -> withKit(sender, args, (kit, rest) -> setPermission(sender, kit, rest)),
                                 (sender, args) -> args.length == 1 ? Args.filter(kits.names(), args)
                                         : args.length == 2 ? Args.filter(List.of("none", "duels.kit." + args[0]), args) : List.of())
+                        .sub("build", null, (sender, args) -> withKit(sender, args, (kit, rest) -> {
+                            Kit changed = kit.withBuild(!kit.build());
+                            save(sender, kits.update(changed), changed.build() ? "admin.kit.build-on" : "admin.kit.build-off", kitTags(kit));
+                        }), kitNames)
                         .sub("list", null, (sender, args) -> listKits(sender)))
                 .sub("reload", "duels.admin.reload", (sender, args) ->
                         messages.send(sender, duels.reload() ? "admin.reloaded" : "admin.reload-failed"))
@@ -134,11 +156,16 @@ public final class AdminCommand {
     }
 
     private void deleteArena(CommandSender sender, Arena arena, String[] rest) {
-        if (duels.matches().isArenaBusy(arena.name())) {
+        if (duels.matches().isArenaInUse(arena.name())) {
             messages.send(sender, "admin.arena.in-use", arenaTags(arena));
             return;
         }
         save(sender, arenas.delete(arena.name()), "admin.arena.deleted", arenaTags(arena));
+        // A snapshot left behind would be pasted over whatever a new arena of that name stands on.
+        ArenaTemplate.delete(duels.plugin(), arena.name()).exceptionally(error -> {
+            duels.plugin().getLogger().log(Level.WARNING, "Could not delete the snapshot of arena " + arena.name(), error);
+            return false;
+        });
     }
 
     private void setPoint(Player player, String[] args, boolean spawn) {
@@ -160,7 +187,7 @@ public final class AdminCommand {
         messages.send(sender, "admin.arena.info", with(arenaTags(arena),
                 Placeholder.unparsed("world", arena.world()),
                 Placeholder.unparsed("enabled", String.valueOf(arena.enabled())),
-                Placeholder.unparsed("in-use", String.valueOf(duels.matches().isArenaBusy(arena.name()))),
+                Placeholder.unparsed("in-use", String.valueOf(duels.matches().isArenaInUse(arena.name()))),
                 Placeholder.component("status", status(sender, arena))));
     }
 
@@ -183,6 +210,135 @@ public final class AdminCommand {
         for (Arena arena : all) {
             messages.send(sender, "admin.arena.list-entry", with(arenaTags(arena), Placeholder.component("status", status(sender, arena))));
         }
+    }
+
+    /** Saves the arena's blocks, to rebuild it if a crash cuts a build duel short. */
+    private void snapshot(CommandSender sender, Arena arena) {
+        if (arena.corner1() == null || arena.corner2() == null || Bukkit.getWorld(arena.world()) == null) {
+            messages.send(sender, "admin.arena.not-ready", with(arenaTags(arena), Placeholder.component("problems", status(sender, arena))));
+            return;
+        }
+        if (!ArenaTemplate.fitsLimits(arena)) {
+            messages.send(sender, "admin.arena.too-big", arenaTags(arena));
+            return;
+        }
+        if (duels.matches().isArenaInUse(arena.name()) || !snapshotting.add(arena.name())) {
+            messages.send(sender, "admin.arena.in-use", arenaTags(arena));
+            return;
+        }
+        boolean wasMarked = arenas.needingReset().contains(arena.name());
+        CompletableFuture<Integer> saving = ArenaTemplate.save(duels.plugin(), arena);
+        saving.whenComplete((blocks, error) -> Tasks.sync(duels.plugin(), () -> {
+            snapshotting.remove(arena.name());
+            // The admin vouches that the arena is intact, so a crash mark no longer applies.
+            if (error == null) {
+                arenas.needsReset(arena.name(), false);
+            }
+        }));
+        save(sender, saving, wasMarked ? "admin.arena.snapshot-fixed" : "admin.arena.snapshot-saved", arenaTags(arena));
+    }
+
+    /** Puts every block of the arena back as it was in its snapshot. */
+    private void reset(CommandSender sender, Arena arena) {
+        if (Bukkit.getWorld(arena.world()) == null) {
+            messages.send(sender, "admin.arena.not-ready", with(arenaTags(arena), Placeholder.component("problems", status(sender, arena))));
+            return;
+        }
+        if (duels.matches().isArenaInUse(arena.name())) {
+            messages.send(sender, "admin.arena.in-use", arenaTags(arena));
+            return;
+        }
+        messages.send(sender, "admin.arena.reset-started", arenaTags(arena));
+        duels.instances().reset(arena).whenComplete((changed, error) -> Tasks.sync(duels.plugin(), () -> {
+            if (error == null) {
+                messages.send(sender, "admin.arena.reset-done", with(arenaTags(arena), Placeholder.unparsed("blocks", String.valueOf(changed))));
+            } else if (rootCause(error) instanceof NoSuchFileException) {
+                messages.send(sender, "admin.arena.no-snapshot", arenaTags(arena));
+            } else {
+                duels.plugin().getLogger().log(Level.WARNING, "Could not reset arena " + arena.name(), error);
+                messages.send(sender, "admin.save-failed");
+            }
+        }));
+    }
+
+    private void createWorld(Player player, String[] args) {
+        String name = Args.get(args, 0).toLowerCase(Locale.ROOT);
+        withSlime(player, slime -> newWorldName(player, name, () -> {
+            messages.send(player, "admin.world.creating", Placeholder.unparsed("world", name));
+            worldDone(player, name, slime.create(name), world -> {
+                player.teleportAsync(new Location(world, 0.5, 64, 0.5), TeleportCause.COMMAND);
+                messages.send(player, "admin.world.created", Placeholder.unparsed("world", name));
+            });
+        }));
+    }
+
+    private void importWorld(CommandSender sender, String[] args) {
+        String folder = Args.get(args, 0);
+        String name = Args.get(args, 1).toLowerCase(Locale.ROOT);
+        withSlime(sender, slime -> newWorldName(sender, name, () -> {
+            if (!ArenaRegistry.validName(folder) || Bukkit.getWorld(folder) != null) {
+                messages.send(sender, "admin.world.bad-folder", Placeholder.unparsed("folder", folder));
+                return;
+            }
+            messages.send(sender, "admin.world.importing", Placeholder.unparsed("world", name));
+            worldDone(sender, name, slime.importWorld(folder, name),
+                    world -> messages.send(sender, "admin.world.imported", Placeholder.unparsed("world", name)));
+        }));
+    }
+
+    private void saveWorld(CommandSender sender, String[] args) {
+        String name = Args.get(args, 0).toLowerCase(Locale.ROOT);
+        withSlime(sender, slime -> {
+            if (!templateWorlds().contains(name)) {
+                messages.send(sender, "admin.world.not-template", Placeholder.unparsed("world", name));
+                return;
+            }
+            worldDone(sender, name, slime.save(name), ignored -> messages.send(sender, "admin.world.saved", Placeholder.unparsed("world", name)));
+        });
+    }
+
+    private void withSlime(CommandSender sender, Consumer<SlimeWorlds> action) {
+        duels.slime().ifPresentOrElse(action, () -> messages.send(sender, "admin.world.no-slime"));
+    }
+
+    /** Runs {@code action} if {@code name} can name a new world. */
+    private void newWorldName(CommandSender sender, String name, Runnable action) {
+        if (!ArenaRegistry.validName(name)) {
+            messages.send(sender, "admin.invalid-name");
+        } else if (Bukkit.getWorld(name) != null || duels.slime().map(slime -> slime.isTemplate(name)).orElse(false)) {
+            messages.send(sender, "admin.world.exists", Placeholder.unparsed("world", name));
+        } else {
+            action.run();
+        }
+    }
+
+    /** Reports a world command's result on the main thread; failures show their reason to the admin. */
+    private <T> void worldDone(CommandSender sender, String name, CompletableFuture<T> work, Consumer<T> onSuccess) {
+        work.whenComplete((result, error) -> Tasks.sync(duels.plugin(), () -> {
+            if (error == null) {
+                onSuccess.accept(result);
+                return;
+            }
+            duels.plugin().getLogger().log(Level.WARNING, "Duels world command for " + name + " failed", error);
+            // Only this plugin's own explanations are shown; anything else may hold file paths.
+            Throwable cause = rootCause(error);
+            String reason = cause instanceof IllegalStateException && cause.getMessage() != null ? cause.getMessage() : "see the console";
+            messages.send(sender, "admin.world.failed", Placeholder.unparsed("reason", reason));
+        }));
+    }
+
+    /** Loaded slime template worlds. */
+    private List<String> templateWorlds() {
+        return duels.slime().map(slime -> Bukkit.getWorlds().stream().map(World::getName).filter(slime::isTemplate).toList())
+                .orElse(List.of());
+    }
+
+    private static Throwable rootCause(Throwable error) {
+        Throwable cause = error;
+        while (cause.getCause() != null) {
+            cause = cause.getCause();
+        }
+        return cause;
     }
 
     private void createKit(Player player, String[] args) {

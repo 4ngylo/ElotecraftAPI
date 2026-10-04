@@ -12,8 +12,11 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.regex.Pattern;
 
@@ -23,21 +26,29 @@ import java.util.regex.Pattern;
 public final class ArenaRegistry {
 
     private static final Pattern NAME = Pattern.compile("[a-z0-9_-]{1,32}");
+    /** Names Windows reserves for devices; they are also file names (templates, slime worlds). */
+    private static final Pattern RESERVED = Pattern.compile("con|prn|aux|nul|com[0-9]|lpt[0-9]");
     private static final String ROOT = "arenas";
+    /** Arenas a build duel changed and that were not put back yet, e.g. after a crash. */
+    private static final String NEEDS_RESET = "needs-reset";
 
+    private final Plugin plugin;
     private final Logger logger;
     private final ConfigFile file;
     private final Map<String, Arena> arenas = new TreeMap<>();
+    private final Set<String> needsReset = new TreeSet<>();
 
     public ArenaRegistry(Plugin plugin) {
+        this.plugin = plugin;
         this.logger = plugin.getLogger();
         this.file = new ConfigFile(plugin, "arenas.yml");
         load();
+        needsReset.addAll(file.get().getStringList(NEEDS_RESET));
     }
 
     /** Arena and kit names are YAML keys and command arguments, so they are kept simple. */
     public static boolean validName(String name) {
-        return NAME.matcher(name).matches();
+        return NAME.matcher(name).matches() && !RESERVED.matcher(name).matches();
     }
 
     public Optional<Arena> get(String name) {
@@ -76,10 +87,42 @@ public final class ArenaRegistry {
     public CompletableFuture<Void> delete(String name) {
         arenas.remove(name);
         file.get().set(ROOT + "." + name, null);
+        if (needsReset.remove(name)) {
+            file.get().set(NEEDS_RESET, List.copyOf(needsReset));
+        }
         return file.save();
     }
 
-    /** Reloads arenas.yml; on a parse error the arenas in memory are kept and false is returned. */
+    /** Arenas a build duel changed that were not put back yet; see {@link #needsReset(String, boolean)}. */
+    public Set<String> needingReset() {
+        return Set.copyOf(needsReset);
+    }
+
+    public boolean needsReset(String arena) {
+        return needsReset.contains(arena);
+    }
+
+    /**
+     * Marks {@code arena} as changed by a build duel, or as put back. Saved right away, so a crash in
+     * between leaves the mark for the next start to rebuild the arena.
+     */
+    public void needsReset(String arena, boolean value) {
+        if (value ? needsReset.add(arena) : needsReset.remove(arena)) {
+            file.get().set(NEEDS_RESET, List.copyOf(needsReset));
+            // While disabling, async saves are refused; saveNow() writes it then.
+            if (plugin.isEnabled()) {
+                file.save().exceptionally(error -> {
+                    logger.log(Level.WARNING, "Could not save arenas.yml", error);
+                    return null;
+                });
+            }
+        }
+    }
+
+    /**
+     * Reloads arenas.yml; on a parse error the arenas in memory are kept and false is returned. Reset marks
+     * are kept: a mark whose save is still pending must not be lost.
+     */
     public boolean reload() {
         if (!file.reload()) {
             return false;

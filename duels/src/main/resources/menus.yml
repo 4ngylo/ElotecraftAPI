@@ -9,19 +9,23 @@ kits:
   # One button per kit, shown with the kit's icon. <kit>, <queued> and <dueling> are filled in.
   kit:
     name: "<gradient:#f7971e:#ffd200><bold><kit>"
+    # <building> says whether fighters may place blocks with the kit.
     lore:                       # when challenging someone
       - "<dark_gray>▪ <gray>In queue: <white><queued>"
       - "<dark_gray>▪ <gray>Dueling: <white><dueling>"
+      - "<dark_gray>▪ <building>"
       - ""
       - "<yellow>▶ Click to choose"
     queue-lore:                 # in /duel queue
       - "<dark_gray>▪ <gray>In queue: <white><queued>"
       - "<dark_gray>▪ <gray>Dueling: <white><dueling>"
+      - "<dark_gray>▪ <building>"
       - ""
       - "<yellow>▶ Click to join the queue"
     queued-lore:                # in /duel queue, for the queue you are in
       - "<dark_gray>▪ <gray>In queue: <white><queued>"
       - "<dark_gray>▪ <gray>Dueling: <white><dueling>"
+      - "<dark_gray>▪ <building>"
       - ""
       - "<green>✔ You're in this queue"
       - "<red>▶ Click to leave it"

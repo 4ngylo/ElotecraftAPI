@@ -47,7 +47,7 @@ class DuelsExpansionTest {
     @Test
     void answersFromCachedStatsAndQueues() {
         PlayerMock alex = server.addPlayer("Alex");
-        Kit kit = new Kit("sword", "Sword", Material.DIAMOND_SWORD, null, List.of(ItemStack.of(Material.DIAMOND_SWORD)));
+        Kit kit = new Kit("sword", "Sword", Material.DIAMOND_SWORD, null, List.of(ItemStack.of(Material.DIAMOND_SWORD)), false);
         duels.kits().update(kit);
         duels.queues().toggle(alex, kit);
         DuelsExpansion expansion = new DuelsExpansion(duels);

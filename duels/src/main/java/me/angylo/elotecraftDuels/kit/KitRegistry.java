@@ -113,7 +113,7 @@ public final class KitRegistry {
             try {
                 ItemStack[] items = ItemStack.deserializeItemsFromBytes(Base64.getDecoder().decode(section.getString("items", "")));
                 kits.put(name, new Kit(name, section.getString("display-name", name), icon(section),
-                        permission(section), Arrays.asList(items)));
+                        permission(section), Arrays.asList(items), section.getBoolean("build", false)));
             } catch (RuntimeException e) {
                 logger.warning("Skipping kit '" + name + "' in kits.yml: its items could not be read (" + e.getMessage() + ")");
             }
@@ -149,6 +149,7 @@ public final class KitRegistry {
         yaml.set(path + ".display-name", kit.displayName());
         yaml.set(path + ".icon", kit.icon().name());
         yaml.set(path + ".permission", kit.permission() == null ? "" : kit.permission());
+        yaml.set(path + ".build", kit.build());
         yaml.set(path + ".items", Base64.getEncoder().encodeToString(ItemStack.serializeItemsAsBytes(kit.items())));
     }
 }

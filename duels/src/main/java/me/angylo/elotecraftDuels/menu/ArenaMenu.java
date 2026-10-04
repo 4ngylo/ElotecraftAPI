@@ -59,7 +59,7 @@ public final class ArenaMenu {
             PaginatedMenu menu = MenuLayout.frame(plugin, section);
             menu.items(ready.stream().map(arena -> {
                 TagResolver name = Placeholder.component("arena", Text.mm(arena.displayName()));
-                boolean busy = matches.isArenaBusy(arena.name());
+                boolean busy = !matches.isArenaFree(arena);
                 return Button.of(MenuLayout.icon(arena.icon(), section.getConfigurationSection("arena"),
                                 busy ? "busy-lore" : "lore", false, name),
                         busy ? (player, click) -> {

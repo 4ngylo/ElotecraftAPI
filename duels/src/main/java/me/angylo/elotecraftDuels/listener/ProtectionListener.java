@@ -2,11 +2,9 @@ package me.angylo.elotecraftDuels.listener;
 
 import me.angylo.elotecraftAPI.util.Messages;
 import me.angylo.elotecraftDuels.Settings;
-import me.angylo.elotecraftDuels.arena.ArenaRegistry;
 import me.angylo.elotecraftDuels.match.Match;
 import me.angylo.elotecraftDuels.match.MatchManager;
 import org.bukkit.Bukkit;
-import org.bukkit.block.Block;
 import org.bukkit.command.Command;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
@@ -16,13 +14,8 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
-import org.bukkit.event.block.BlockBreakEvent;
-import org.bukkit.event.block.BlockExplodeEvent;
 import org.bukkit.event.block.BlockFertilizeEvent;
-import org.bukkit.event.block.BlockIgniteEvent;
-import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityChangeBlockEvent;
-import org.bukkit.event.entity.EntityExplodeEvent;
 import org.bukkit.event.entity.EntityPickupItemEvent;
 import org.bukkit.event.entity.EntityPlaceEvent;
 import org.bukkit.event.hanging.HangingBreakByEntityEvent;
@@ -30,8 +23,6 @@ import org.bukkit.event.hanging.HangingPlaceEvent;
 import org.bukkit.event.inventory.InventoryOpenEvent;
 import org.bukkit.event.inventory.InventoryType;
 import org.bukkit.event.player.PlayerArmorStandManipulateEvent;
-import org.bukkit.event.player.PlayerBucketEmptyEvent;
-import org.bukkit.event.player.PlayerBucketFillEvent;
 import org.bukkit.event.player.PlayerCommandPreprocessEvent;
 import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerInteractAtEntityEvent;
@@ -39,16 +30,15 @@ import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerTeleportEvent;
 
-import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.function.Supplier;
 
 /**
  * Keeps kit items inside duels and duels from touching the world. Players in a duel (fighting or
- * spectating) cannot drop, pick up, store or trade items, change blocks, use other commands than
- * {@code /duel} and the configured ones, or teleport out of their arena. Explosions never break
- * arena blocks.
+ * spectating) cannot drop, pick up, store or trade items, use blocks, entities or bone meal, use other
+ * commands than {@code /duel} and the configured ones, or teleport out of their arena. Placing and
+ * breaking blocks is up to {@link BuildListener}.
  */
 public final class ProtectionListener implements Listener {
 
@@ -57,16 +47,13 @@ public final class ProtectionListener implements Listener {
     private final Messages messages;
     private final Supplier<Settings> settings;
     private final MatchManager matches;
-    private final ArenaRegistry arenas;
     private final Command duelCommand;
 
     /** @param duelCommand the registered {@code /duel}, always allowed */
-    public ProtectionListener(Messages messages, Supplier<Settings> settings, MatchManager matches,
-                              ArenaRegistry arenas, Command duelCommand) {
+    public ProtectionListener(Messages messages, Supplier<Settings> settings, MatchManager matches, Command duelCommand) {
         this.messages = messages;
         this.settings = settings;
         this.matches = matches;
-        this.arenas = arenas;
         this.duelCommand = duelCommand;
     }
 
@@ -80,31 +67,6 @@ public final class ProtectionListener implements Listener {
         if (event.getEntity() instanceof Player player) {
             cancelIfBusy(player, event);
         }
-    }
-
-    @EventHandler(priority = EventPriority.LOW, ignoreCancelled = true)
-    public void onBreak(BlockBreakEvent event) {
-        cancelIfBusy(event.getPlayer(), event);
-    }
-
-    @EventHandler(priority = EventPriority.LOW, ignoreCancelled = true)
-    public void onPlace(BlockPlaceEvent event) {
-        cancelIfBusy(event.getPlayer(), event);
-    }
-
-    @EventHandler(priority = EventPriority.LOW, ignoreCancelled = true)
-    public void onBucketEmpty(PlayerBucketEmptyEvent event) {
-        cancelIfBusy(event.getPlayer(), event);
-    }
-
-    @EventHandler(priority = EventPriority.LOW, ignoreCancelled = true)
-    public void onBucketFill(PlayerBucketFillEvent event) {
-        cancelIfBusy(event.getPlayer(), event);
-    }
-
-    @EventHandler(priority = EventPriority.LOW, ignoreCancelled = true)
-    public void onIgnite(BlockIgniteEvent event) {
-        cancelIfBusy(event.getPlayer(), event);
     }
 
     @EventHandler(priority = EventPriority.LOW, ignoreCancelled = true)
@@ -184,25 +146,10 @@ public final class ProtectionListener implements Listener {
     public void onTeleport(PlayerTeleportEvent event) {
         Player player = event.getPlayer();
         Match match = matches.matchOf(player).orElse(null);
-        if (match != null && !match.arena().contains(event.getTo())) {
+        if (match != null && !match.contains(event.getTo())) {
             event.setCancelled(true);
             messages.send(player, "match.blocked-teleport");
         }
-    }
-
-    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
-    public void onEntityExplode(EntityExplodeEvent event) {
-        protectArenas(event.blockList());
-    }
-
-    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
-    public void onBlockExplode(BlockExplodeEvent event) {
-        protectArenas(event.blockList());
-    }
-
-    private void protectArenas(List<Block> blocks) {
-        var all = arenas.all();
-        blocks.removeIf(block -> all.stream().anyMatch(arena -> arena.contains(block.getLocation())));
     }
 
     private void cancelIfBusy(Player player, Cancellable event) {

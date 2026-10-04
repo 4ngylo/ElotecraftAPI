@@ -113,7 +113,7 @@ public final class CombatListener implements Listener {
             return;
         }
         matches.matchOf(player).ifPresent(match -> {
-            event.setRespawnLocation(match.arena().spectatorSpawn());
+            event.setRespawnLocation(match.spectatorSpawn());
             Tasks.later(plugin, () -> matches.respawned(player), RESPAWN_DELAY_TICKS);
         });
     }
@@ -134,9 +134,9 @@ public final class CombatListener implements Listener {
             event.setTo(new Location(from.getWorld(), from.getX(), from.getY(), from.getZ(), to.getYaw(), to.getPitch()));
             return;
         }
-        if (event.hasChangedBlock() && !match.arena().contains(event.getTo())) {
+        if (event.hasChangedBlock() && !match.contains(event.getTo())) {
             boolean fighter = match.isFighter(player) && player.getGameMode() != GameMode.SPECTATOR;
-            event.setTo(fighter ? match.spawnOf(player) : match.arena().spectatorSpawn());
+            event.setTo(fighter ? match.spawnOf(player) : match.spectatorSpawn());
             messages.send(player, "match.out-of-bounds");
         }
     }

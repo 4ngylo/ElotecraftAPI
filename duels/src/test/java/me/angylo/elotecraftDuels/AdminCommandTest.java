@@ -42,6 +42,20 @@ class AdminCommandTest extends DuelsTestBase {
         return lines;
     }
 
+    /** Runs the command and ticks until a line with {@code text} arrives, for commands that answer twice. */
+    private boolean saidEventually(String command, String text) {
+        messages(admin);
+        server.dispatchCommand(admin, command);
+        List<String> lines = new ArrayList<>();
+        long deadline = System.currentTimeMillis() + 5000;
+        while (lines.stream().noneMatch(line -> line.contains(text)) && System.currentTimeMillis() < deadline) {
+            tick();
+            lines.addAll(messages(admin));
+            Thread.onSpinWait();
+        }
+        return lines.stream().anyMatch(line -> line.contains(text)) ? true : fail(lines, text);
+    }
+
     private boolean said(String command, String text) {
         List<String> lines = run(command);
         return lines.stream().anyMatch(line -> line.contains(text)) ? true : fail(lines, text);
@@ -49,6 +63,34 @@ class AdminCommandTest extends DuelsTestBase {
 
     private static boolean fail(List<String> lines, String text) {
         throw new AssertionError("Expected '" + text + "' in " + lines);
+    }
+
+    @Test
+    void buildKitsAndArenaSnapshots() {
+        assertTrue(said("duels kit build sword", "can now place blocks"));
+        assertTrue(duels.kits().get("sword").orElseThrow().build());
+        assertTrue(said("duels kit build sword", "can no longer place blocks"));
+
+        assertTrue(saidEventually("duels arena reset pit", "has no snapshot"));
+        assertTrue(said("duels arena snapshot pit", "Saved the blocks of pit"));
+        arenaWorld.getBlockAt(5, 60, 5).setType(Material.GOLD_BLOCK);
+        assertTrue(saidEventually("duels arena reset pit", "is back as in its snapshot"));
+        assertEquals(Material.AIR, arenaWorld.getBlockAt(5, 60, 5).getType());
+        assertTrue(said("duels arena create half", "Created arena"));
+        assertTrue(said("duels arena snapshot half", "isn't ready"));
+    }
+
+    @Test
+    void arenaWorlds() {
+        assertTrue(said("duels arena world", "Arena worlds"));
+        assertTrue(said("duels arena world create Bad.Name", "Names use 1 to 32"));
+        assertTrue(said("duels arena world create arena", "already exists"));
+        assertTrue(saidEventually("duels arena world create desert", "Created desert"));
+        assertEquals("desert", admin.getWorld().getName());
+        assertTrue(said("duels arena world save desert", "Saved desert"));
+        assertTrue(said("duels arena world save world", "isn't a loaded arena world"));
+        assertTrue(said("duels arena world import world dunes", "unloaded world folder"));
+        // Importing a real folder needs Bukkit.getWorldContainer(), which MockBukkit does not implement.
     }
 
     @Test
@@ -153,6 +195,6 @@ class AdminCommandTest extends DuelsTestBase {
         assertEquals(0, duels.stats().cached(alex.getUniqueId()).orElseThrow().wins());
         assertTrue(messages(alex).stream().anyMatch(line -> line.contains("An admin stopped the duel.")));
         Arena pit = duels.arenas().get("pit").orElseThrow();
-        assertFalse(duels.matches().isArenaBusy(pit.name()));
+        assertFalse(duels.matches().isArenaInUse(pit.name()));
     }
 }

@@ -5,6 +5,8 @@ import me.angylo.elotecraftAPI.util.Messages;
 import me.angylo.elotecraftAPI.util.Tasks;
 import me.angylo.elotecraftDuels.Settings;
 import me.angylo.elotecraftDuels.arena.Arena;
+import me.angylo.elotecraftDuels.arena.ArenaInstance;
+import me.angylo.elotecraftDuels.arena.ArenaInstances;
 import me.angylo.elotecraftDuels.arena.ArenaRegistry;
 import me.angylo.elotecraftDuels.kit.Kit;
 import me.angylo.elotecraftDuels.match.Match.EndReason;
@@ -17,9 +19,7 @@ import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver;
 import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
-import org.bukkit.World;
 import org.bukkit.entity.Player;
-import org.bukkit.entity.Projectile;
 import org.bukkit.event.player.PlayerTeleportEvent.TeleportCause;
 import org.bukkit.plugin.Plugin;
 
@@ -29,6 +29,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -61,22 +62,24 @@ public final class MatchManager {
     private final Messages messages;
     private final Supplier<Settings> settings;
     private final ArenaRegistry arenas;
+    private final ArenaInstances instances;
     private final SnapshotStore snapshots;
     private final StatsService stats;
     private final Rewards rewards;
     private final MatchDisplay display;
     /** Fighters and spectators; read by placeholders from other threads. */
     private final Map<UUID, Match> byPlayer = new ConcurrentHashMap<>();
-    private final Map<String, Match> byArena = new ConcurrentHashMap<>();
+    private final Set<Match> running = ConcurrentHashMap.newKeySet();
     private final Map<UUID, Rematch> rematches = new HashMap<>();
 
     public MatchManager(Plugin plugin, Messages messages, Supplier<Settings> settings, ArenaRegistry arenas,
-                        SnapshotStore snapshots, StatsService stats) {
+                        ArenaInstances instances, SnapshotStore snapshots, StatsService stats) {
         this.plugin = plugin;
         this.logger = plugin.getLogger();
         this.messages = messages;
         this.settings = settings;
         this.arenas = arenas;
+        this.instances = instances;
         this.snapshots = snapshots;
         this.stats = stats;
         this.rewards = new Rewards(plugin, messages, settings);
@@ -99,21 +102,27 @@ public final class MatchManager {
 
     /** Safe from any thread. */
     public int activeMatches() {
-        return byArena.size();
+        return running.size();
     }
 
     /** Players fighting with {@code kit} right now. */
     public int fightingWith(String kit) {
-        return 2 * (int) byArena.values().stream().filter(match -> match.kit().name().equals(kit)).count();
+        return 2 * (int) running.stream().filter(match -> match.kit().name().equals(kit)).count();
     }
 
-    public boolean isArenaBusy(String arena) {
-        return byArena.containsKey(arena);
+    /** Whether a duel can start in {@code arena} now: it is ready and free, or has a copy to spare. */
+    public boolean isArenaFree(Arena arena) {
+        return instances.available(arena);
     }
 
-    /** A random arena that is ready and not in use. */
+    /** Whether any duel uses {@code arena}, or it is still being put back after one. */
+    public boolean isArenaInUse(String arena) {
+        return instances.inUse(arena) > 0;
+    }
+
+    /** A random arena that is ready and free. */
     public Optional<Arena> randomFreeArena() {
-        List<Arena> free = arenas.all().stream().filter(arena -> arena.isReady() && !isArenaBusy(arena.name())).toList();
+        List<Arena> free = arenas.all().stream().filter(instances::available).toList();
         return free.isEmpty() ? Optional.empty() : Optional.of(free.get(ThreadLocalRandom.current().nextInt(free.size())));
     }
 
@@ -137,17 +146,25 @@ public final class MatchManager {
      * @return false if either player is busy or the arena is not ready and free; callers check and explain first
      */
     public boolean start(Player first, Player second, Kit kit, Arena arena) {
-        if (first.equals(second) || !available(first) || !available(second) || isArenaBusy(arena.name()) || !arena.isReady()) {
+        if (first.equals(second) || !available(first) || !available(second) || !instances.available(arena)) {
             return false;
         }
-        Match match = new Match(arena, kit, first, second);
         Map<UUID, PlayerSnapshot> taken = new HashMap<>();
         for (Player fighter : List.of(first, second)) {
             // Closed before the snapshot, while drops are still allowed: a held cursor item goes back first.
             fighter.closeInventory();
-            PlayerSnapshot snapshot = PlayerSnapshot.capture(fighter);
-            match.addSnapshot(fighter, snapshot);
-            taken.put(fighter.getUniqueId(), snapshot);
+            taken.put(fighter.getUniqueId(), PlayerSnapshot.capture(fighter));
+        }
+        // Reserved only now: nothing above may leave the arena reserved if it throws.
+        ArenaInstance instance = instances.acquire(arena, kit.build()).orElse(null);
+        if (instance == null) {
+            messages.send(first, "match.arena-failed");
+            messages.send(second, "match.arena-failed");
+            return true;
+        }
+        Match match = new Match(instance, kit, first, second);
+        for (Player fighter : List.of(first, second)) {
+            match.addSnapshot(fighter, taken.get(fighter.getUniqueId()));
         }
         // Saved before anyone is registered: if serializing throws, nobody is left half in a duel.
         CompletableFuture<Void> saved;
@@ -157,12 +174,13 @@ public final class MatchManager {
             logger.log(Level.SEVERE, "Could not save " + first.getName() + " and " + second.getName() + " before their duel", e);
             messages.send(first, "general.storage-error");
             messages.send(second, "general.storage-error");
+            instances.release(instance);
             return true;
         }
         for (Player fighter : List.of(first, second)) {
             byPlayer.put(fighter.getUniqueId(), match);
         }
-        byArena.put(arena.name(), match);
+        running.add(match);
         display.starting(match);
         saved.whenComplete((ignored, error) -> guarded(match, () -> {
             if (match.isOver()) {
@@ -296,7 +314,7 @@ public final class MatchManager {
                 messages.send(spectator, "general.storage-error");
                 return;
             }
-            teleportIn(match, spectator, match.arena().spectatorSpawn()).whenComplete((arrived, teleportError) -> guardedSpectator(match, spectator, () -> {
+            teleportIn(match, spectator, match.spectatorSpawn()).whenComplete((arrived, teleportError) -> guardedSpectator(match, spectator, () -> {
                 if (match.isOver() || !match.isSpectator(spectator)) {
                     return;
                 }
@@ -330,9 +348,12 @@ public final class MatchManager {
         }
     }
 
-    /** Ends every match without a result and restores everyone right away. For {@code onDisable}. */
+    /**
+     * Ends every match without a result and restores everyone right away. For {@code onDisable}, before
+     * {@link ArenaInstances#shutdown()} puts the arenas back.
+     */
     public void shutdown() {
-        for (Match match : List.copyOf(byArena.values())) {
+        for (Match match : List.copyOf(running)) {
             match.markOver();
             if (match.task() != null) {
                 match.task().cancel();
@@ -346,10 +367,9 @@ public final class MatchManager {
                 }
                 release(match, participant, true);
             }
-            clearProjectiles(match.arena());
         }
         byPlayer.clear();
-        byArena.clear();
+        running.clear();
         rematches.clear();
     }
 
@@ -358,8 +378,8 @@ public final class MatchManager {
             cancel(match, "match.teleport-failed");
             return;
         }
-        CompletableFuture<Boolean> first = teleportIn(match, match.first(), match.arena().spawn(1));
-        CompletableFuture<Boolean> second = teleportIn(match, match.second(), match.arena().spawn(2));
+        CompletableFuture<Boolean> first = teleportIn(match, match.first(), match.instance().spawn(1));
+        CompletableFuture<Boolean> second = teleportIn(match, match.second(), match.instance().spawn(2));
         first.thenCombine(second, Boolean::logicalAnd).whenComplete((arrived, error) -> guarded(match, () -> {
             if (match.isOver()) {
                 return;
@@ -540,21 +560,8 @@ public final class MatchManager {
         for (Player participant : match.participants()) {
             release(match, participant, false);
         }
-        clearProjectiles(match.arena());
-        byArena.remove(match.arena().name(), match);
-    }
-
-    /**
-     * Removes arrows, tridents and pearls left in the arena: kit items must not be picked up later, and a
-     * pearl landing after the duel would pull its thrower back in.
-     */
-    private static void clearProjectiles(Arena arena) {
-        World world = Bukkit.getWorld(arena.world());
-        if (world != null) {
-            world.getEntitiesByClass(Projectile.class).stream()
-                    .filter(projectile -> arena.contains(projectile.getLocation()))
-                    .forEach(Projectile::remove);
-        }
+        running.remove(match);
+        instances.release(match.instance());
     }
 
     /** Takes {@code player} out of {@code match} and restores their snapshot. */

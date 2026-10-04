@@ -15,8 +15,9 @@ import java.util.List;
  *
  * @param displayName MiniMessage, set by admins
  * @param permission  needed to pick the kit, or null for everyone
+ * @param build       whether fighters may place blocks, and break the ones placed during the duel
  */
-public record Kit(String name, String displayName, Material icon, String permission, List<ItemStack> items) {
+public record Kit(String name, String displayName, Material icon, String permission, List<ItemStack> items, boolean build) {
 
     public static final Material DEFAULT_ICON = Material.IRON_SWORD;
 
@@ -26,7 +27,7 @@ public record Kit(String name, String displayName, Material icon, String permiss
 
     /** A kit holding a copy of everything in {@code inventory}, armor and off hand included. */
     static Kit of(String name, Material icon, PlayerInventory inventory) {
-        return new Kit(name, name, icon, null, Arrays.asList(inventory.getContents()));
+        return new Kit(name, name, icon, null, Arrays.asList(inventory.getContents()), false);
     }
 
     @Override
@@ -53,19 +54,23 @@ public record Kit(String name, String displayName, Material icon, String permiss
     }
 
     public Kit withItems(PlayerInventory inventory) {
-        return new Kit(name, displayName, icon, permission, Arrays.asList(inventory.getContents()));
+        return new Kit(name, displayName, icon, permission, Arrays.asList(inventory.getContents()), build);
     }
 
     public Kit withIcon(Material newIcon) {
-        return new Kit(name, displayName, newIcon, permission, items);
+        return new Kit(name, displayName, newIcon, permission, items, build);
     }
 
     public Kit withDisplayName(String newDisplayName) {
-        return new Kit(name, newDisplayName, icon, permission, items);
+        return new Kit(name, newDisplayName, icon, permission, items, build);
     }
 
     /** @param newPermission null for everyone */
     public Kit withPermission(String newPermission) {
-        return new Kit(name, displayName, icon, newPermission, items);
+        return new Kit(name, displayName, icon, newPermission, items, build);
+    }
+
+    public Kit withBuild(boolean newBuild) {
+        return new Kit(name, displayName, icon, permission, items, newBuild);
     }
 }

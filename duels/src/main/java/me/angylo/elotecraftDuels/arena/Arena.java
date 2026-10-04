@@ -11,8 +11,9 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * A place for one duel at a time. Every position is in {@link #world()}; the corners are opposite blocks
- * of a box around the whole arena. Immutable: the {@code with...} methods return a changed copy.
+ * A place for duels. Every position is in {@link #world()}; the corners are opposite blocks of a box around
+ * the whole arena. Duels run in that world, or in copies of it on AdvancedSlimePaper (see
+ * {@link ArenaInstances}). Immutable: the {@code with...} methods return a changed copy.
  *
  * @param displayName MiniMessage, set by admins
  */
@@ -110,31 +111,40 @@ public record Arena(String name, String displayName, Material icon, String world
         return problems().isEmpty();
     }
 
-    /** Whether {@code location} is inside the corners; false while they are not both set. */
+    /** Whether {@code location} is inside the corners in the arena's world; false while they are not both set. */
     public boolean contains(Location location) {
-        return corner1 != null && corner2 != null && location.getWorld() != null
-                && location.getWorld().getName().equals(world)
-                && bounds().contains(location.getX(), location.getY(), location.getZ());
+        return location.getWorld() != null && location.getWorld().getName().equals(world) && inBox(location);
+    }
+
+    /** Whether {@code location} is inside the corners, in whatever world; false while they are not both set. */
+    public boolean inBox(Location location) {
+        return corner1 != null && corner2 != null && bounds().contains(location.getX(), location.getY(), location.getZ());
     }
 
     /**
-     * Where fighter 1 or 2 starts. Only for a {@link #isReady() ready} arena.
+     * Where fighter 1 or 2 starts, in {@code in} (the arena's world or a copy of it). Only for a
+     * {@link #isReady() ready} arena.
      *
      * @param number 1 or 2
      */
-    public Location spawn(int number) {
-        return (number == 1 ? spawn1 : spawn2).in(Bukkit.getWorld(world));
+    public Location spawn(int number, World in) {
+        return (number == 1 ? spawn1 : spawn2).in(in);
     }
 
-    /** The spectator spawn, or halfway between the fighter spawns if none is set. Only for a ready arena. */
+    /** The spectator spawn in the arena's world. Only for a ready arena. */
     public Location spectatorSpawn() {
+        return spectatorSpawn(Bukkit.getWorld(world));
+    }
+
+    /** The spectator spawn in {@code in}, or halfway between the fighter spawns if none is set. Only for a ready arena. */
+    public Location spectatorSpawn(World in) {
         Position position = spectator != null ? spectator : new Position((spawn1.x() + spawn2.x()) / 2,
                 (spawn1.y() + spawn2.y()) / 2, (spawn1.z() + spawn2.z()) / 2, spawn1.yaw(), 0);
-        return position.in(Bukkit.getWorld(world));
+        return position.in(in);
     }
 
-    /** The box covering both corner blocks fully. */
-    private BoundingBox bounds() {
+    /** The box covering both corner blocks fully. Only while both corners are set. */
+    public BoundingBox bounds() {
         return new BoundingBox(
                 Math.min(Math.floor(corner1.x()), Math.floor(corner2.x())),
                 Math.min(Math.floor(corner1.y()), Math.floor(corner2.y())),

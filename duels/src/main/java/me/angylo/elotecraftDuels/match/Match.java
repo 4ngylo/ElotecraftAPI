@@ -1,6 +1,7 @@
 package me.angylo.elotecraftDuels.match;
 
 import me.angylo.elotecraftDuels.arena.Arena;
+import me.angylo.elotecraftDuels.arena.ArenaInstance;
 import me.angylo.elotecraftDuels.kit.Kit;
 import me.angylo.elotecraftDuels.state.PlayerSnapshot;
 import net.kyori.adventure.bossbar.BossBar;
@@ -40,7 +41,7 @@ public final class Match {
         ELIMINATED, QUIT, FORFEIT, TIMEOUT
     }
 
-    private final Arena arena;
+    private final ArenaInstance instance;
     private final Kit kit;
     private final Player first;
     private final Player second;
@@ -59,15 +60,29 @@ public final class Match {
     private BukkitTask task;
     private boolean over;
 
-    Match(Arena arena, Kit kit, Player first, Player second) {
-        this.arena = arena;
+    Match(ArenaInstance instance, Kit kit, Player first, Player second) {
+        this.instance = instance;
         this.kit = kit;
         this.first = first;
         this.second = second;
     }
 
     public Arena arena() {
-        return arena;
+        return instance.arena();
+    }
+
+    /** The arena in the world this duel runs in. */
+    public ArenaInstance instance() {
+        return instance;
+    }
+
+    /** Whether {@code location} is inside this duel's arena, in the world it runs in. */
+    public boolean contains(Location location) {
+        return instance.contains(location);
+    }
+
+    public Location spectatorSpawn() {
+        return instance.spectatorSpawn();
     }
 
     public Kit kit() {
@@ -106,7 +121,7 @@ public final class Match {
 
     /** Where fighter 1 or 2 starts. */
     public Location spawnOf(Player fighter) {
-        return arena.spawn(first.getUniqueId().equals(fighter.getUniqueId()) ? 1 : 2);
+        return instance.spawn(first.getUniqueId().equals(fighter.getUniqueId()) ? 1 : 2);
     }
 
     /** Whether the arena's bounds and freeze apply to {@code player} yet. */

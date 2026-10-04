@@ -66,7 +66,8 @@ public final class KitMenu {
                 return Button.of(MenuLayout.icon(kit.icon(), section.getConfigurationSection("kit"), lore, inQueue,
                                 Placeholder.component("kit", Text.mm(kit.displayName())),
                                 Placeholder.unparsed("queued", String.valueOf(queues.size(kit.name()))),
-                                Placeholder.unparsed("dueling", String.valueOf(matches.fightingWith(kit.name())))),
+                                Placeholder.unparsed("dueling", String.valueOf(matches.fightingWith(kit.name()))),
+                                Placeholder.component("building", messages.get(viewer, kit.build() ? "general.kit-build" : "general.kit-no-build"))),
                         MenuLayout.choose(plugin, effects, player -> onChoose.accept(kit)));
             }).toList());
             MenuLayout.place(menu, section, "close", MenuLayout.choose(plugin, effects, player -> { }));

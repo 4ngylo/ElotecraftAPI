@@ -260,7 +260,7 @@ public final class RequestManager {
             messages.send(target, "general.arena-not-found", Placeholder.unparsed("arena", name));
             return Optional.empty();
         }
-        if (matches.isArenaBusy(name)) {
+        if (!matches.isArenaFree(arena.get())) {
             messages.send(target, "general.arena-busy", arenaTag(target, arena.get()));
             return Optional.empty();
         }

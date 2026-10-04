@@ -79,7 +79,7 @@ class DataTest extends DuelsTestBase {
     @Test
     void kitItemsSurviveAReload() {
         Kit kit = new Kit("tank", "<gray>Tank", Material.SHIELD, "duels.kit.tank",
-                List.of(ItemStack.of(Material.IRON_SWORD), ItemStack.empty(), ItemStack.of(Material.GOLDEN_APPLE, 3)));
+                List.of(ItemStack.of(Material.IRON_SWORD), ItemStack.empty(), ItemStack.of(Material.GOLDEN_APPLE, 3)), true);
         await(duels.kits().update(kit));
         server.getScheduler().waitAsyncTasksFinished();
 
@@ -88,6 +88,7 @@ class DataTest extends DuelsTestBase {
         assertEquals(Material.GOLDEN_APPLE, loaded.items().get(2).getType());
         assertEquals(3, loaded.items().get(2).getAmount());
         assertEquals("duels.kit.tank", loaded.permission());
+        assertTrue(loaded.build());
         assertTrue(KitRegistry.validPermission("duels.kit.tank"));
         assertFalse(KitRegistry.validPermission("bad permission"));
     }

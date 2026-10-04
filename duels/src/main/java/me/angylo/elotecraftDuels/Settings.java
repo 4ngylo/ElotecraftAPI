@@ -19,7 +19,8 @@ import java.util.stream.Collectors;
 public record Settings(int countdownSeconds, Duration maxDuration, int endDelaySeconds, boolean bossBar,
                 BossBar.Color bossBarColor, boolean logResults, Duration requestExpiry, Duration requestCooldown,
                 Duration rematchWindow, boolean hunger, boolean naturalRegeneration, Set<String> allowedCommands,
-                Reward winReward, Reward lossReward, Title.Times titleTimes, Effects effects) {
+                Reward winReward, Reward lossReward, Title.Times titleTimes, Effects effects,
+                boolean breakArenaBlocks, int regenBlocksPerTick, boolean slimeEnabled, int slimeCopiesPerArena) {
 
     private static final long MILLIS_PER_TICK = 50;
     private static final int MAX_TITLE_TICKS = 200;
@@ -55,7 +56,11 @@ public record Settings(int countdownSeconds, Duration maxDuration, int endDelayS
                         ticks(integer(config, logger, "titles.fade-in", 5, 0, MAX_TITLE_TICKS)),
                         ticks(integer(config, logger, "titles.stay", 30, 0, MAX_TITLE_TICKS)),
                         ticks(integer(config, logger, "titles.fade-out", 10, 0, MAX_TITLE_TICKS))),
-                Effects.load(config.getConfigurationSection("effects"), logger));
+                Effects.load(config.getConfigurationSection("effects"), logger),
+                config.getBoolean("build.break-arena-blocks", false),
+                integer(config, logger, "regen.blocks-per-tick", 2000, 1, 100_000),
+                config.getBoolean("slime.enabled", true),
+                integer(config, logger, "slime.copies-per-arena", 4, 1, 64));
     }
 
     private static int integer(ConfigurationSection config, Logger logger, String path, int fallback, int min, int max) {

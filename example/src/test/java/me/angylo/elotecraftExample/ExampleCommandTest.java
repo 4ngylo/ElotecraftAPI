@@ -56,7 +56,7 @@ class ExampleCommandTest {
     @Test
     void invalidInputGetsMessages() {
         server.dispatchCommand(player, "example give 999");
-        server.dispatchCommand(player, "example cooldown <red>soon");
+        server.dispatchCommand(player, "example admin cooldown <red>soon");
         server.dispatchCommand(player, "countdown abc");
 
         assertEquals("Amount must be a number from 1 to 64.", Text.plain(player.nextComponentMessage()));

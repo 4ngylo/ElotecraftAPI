@@ -1,4 +1,4 @@
-package me.angylo.elotecraftAPI.example;
+package me.angylo.elotecraftExample;
 
 import me.angylo.elotecraftAPI.util.Messages;
 import me.angylo.elotecraftAPI.util.Text;
@@ -31,7 +31,7 @@ class RouletteMenuTest {
     @BeforeEach
     void setUp() {
         server = MockBukkit.mock();
-        plugin = MockBukkit.createMockPlugin("ElotecraftAPI");
+        plugin = MockBukkit.createMockPlugin("ElotecraftExample");
         messages = new Messages(plugin);
         player = server.addPlayer();
     }

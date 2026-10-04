@@ -1,4 +1,4 @@
-package me.angylo.elotecraftAPI.example;
+package me.angylo.elotecraftExample;
 
 import me.angylo.elotecraftAPI.command.CommandBuilder;
 import me.angylo.elotecraftAPI.menu.Button;
@@ -41,13 +41,13 @@ import java.util.logging.Level;
 
 /**
  * Demo of every ElotecraftAPI feature: {@code /example} (subcommands) and {@code /countdown} (no subcommands).
- * Ops only, since undeclared permissions default to op. Remove its registration from
- * {@code ElotecraftAPI#onEnable} before shipping the library.
+ * Ops only, since undeclared permissions default to op. Ships as the separate ElotecraftExample plugin,
+ * never inside the library jar.
  */
 public final class ExampleCommand {
 
-    private static final String PERMISSION = "elotecraftapi.example";
-    private static final String ADMIN_PERMISSION = "elotecraftapi.example.admin";
+    private static final String PERMISSION = "elotecraftexample.example";
+    private static final String ADMIN_PERMISSION = "elotecraftexample.example.admin";
     private static final long SNEAK_TIMEOUT_TICKS = 20L * 10;
     private static final int MAX_AMOUNT = 64;
     private static final int MAX_SECONDS = 60;

@@ -1,4 +1,4 @@
-package me.angylo.elotecraftAPI.example;
+package me.angylo.elotecraftExample;
 
 import me.angylo.elotecraftAPI.util.Text;
 import org.bukkit.Material;
@@ -24,8 +24,8 @@ class ExampleCommandTest {
     @BeforeEach
     void setUp() {
         server = MockBukkit.mock();
-        // MockBukkit.load cannot subclass the final ElotecraftAPI; bundled YAML still resolves from the classpath.
-        ExampleCommand.register(MockBukkit.createMockPlugin("ElotecraftAPI"));
+        // MockBukkit.load cannot subclass the final ElotecraftExample; bundled YAML still resolves from the classpath.
+        ExampleCommand.register(MockBukkit.createMockPlugin("ElotecraftExample"));
         player = server.addPlayer();
         player.setOp(true);
     }
@@ -44,7 +44,7 @@ class ExampleCommandTest {
         ItemStack diamonds = player.getInventory().getItem(player.getInventory().first(Material.DIAMOND));
         assertEquals(5, diamonds.getAmount());
         assertEquals(5, diamonds.getItemMeta().getPersistentDataContainer()
-                .get(new NamespacedKey("elotecraftapi", "demo_amount"), PersistentDataType.INTEGER));
+                .get(new NamespacedKey("elotecraftexample", "demo_amount"), PersistentDataType.INTEGER));
         assertEquals("Gave you 5 demo diamonds. (total given: 5)", Text.plain(player.nextComponentMessage()));
         assertTrue(Text.plain(player.nextComponentMessage()).startsWith("Wait "));
     }

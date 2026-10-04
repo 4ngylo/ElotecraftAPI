@@ -6,6 +6,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ElotecraftAPI is a PaperMC (Minecraft server) plugin targeting Paper API `1.21.11-R0.1-SNAPSHOT` on Java 21. It is a shared library plugin: other Elotecraft plugins declare `depend: [ElotecraftAPI]` and compile against it with `provided` scope.
 
+Multi-module Maven build (parent `pom.xml` holds versions, Paper/JUnit/MockBukkit dependencies, compiler, surefire, JaCoCo):
+
+- `api/` — artifact `elotecraft-api`, the library plugin (package `me.angylo.elotecraftAPI`). Only library code goes here.
+- `example/` — artifact `elotecraft-example`, a separate demo plugin (package `me.angylo.elotecraftExample`) that depends on `elotecraft-api` with `provided` scope, exactly like a consumer plugin. Demo code, `messages.yml` and `example.yml` live here so they never ship in the library jar.
+
+Library packages (under `api/src/main/java/me/angylo/elotecraftAPI/`):
+
 - `util/` — static helpers: `Text`, `Durations`, `Cooldowns`, `Tasks`, `Events`, `ItemBuilder`, `ConfigFile`, `Messages`.
 - `menu/` — `Button` (item + `(player, click)` handler), `Menu` (an `InventoryHolder` GUI of buttons), `PaginatedMenu` (content rows + arrows in the bottom row) and `MenuListener`, which `ElotecraftAPI.onEnable` must register; without it menus do not cancel clicks.
 - Every util that owns a resource (tasks, listeners, files, menus) takes the caller's `Plugin`, never the ElotecraftAPI instance, so resources die with the consumer plugin.
@@ -15,15 +22,17 @@ ElotecraftAPI is a PaperMC (Minecraft server) plugin targeting Paper API `1.21.1
 
 ## Build
 
-- `mvn` — default goal is `clean package`; the plugin jar lands in `target/ElotecraftAPI-1.0-SNAPSHOT.jar`. Drop it into a Paper server's `plugins/` folder to run it.
-- `mvn compile` — fast compile check.
+- `mvn` — default goal is `clean package` for all modules; jars land in `api/target/elotecraft-api-1.0-SNAPSHOT.jar` and `example/target/elotecraft-example-1.0-SNAPSHOT.jar`. Drop them into a Paper server's `plugins/` folder.
+- `mvn compile` — fast compile check. `mvn -pl api test` — one module only.
+- `mvn verify` — what CI (`.github/workflows/build.yml`) runs. JaCoCo reports land in `<module>/target/site/jacoco/index.html`.
+- Publishing: JitPack builds tags (`jitpack.yml`); consumers use `com.github.4ngylo.ElotecraftAPI:elotecraft-api:<tag>`.
 - `mvn test` — JUnit 6 + MockBukkit (`mockbukkit-v1.21` 4.116.3, built for Paper 1.21.11). MockBukkit gaps: `Inventory#getHolder(boolean)` is unimplemented (so `MenuListener` is untested) and `ItemMetaMock` drops `itemModel` when copied.
 
 ## How the pieces connect
 
-- `src/main/resources/plugin.yml` is the Paper plugin descriptor. Its `main:` must match the fully qualified name of the `JavaPlugin` subclass (`me.angylo.elotecraftAPI.ElotecraftAPI`) — update it if the class is renamed or moved. Commands and permissions declared for Bukkit-style registration go here too.
+- `api/src/main/resources/plugin.yml` is the Paper plugin descriptor (the example has its own). Its `main:` must match the fully qualified name of the `JavaPlugin` subclass (`me.angylo.elotecraftAPI.ElotecraftAPI`) — update it if the class is renamed or moved. Commands and permissions declared for Bukkit-style registration go here too.
 - Resource filtering is enabled, so `${version}` in `plugin.yml` is replaced with the Maven project version at build time. Any `${...}` placed in files under `src/main/resources` will be substituted the same way.
-- `paper-api` is `provided` scope (the server supplies it). Any new runtime library must use the default `compile` scope so `maven-shade-plugin` bundles it into the jar; consider relocating shaded packages to avoid clashes with other plugins.
+- `paper-api` is `provided` scope (the server supplies it). Any new runtime library must use the default `compile` scope so `maven-shade-plugin` (enabled in `api/pom.xml`) bundles it into the jar; consider relocating shaded packages to avoid clashes with other plugins.
 - The package name is `me.angylo.elotecraftAPI` (camelCase `API`) — keep new classes under it.
 
 ## Prompt

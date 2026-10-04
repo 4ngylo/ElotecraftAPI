@@ -1,4 +1,4 @@
-package me.angylo.elotecraftAPI.example;
+package me.angylo.elotecraftExample;
 
 import me.angylo.elotecraftAPI.menu.Button;
 import me.angylo.elotecraftAPI.menu.Menu;

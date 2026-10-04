@@ -1,5 +1,6 @@
 package me.angylo.elotecraftAPI.menu;
 
+import me.angylo.elotecraftAPI.util.Tasks;
 import me.angylo.elotecraftAPI.util.Text;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
@@ -10,10 +11,12 @@ import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.Plugin;
+import org.bukkit.scheduler.BukkitTask;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.logging.Level;
 
 /**
@@ -34,6 +37,9 @@ public class Menu implements InventoryHolder {
     private final Plugin plugin;
     private final Inventory inventory;
     private final Map<Integer, Button> buttons = new HashMap<>();
+    private Consumer<? super Menu> refresher;
+    private long refreshPeriodTicks;
+    private BukkitTask refreshTask;
 
     /** @param title MiniMessage, e.g. {@code "<red><bold>Admin"} */
     public Menu(Plugin plugin, int rows, String title) {
@@ -78,8 +84,38 @@ public class Menu implements InventoryHolder {
         return this;
     }
 
+    /**
+     * Calls {@code update} every {@code periodTicks} while anyone is viewing, for live menus
+     * (timers, balances). Stops when the last viewer closes and starts again on {@link #open}.
+     *
+     * @throws IllegalArgumentException if {@code periodTicks} is less than 1
+     */
+    public Menu refresh(long periodTicks, Consumer<? super Menu> update) {
+        if (periodTicks < 1) {
+            throw new IllegalArgumentException("Refresh period must be at least 1 tick: " + periodTicks);
+        }
+        this.refreshPeriodTicks = periodTicks;
+        this.refresher = update;
+        return this;
+    }
+
     public void open(HumanEntity viewer) {
         viewer.openInventory(inventory);
+        startRefreshing();
+    }
+
+    private void startRefreshing() {
+        if (refresher == null || refreshTask != null) {
+            return;
+        }
+        refreshTask = Tasks.timer(plugin, () -> {
+            if (inventory.getViewers().isEmpty()) {
+                refreshTask.cancel();
+                refreshTask = null;
+                return;
+            }
+            refresher.accept(this);
+        }, refreshPeriodTicks, refreshPeriodTicks);
     }
 
     public Plugin plugin() {

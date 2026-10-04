@@ -128,6 +128,51 @@ class CommandBuilderTest {
     }
 
     @Test
+    void rootHandlerReceivesArgumentsThatAreNotSubcommands() {
+        CommandBuilder.create("duel").sub("accept", null, (sender, args) -> calls.add("accept"))
+                .executes((sender, args) -> calls.add("challenge " + String.join(" ", args)))
+                .register(plugin);
+
+        server.dispatchCommand(player, "duel Steve archer");
+        server.dispatchCommand(player, "duel ACCEPT");
+
+        assertEquals(List.of("challenge Steve archer", "accept"), calls);
+        assertNull(player.nextComponentMessage());
+    }
+
+    @Test
+    void rootSuggesterCompletesNextToSubcommands() {
+        Command command = CommandBuilder.create("duel")
+                .sub("accept", null, (sender, args) -> { })
+                .sub("admin", "duel.admin", (sender, args) -> { })
+                .executes((sender, args) -> { }, (sender, args) -> args.length == 1
+                        ? Args.filter(List.of("Steve", "Alex", "accept"), args)
+                        : List.of("kit-for-" + args[0]))
+                .register(plugin);
+
+        assertEquals(List.of("accept", "Steve", "Alex"), command.tabComplete(player, "duel", new String[]{""}));
+        assertEquals(List.of("Steve"), command.tabComplete(player, "duel", new String[]{"st"}));
+        assertEquals(List.of("kit-for-Steve"), command.tabComplete(player, "duel", new String[]{"Steve", ""}));
+    }
+
+    @Test
+    void messageFunctionsArePerSenderAndInheritedByGroups() {
+        CommandBuilder.create("shop")
+                .messages(sender -> Component.text("No, " + sender.getName()), sender -> Component.text("Players only"))
+                .playerSub("buy", null, (buyer, args) -> calls.add("buy"))
+                .sub(CommandBuilder.create("admin").permission("shop.admin")
+                        .sub("reset", null, (sender, args) -> calls.add("reset")))
+                .register(plugin);
+
+        server.dispatchCommand(player, "shop admin reset");
+        server.dispatchCommand(console, "shop buy");
+
+        assertEquals("No, " + player.getName(), plain(player.nextComponentMessage()));
+        assertEquals("Players only", plain(console.nextComponentMessage()));
+        assertTrue(calls.isEmpty());
+    }
+
+    @Test
     void tabCompleteFiltersByPrefixAndPermission() {
         Command command = registerShop();
 

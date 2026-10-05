@@ -4,22 +4,19 @@ import org.bukkit.Location;
 import org.bukkit.World;
 
 /**
- * Where one duel runs: an arena in its own world, or in a throwaway copy of that world. Borrowed from
- * {@link ArenaInstances} for the length of the duel and, for a build duel in the arena's own world,
- * until its blocks are back. Main thread only.
+ * Where one duel runs: an arena in its world. Borrowed from {@link ArenaInstances} for the length of the
+ * duel and, for a build duel, until its blocks are back. Main thread only.
  */
 public final class ArenaInstance {
 
     private final Arena arena;
     private final World world;
-    private final boolean copy;
     private final ArenaChanges changes;
     private boolean closing;
 
-    ArenaInstance(Arena arena, World world, boolean copy, boolean build) {
+    ArenaInstance(Arena arena, World world, boolean build) {
         this.arena = arena;
         this.world = world;
-        this.copy = copy;
         this.changes = build ? new ArenaChanges() : null;
     }
 
@@ -29,11 +26,6 @@ public final class ArenaInstance {
 
     public World world() {
         return world;
-    }
-
-    /** Whether {@link #world()} is a copy that is thrown away after the duel. */
-    public boolean isCopy() {
-        return copy;
     }
 
     /** Whether fighters may change blocks here (a build kit). */
@@ -49,7 +41,7 @@ public final class ArenaInstance {
         return changes;
     }
 
-    /** Whether the duel is over and the arena is being put back or its copy unloaded. */
+    /** Whether the duel is over and the arena is being put back. */
     public boolean isClosing() {
         return closing;
     }

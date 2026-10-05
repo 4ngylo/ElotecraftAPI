@@ -10,7 +10,6 @@ import me.angylo.elotecraftDuels.arena.ArenaRegistry;
 import me.angylo.elotecraftDuels.command.AdminCommand;
 import me.angylo.elotecraftDuels.command.DuelCommand;
 import me.angylo.elotecraftDuels.hook.PlaceholderHook;
-import me.angylo.elotecraftDuels.hook.SlimeWorlds;
 import me.angylo.elotecraftDuels.kit.KitRegistry;
 import me.angylo.elotecraftDuels.listener.BuildListener;
 import me.angylo.elotecraftDuels.listener.CombatListener;
@@ -30,7 +29,6 @@ import org.bukkit.plugin.Plugin;
 import org.bukkit.scheduler.BukkitTask;
 
 import java.util.List;
-import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -52,7 +50,6 @@ public final class Duels {
     private final KitRegistry kits;
     private final StatsService stats;
     private final SnapshotStore snapshots;
-    private final SlimeWorlds slime;
     private final ArenaInstances instances;
     private final MatchManager matches;
     private final RequestManager requests;
@@ -74,8 +71,7 @@ public final class Duels {
         this.kits = new KitRegistry(plugin);
         this.stats = new StatsService(plugin, database);
         this.snapshots = new SnapshotStore(plugin, database);
-        this.slime = settings.slimeEnabled() ? SlimeWorlds.detect(plugin).orElse(null) : null;
-        this.instances = new ArenaInstances(plugin, this::settings, arenas, slime);
+        this.instances = new ArenaInstances(plugin, this::settings, arenas);
         this.matches = new MatchManager(plugin, messages, this::settings, arenas, instances, snapshots, stats);
         this.requests = new RequestManager(messages, this::settings, kits, arenas, matches);
         this.queues = new QueueManager(messages, this::settings, kits, matches, stats);
@@ -94,13 +90,9 @@ public final class Duels {
         // After a reload the players are already online: load them as if they had just joined.
         Bukkit.getOnlinePlayers().forEach(sessions::load);
         this.placeholders = PlaceholderHook.register(this);
-        if (slime != null) {
-            slime.loadTemplates();
-        }
         this.ticker = Tasks.timer(plugin, this::tick, SECOND_TICKS, SECOND_TICKS);
         plugin.getLogger().info("Loaded " + arenas.all().size() + " arenas (" + arenas.all().stream().filter(Arena::isReady).count()
-                + " ready) and " + kits.all().size() + " kits" + (placeholders.registered() ? "; PlaceholderAPI hooked" : "")
-                + (slime != null ? "; AdvancedSlimePaper found, arenas in its worlds are copied for each duel" : ""));
+                + " ready) and " + kits.all().size() + " kits" + (placeholders.registered() ? "; PlaceholderAPI hooked" : ""));
     }
 
     /**
@@ -151,11 +143,6 @@ public final class Duels {
         return instances;
     }
 
-    /** AdvancedSlimePaper support, when the server runs it and {@code slime.enabled} is on. */
-    public Optional<SlimeWorlds> slime() {
-        return Optional.ofNullable(slime);
-    }
-
     public MatchManager matches() {
         return matches;
     }
@@ -175,7 +162,7 @@ public final class Duels {
 
     /**
      * Reloads config.yml, messages, menus.yml, arenas.yml and kits.yml; running duels keep the arena and
-     * kit they started with. The database and {@code slime.enabled} need a restart.
+     * kit they started with. The database needs a restart.
      *
      * @return false if a file failed to load (its previous contents are kept)
      */

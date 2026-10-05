@@ -12,8 +12,8 @@ import java.util.Locale;
 
 /**
  * A place for duels. Every position is in {@link #world()}; the corners are opposite blocks of a box around
- * the whole arena. Duels run in that world, or in copies of it on AdvancedSlimePaper (see
- * {@link ArenaInstances}). Immutable: the {@code with...} methods return a changed copy.
+ * the whole arena. Duels run in that world, one at a time (see {@link ArenaInstances}). Immutable: the
+ * {@code with...} methods return a changed copy.
  *
  * @param displayName MiniMessage, set by admins
  */

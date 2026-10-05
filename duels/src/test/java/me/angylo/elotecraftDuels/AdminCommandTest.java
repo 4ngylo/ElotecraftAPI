@@ -81,19 +81,6 @@ class AdminCommandTest extends DuelsTestBase {
     }
 
     @Test
-    void arenaWorlds() {
-        assertTrue(said("duels arena world", "Arena worlds"));
-        assertTrue(said("duels arena world create Bad.Name", "Names use 1 to 32"));
-        assertTrue(said("duels arena world create arena", "already exists"));
-        assertTrue(saidEventually("duels arena world create desert", "Created desert"));
-        assertEquals("desert", admin.getWorld().getName());
-        assertTrue(said("duels arena world save desert", "Saved desert"));
-        assertTrue(said("duels arena world save world", "isn't a loaded arena world"));
-        assertTrue(said("duels arena world import world dunes", "unloaded world folder"));
-        // Importing a real folder needs Bukkit.getWorldContainer(), which MockBukkit does not implement.
-    }
-
-    @Test
     void helpPagesAndValidation() {
         assertTrue(said("duels", "Duels admin"));
         assertTrue(said("duels arena", "Arena setup"));

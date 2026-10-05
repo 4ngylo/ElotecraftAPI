@@ -20,8 +20,7 @@ public record Settings(int countdownSeconds, Duration maxDuration, int endDelayS
                 BossBar.Color bossBarColor, boolean logResults, Duration requestExpiry, Duration requestCooldown,
                 Duration rematchWindow, boolean hunger, boolean naturalRegeneration, Set<String> allowedCommands,
                 Reward winReward, Reward lossReward, Title.Times titleTimes, Effects effects,
-                boolean breakArenaBlocks, int regenBlocksPerTick, boolean slimeEnabled, int slimeCopiesPerArena,
-                Ranked ranked) {
+                boolean breakArenaBlocks, int regenBlocksPerTick, Ranked ranked) {
 
     private static final long MILLIS_PER_TICK = 50;
     private static final int MAX_TITLE_TICKS = 200;
@@ -70,8 +69,6 @@ public record Settings(int countdownSeconds, Duration maxDuration, int endDelayS
                 Effects.load(config.getConfigurationSection("effects"), logger),
                 config.getBoolean("build.break-arena-blocks", false),
                 integer(config, logger, "regen.blocks-per-tick", 2000, 1, 100_000),
-                config.getBoolean("slime.enabled", true),
-                integer(config, logger, "slime.copies-per-arena", 4, 1, 64),
                 new Ranked(
                         integer(config, logger, "ranked.k-factor", 32, 1, 100),
                         integer(config, logger, "ranked.range", 100, 0, MAX_ELO_RANGE),

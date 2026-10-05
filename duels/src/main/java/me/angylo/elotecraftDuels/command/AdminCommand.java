@@ -9,7 +9,6 @@ import me.angylo.elotecraftDuels.Duels;
 import me.angylo.elotecraftDuels.arena.Arena;
 import me.angylo.elotecraftDuels.arena.ArenaRegistry;
 import me.angylo.elotecraftDuels.arena.ArenaTemplate;
-import me.angylo.elotecraftDuels.hook.SlimeWorlds;
 import me.angylo.elotecraftDuels.kit.Kit;
 import me.angylo.elotecraftDuels.kit.KitRegistry;
 import net.kyori.adventure.text.Component;
@@ -17,9 +16,7 @@ import net.kyori.adventure.text.JoinConfiguration;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver;
 import org.bukkit.Bukkit;
-import org.bukkit.Location;
 import org.bukkit.Material;
-import org.bukkit.World;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.event.player.PlayerTeleportEvent.TeleportCause;
@@ -94,13 +91,7 @@ public final class AdminCommand {
                         .playerSub("tp", null, (player, args) -> withArena(player, args, (arena, rest) -> teleport(player, arena)), arenaNames)
                         .sub("list", null, (sender, args) -> listArenas(sender))
                         .sub("snapshot", null, (sender, args) -> withArena(sender, args, (arena, rest) -> snapshot(sender, arena)), arenaNames)
-                        .sub("reset", null, (sender, args) -> withArena(sender, args, (arena, rest) -> reset(sender, arena)), arenaNames)
-                        .sub(CommandBuilder.create("world")
-                                .executes((sender, args) -> messages.send(sender, "command.world-help"))
-                                .playerSub("create", null, this::createWorld)
-                                .sub("import", null, this::importWorld)
-                                .sub("save", null, this::saveWorld, (sender, args) -> args.length == 1
-                                        ? Args.filter(templateWorlds(), args) : List.of())))
+                        .sub("reset", null, (sender, args) -> withArena(sender, args, (arena, rest) -> reset(sender, arena)), arenaNames))
                 .sub(CommandBuilder.create("kit").permission("duels.admin.kit")
                         .executes((sender, args) -> messages.send(sender, "command.kit-help"))
                         .playerSub("create", null, this::createKit)
@@ -259,78 +250,6 @@ public final class AdminCommand {
                 messages.send(sender, "admin.save-failed");
             }
         }));
-    }
-
-    private void createWorld(Player player, String[] args) {
-        String name = Args.get(args, 0).toLowerCase(Locale.ROOT);
-        withSlime(player, slime -> newWorldName(player, name, () -> {
-            messages.send(player, "admin.world.creating", Placeholder.unparsed("world", name));
-            worldDone(player, name, slime.create(name), world -> {
-                player.teleportAsync(new Location(world, 0.5, 64, 0.5), TeleportCause.COMMAND);
-                messages.send(player, "admin.world.created", Placeholder.unparsed("world", name));
-            });
-        }));
-    }
-
-    private void importWorld(CommandSender sender, String[] args) {
-        String folder = Args.get(args, 0);
-        String name = Args.get(args, 1).toLowerCase(Locale.ROOT);
-        withSlime(sender, slime -> newWorldName(sender, name, () -> {
-            if (!ArenaRegistry.validName(folder) || Bukkit.getWorld(folder) != null) {
-                messages.send(sender, "admin.world.bad-folder", Placeholder.unparsed("folder", folder));
-                return;
-            }
-            messages.send(sender, "admin.world.importing", Placeholder.unparsed("world", name));
-            worldDone(sender, name, slime.importWorld(folder, name),
-                    world -> messages.send(sender, "admin.world.imported", Placeholder.unparsed("world", name)));
-        }));
-    }
-
-    private void saveWorld(CommandSender sender, String[] args) {
-        String name = Args.get(args, 0).toLowerCase(Locale.ROOT);
-        withSlime(sender, slime -> {
-            if (!templateWorlds().contains(name)) {
-                messages.send(sender, "admin.world.not-template", Placeholder.unparsed("world", name));
-                return;
-            }
-            worldDone(sender, name, slime.save(name), ignored -> messages.send(sender, "admin.world.saved", Placeholder.unparsed("world", name)));
-        });
-    }
-
-    private void withSlime(CommandSender sender, Consumer<SlimeWorlds> action) {
-        duels.slime().ifPresentOrElse(action, () -> messages.send(sender, "admin.world.no-slime"));
-    }
-
-    /** Runs {@code action} if {@code name} can name a new world. */
-    private void newWorldName(CommandSender sender, String name, Runnable action) {
-        if (!ArenaRegistry.validName(name)) {
-            messages.send(sender, "admin.invalid-name");
-        } else if (Bukkit.getWorld(name) != null || duels.slime().map(slime -> slime.isTemplate(name)).orElse(false)) {
-            messages.send(sender, "admin.world.exists", Placeholder.unparsed("world", name));
-        } else {
-            action.run();
-        }
-    }
-
-    /** Reports a world command's result on the main thread; failures show their reason to the admin. */
-    private <T> void worldDone(CommandSender sender, String name, CompletableFuture<T> work, Consumer<T> onSuccess) {
-        work.whenComplete((result, error) -> Tasks.sync(duels.plugin(), () -> {
-            if (error == null) {
-                onSuccess.accept(result);
-                return;
-            }
-            duels.plugin().getLogger().log(Level.WARNING, "Duels world command for " + name + " failed", error);
-            // Only this plugin's own explanations are shown; anything else may hold file paths.
-            Throwable cause = rootCause(error);
-            String reason = cause instanceof IllegalStateException && cause.getMessage() != null ? cause.getMessage() : "see the console";
-            messages.send(sender, "admin.world.failed", Placeholder.unparsed("reason", reason));
-        }));
-    }
-
-    /** Loaded slime template worlds. */
-    private List<String> templateWorlds() {
-        return duels.slime().map(slime -> Bukkit.getWorlds().stream().map(World::getName).filter(slime::isTemplate).toList())
-                .orElse(List.of());
     }
 
     private static Throwable rootCause(Throwable error) {

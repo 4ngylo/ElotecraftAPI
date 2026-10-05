@@ -2,8 +2,7 @@
 
 1v1 duels for Paper 1.21.11, built on ElotecraftAPI: challenges with kit and arena menus, matchmaking
 queues, spectators, rematches, statistics, build kits, Vault rewards and PlaceholderAPI placeholders.
-Several duels run at once: one per arena, or several per arena on
-[AdvancedSlimePaper](#advancedslimepaper). Nothing a duel touches can leak out: players are saved before a
+Several duels run at once, one per arena. Nothing a duel touches can leak out: players are saved before a
 duel and put back afterwards, and arenas are put back after build duels, even after a crash.
 
 ## Install
@@ -61,28 +60,7 @@ start, and takes no duels until then; `/duels arena reset <arena>` does the same
 snapshot (or with one taken before the corners moved) the console says so: fix the arena by hand, then
 `/duels arena snapshot` it, which also lets it take duels again. Snapshots keep blocks only: chests come
 back empty and signs blank, so keep containers out of build arenas or refill them. Snapshots are deleted
-with their arena and limited to 256 x 256 blocks across. Arenas on AdvancedSlimePaper need none of this.
-
-## AdvancedSlimePaper
-
-[AdvancedSlimePaper](https://github.com/InfernalSuite/AdvancedSlimePaper) (ASP) is a Paper fork that keeps
-small worlds in memory and copies them in milliseconds. On an ASP server, arenas built in ASP worlds give
-every duel its own copy of the world, thrown away afterwards: nothing to put back, nothing a crash can
-leave behind, and up to `slime.copies-per-arena` duels at once in one arena. Arenas in normal worlds keep
-working as above, and on plain Paper the plugin works without it.
-
-1. Run the server on an ASP 1.21.11 build ([downloads](https://infernalsuite.com/download/asp)). ASP
-   replaces the server jar, so check your other plugins on it first. Its 1.21.11 builds no longer get
-   updates (ASP moved on to newer Minecraft versions), so you also stop getting Paper's 1.21.11 fixes.
-2. `/duels arena world create desert` makes an empty world with one block to stand on and takes you
-   there; `/duels arena world import <folder> desert` copies an existing world folder (not loaded, in the
-   server directory) instead.
-3. Build the arena, then set it up with the usual `/duels arena` commands while standing in `desert`.
-4. `/duels arena world save desert`. New duels use the world as saved; save again after changes.
-
-ASP worlds live in `plugins/ElotecraftDuels/slime-worlds/` and are loaded at start so admins can edit them.
-
-Without ASP, `/duels arena world` explains that it is needed. `slime.enabled: false` turns the copies off.
+with their arena and limited to 256 x 256 blocks across.
 
 ## Commands
 
@@ -97,7 +75,6 @@ Without ASP, `/duels arena world` explains that it is needed. `slime.enabled: fa
 | `/duel leave` | | Leave the queue, stop spectating, or forfeit |
 | `/duel stats [player]`, `/duel top [elo]` | `duels.stats`, `duels.top` | Statistics and leaderboard by wins or rating |
 | `/duels arena ...` | `duels.admin.arena` | `create`, `delete`, `setspawn`, `setcorner`, `setspectator`, `seticon`, `setname`, `toggle`, `info`, `tp`, `list`, `snapshot`, `reset` |
-| `/duels arena world ...` | `duels.admin.arena` | `create`, `import`, `save`: arena worlds on AdvancedSlimePaper |
 | `/duels kit ...` | `duels.admin.kit` | `create`, `save`, `load`, `delete`, `seticon`, `setname`, `setpermission`, `build`, `list` |
 | `/duels stop <player>` | `duels.admin.stop` | End a duel without a result |
 | `/duels reload` | `duels.admin.reload` | Reload config, messages, menus, arenas and kits |
@@ -129,8 +106,8 @@ cut short by a crash is undone when the player next joins.
 ## Configuration
 
 - `config.yml`: database, countdown, duration, end delay, boss bar, request expiry and cooldown, rematch
-  window, hunger and regeneration rules, allowed commands, build kit and arena regen rules,
-  AdvancedSlimePaper, ranked rating and queue range, rewards, title timings, sounds and particles.
+  window, hunger and regeneration rules, allowed commands, build kit and arena regen rules, ranked
+  rating and queue range, rewards, title timings, sounds and particles.
   Invalid values are logged and replaced by defaults.
 - `messages.yml`: every text players see, in [MiniMessage](https://docs.advntr.dev/minimessage/format.html).
   Add `messages_<language>.yml` (e.g. `messages_es.yml`) for players whose client uses that language.
@@ -171,8 +148,6 @@ The automated tests run on MockBukkit, which cannot click menus. Before a releas
   back after the duel and nothing flowed or burned outside the box
 - [ ] `/duels arena snapshot`, break the arena by hand, `/duels arena reset`; `/stop` mid build duel, start
   again: the console says the arena was rebuilt
-- [ ] On AdvancedSlimePaper: `/duels arena world create`, set up and save an arena, two duels in it at
-  once, and their `duels_<arena>_<n>` copies unload afterwards
 
 ## Not included
 

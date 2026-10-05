@@ -26,7 +26,7 @@ import java.util.regex.Pattern;
 public final class ArenaRegistry {
 
     private static final Pattern NAME = Pattern.compile("[a-z0-9_-]{1,32}");
-    /** Names Windows reserves for devices; they are also file names (templates, slime worlds). */
+    /** Names Windows reserves for devices; they are also file names (arena snapshots). */
     private static final Pattern RESERVED = Pattern.compile("con|prn|aux|nul|com[0-9]|lpt[0-9]");
     private static final String ROOT = "arenas";
     /** Arenas a build duel changed and that were not put back yet, e.g. after a crash. */

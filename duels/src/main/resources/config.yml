@@ -39,13 +39,6 @@ build:
 regen:
   blocks-per-tick: 2000   # 1 to 100000 blocks put back per tick after a build duel; the arena takes no duel until done
 
-# AdvancedSlimePaper (a Paper fork) can copy a world in memory in milliseconds. When the server runs it,
-# arenas built in worlds made with /duels arena world give every duel its own copy, thrown away
-# afterwards: nothing to put back, and one arena hosts several duels at once. Other arenas work as usual.
-slime:
-  enabled: true           # restart to apply
-  copies-per-arena: 4     # 1 to 64 duels at once in one arena
-
 ranked:
   # /duel ranked duels move Elo rating: the winner takes it from the loser (forfeits and quits count as
   # losses, draws change nothing). /duel queue, challenges and rematches are unranked. Everyone starts at 1000.

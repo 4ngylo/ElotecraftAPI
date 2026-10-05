@@ -28,17 +28,9 @@
                 <enabled>false</enabled>
             </snapshots>
         </repository>
-        <repository>
-            <id>infernalsuite</id>
-            <url>https://repo.infernalsuite.com/repository/maven-releases/</url>
-            <snapshots>
-                <enabled>false</enabled>
-            </snapshots>
-        </repository>
     </repositories>
 
-    <!-- All supplied by the server: ElotecraftAPI is required; Vault, PlaceholderAPI and AdvancedSlimePaper
-         are optional. -->
+    <!-- All supplied by the server: ElotecraftAPI is required; Vault and PlaceholderAPI are optional. -->
     <dependencies>
         <dependency>
             <groupId>me.angylo</groupId>
@@ -53,14 +45,6 @@
         <dependency>
             <groupId>com.github.MilkBowl</groupId>
             <artifactId>VaultAPI</artifactId>
-            <scope>provided</scope>
-        </dependency>
-        <!-- AdvancedSlimePaper is a Paper fork, so the server jar has this API. 4.1.0 is the last release built
-             for Java 21, with the same API as the 1.21.11 servers; later ones need Java 25. -->
-        <dependency>
-            <groupId>com.infernalsuite.asp</groupId>
-            <artifactId>api</artifactId>
-            <version>4.1.0</version>
             <scope>provided</scope>
         </dependency>
     </dependencies>

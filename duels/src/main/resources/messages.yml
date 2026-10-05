@@ -35,14 +35,7 @@ command:
     <yellow>/duels arena setname <name> <text></yellow> <dark_gray>-</dark_gray> <gray>name shown to players
     <yellow>/duels arena snapshot <name></yellow> <dark_gray>-</dark_gray> <gray>save its blocks, to rebuild it after a crash
     <yellow>/duels arena reset <name></yellow> <dark_gray>-</dark_gray> <gray>put its blocks back as in the snapshot
-    <yellow>/duels arena world</yellow> <dark_gray>-</dark_gray> <gray>arena worlds copied for each duel (AdvancedSlimePaper)
     <yellow>/duels arena toggle|info|tp|delete <name></yellow> <dark_gray>·</dark_gray> <yellow>/duels arena list</yellow>
-  world-help: |-
-    <gradient:#4facfe:#00f2fe><bold>Arena worlds</bold></gradient> <dark_gray>(needs AdvancedSlimePaper)</dark_gray>
-    <gray>Every duel in an arena built in one of these worlds gets its own copy, thrown away afterwards.
-    <yellow>/duels arena world create <name></yellow> <dark_gray>-</dark_gray> <gray>new empty world; you are taken there
-    <yellow>/duels arena world import <folder> <name></yellow> <dark_gray>-</dark_gray> <gray>copy an unloaded world folder
-    <yellow>/duels arena world save <name></yellow> <dark_gray>-</dark_gray> <gray>save your changes; new duels use them
   kit-help: |-
     <gradient:#f7971e:#ffd200><bold>Kit setup</bold></gradient> <dark_gray>(uses your inventory, armor and off hand)</dark_gray>
     <yellow>/duels kit create <name></yellow> <dark_gray>-</dark_gray> <gray>new kit from your inventory
@@ -228,14 +221,3 @@ admin:
     list-empty: "<prefix><gray>No kits yet. Create one with <white>/duels kit create <name>"
     build-on: "<prefix><green>Fighters with <white><kit></white> can now place blocks; arenas are put back after each duel."
     build-off: "<prefix><green>Fighters with <white><kit></white> can no longer place blocks."
-  world:
-    no-slime: "<prefix><red>This needs the server to run AdvancedSlimePaper, with slime.enabled on in config.yml."
-    exists: "<prefix><red>A world called <world> already exists."
-    bad-folder: "<prefix><red>'<folder>' must be the name of an unloaded world folder in the server directory."
-    not-template: "<prefix><red><world> isn't a loaded arena world."
-    creating: "<prefix><gray>Creating <white><world></white>..."
-    created: "<prefix><green>Created <white><world></white>. <gray>Build the arena, set it up with /duels arena, then /duels arena world save <world>."
-    importing: "<prefix><gray>Importing <white><world></white>..."
-    imported: "<prefix><green>Imported <white><world></white>. <gray>Set up its arena with /duels arena, then /duels arena world save <world>."
-    saved: "<prefix><green>Saved <white><world></white>; new duels there use it as it is now."
-    failed: "<prefix><red>That didn't work: <reason>"

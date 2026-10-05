@@ -135,6 +135,13 @@ public final class CombatListener implements Listener {
             return;
         }
         if (event.hasChangedBlock() && !match.contains(event.getTo())) {
+            // Falling out of the bottom loses the fight, like the void; any other way out is undone.
+            if (settings.get().voidEliminates() && match.isFighting(player)
+                    && event.getTo().getY() < match.arena().bounds().getMinY()) {
+                matches.eliminate(player);
+                event.setTo(match.spectatorSpawn());
+                return;
+            }
             boolean fighter = match.isFighter(player) && player.getGameMode() != GameMode.SPECTATOR;
             event.setTo(fighter ? match.spawnOf(player) : match.spectatorSpawn());
             messages.send(player, "match.out-of-bounds");

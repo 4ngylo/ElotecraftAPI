@@ -30,6 +30,9 @@ rules:
   natural-regeneration: true   # false: only potions, golden apples and the like heal
   # Commands fighters and spectators may use besides /duel (their aliases too), without the slash.
   allowed-commands: [msg, tell, w, r, reply]
+  # true: a fighter who falls out of the bottom of the arena's box loses, as in the void. Leaving any other
+  # way sends them back to their spawn.
+  void-eliminates: true
 
 build:
   # Build kits (/duels kit build) let fighters place blocks in the arena and break the ones placed during
@@ -37,7 +40,14 @@ build:
   break-arena-blocks: false
 
 regen:
-  blocks-per-tick: 2000   # 1 to 100000 blocks put back per tick after a build duel; the arena takes no duel until done
+  blocks-per-tick: 2000   # 1 to 100000 blocks put back per tick after a build duel or pregen paste; the arena takes no duel until done
+
+arenas:
+  # An empty void world for arena copies made with /duels arena pregen, away from the lobby. Created at
+  # start if missing; restart to apply a new name.
+  world: duels_arenas
+  pregen-spacing: 64      # 16 to 1024 empty blocks between pregen copies
+  max-copies: 32          # 1 to 256 copies one pregen can make
 
 ranked:
   # /duel ranked duels move Elo rating: the winner takes it from the loser (forfeits and quits count as

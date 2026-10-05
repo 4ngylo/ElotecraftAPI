@@ -82,7 +82,7 @@ public final class BuildListener implements Listener {
         ArenaInstance instance = buildable(player, event.getBlock());
         List<BlockState> replaced = event instanceof BlockMultiPlaceEvent multi
                 ? multi.getReplacedBlockStates() : List.of(event.getBlockReplacedState());
-        if (instance == null || !replaced.stream().allMatch(state -> instance.contains(state.getLocation()))) {
+        if (instance == null || !replaced.stream().allMatch(state -> instance.allowsPlacingAt(state.getLocation()))) {
             event.setCancelled(true);
             return;
         }
@@ -293,13 +293,16 @@ public final class BuildListener implements Listener {
         return false;
     }
 
-    /** A player in a duel puts something into {@code block}: allowed only in their build duel's arena. */
+    /**
+     * A player in a duel puts something into {@code block}: allowed only in their build duel's arena, up to
+     * its build limit.
+     */
     private void addBlock(Player player, Block block, Cancellable event) {
         if (!matches.isBusy(player)) {
             return;
         }
         ArenaInstance instance = buildable(player, block);
-        if (instance == null) {
+        if (instance == null || !instance.allowsPlacingAt(block.getLocation())) {
             event.setCancelled(true);
             return;
         }

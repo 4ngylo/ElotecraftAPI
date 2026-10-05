@@ -28,6 +28,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.BooleanSupplier;
 import java.util.stream.Stream;
@@ -91,14 +92,14 @@ abstract class DuelsTestBase {
 
     /** A kit of one diamond sword. */
     protected Kit swordKit() {
-        Kit kit = new Kit("sword", "<aqua>Sword", Material.DIAMOND_SWORD, null, List.of(ItemStack.of(Material.DIAMOND_SWORD)), false);
+        Kit kit = new Kit("sword", "<aqua>Sword", Material.DIAMOND_SWORD, null, List.of(ItemStack.of(Material.DIAMOND_SWORD)), false, Set.of());
         await(duels.kits().update(kit));
         return kit;
     }
 
     /** A build kit of a stack of planks. */
     protected Kit buildKit() {
-        Kit kit = new Kit("bridge", "<gold>Bridge", Material.OAK_PLANKS, null, List.of(ItemStack.of(Material.OAK_PLANKS, 64)), true);
+        Kit kit = new Kit("bridge", "<gold>Bridge", Material.OAK_PLANKS, null, List.of(ItemStack.of(Material.OAK_PLANKS, 64)), true, Set.of());
         await(duels.kits().update(kit));
         return kit;
     }
@@ -137,6 +138,22 @@ abstract class DuelsTestBase {
                 fail("Condition not met in time");
             }
             tick();
+            Thread.onSpinWait();
+        }
+    }
+
+    /** Runs {@code command} as {@code player} and ticks until a chat line holds {@code text}, for answers after file saves. */
+    protected void assertSays(TestPlayer player, String command, String text) {
+        messages(player);
+        server.dispatchCommand(player, command);
+        List<String> lines = new ArrayList<>();
+        long deadline = System.currentTimeMillis() + TIMEOUT_MILLIS;
+        while (lines.stream().noneMatch(line -> line.contains(text))) {
+            if (System.currentTimeMillis() > deadline) {
+                fail("Expected '" + text + "' after /" + command + " in " + lines);
+            }
+            tick();
+            lines.addAll(messages(player));
             Thread.onSpinWait();
         }
     }

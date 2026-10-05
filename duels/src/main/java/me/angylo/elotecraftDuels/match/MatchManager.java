@@ -121,10 +121,15 @@ public final class MatchManager {
         return instances.inUse(arena) > 0;
     }
 
-    /** A random arena that is ready and free. */
-    public Optional<Arena> randomFreeArena() {
-        List<Arena> free = arenas.all().stream().filter(instances::available).toList();
+    /** A random arena {@code kit} accepts that is ready and free. */
+    public Optional<Arena> randomFreeArena(Kit kit) {
+        List<Arena> free = arenas.all().stream().filter(arena -> kit.accepts(arena) && instances.available(arena)).toList();
         return free.isEmpty() ? Optional.empty() : Optional.of(free.get(ThreadLocalRandom.current().nextInt(free.size())));
+    }
+
+    /** Whether any ready arena accepts {@code kit}, free or not; without one its duels could never start. */
+    public boolean hasArenaFor(Kit kit) {
+        return arenas.all().stream().anyMatch(arena -> kit.accepts(arena) && arena.isReady());
     }
 
     /** {@code player}'s last opponent, while the rematch window is open. */

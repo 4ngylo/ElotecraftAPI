@@ -4,6 +4,7 @@ import me.angylo.elotecraftAPI.util.ConfigFile;
 import me.angylo.elotecraftAPI.util.Text;
 import me.angylo.elotecraftDuels.arena.Arena;
 import me.angylo.elotecraftDuels.match.Match;
+import me.angylo.elotecraftDuels.kit.Kit;
 import me.angylo.elotecraftDuels.menu.ArenaMenu;
 import org.bukkit.Material;
 import org.bukkit.block.BlockFace;
@@ -49,6 +50,7 @@ class MenuAndRulesTest extends DuelsTestBase {
     void queueMenuMarksYourQueue() {
         TestPlayer alex = join("Alex");
         swordKit();
+        readyArena("pit");
         server.dispatchCommand(alex, "duel queue sword");
 
         server.dispatchCommand(alex, "duel queue");
@@ -81,11 +83,12 @@ class MenuAndRulesTest extends DuelsTestBase {
         readyArena("yard");
         TestPlayer first = join("First");
         TestPlayer second = join("Second");
-        duels.matches().start(first, second, swordKit(), pit);
+        Kit sword = swordKit();
+        duels.matches().start(first, second, sword, pit);
         ArenaMenu menu = new ArenaMenu(plugin, duels.messages(), new ConfigFile(plugin, "menus.yml"), duels::settings,
                 duels.arenas(), duels.matches());
 
-        menu.open(alex, chosen -> { });
+        menu.open(alex, sword, chosen -> { });
 
         Inventory top = alex.getOpenInventory().getTopInventory();
         List<String> pitLore = top.getItem(0).getItemMeta().lore().stream().map(Text::plain).toList();

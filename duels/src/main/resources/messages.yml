@@ -31,10 +31,14 @@ command:
     <yellow>/duels arena setspawn <name> <1|2></yellow> <dark_gray>-</dark_gray> <gray>where each fighter starts
     <yellow>/duels arena setcorner <name> <1|2></yellow> <dark_gray>-</dark_gray> <gray>opposite corners around the whole arena
     <yellow>/duels arena setspectator <name></yellow> <dark_gray>-</dark_gray> <gray>where spectators appear (optional)
+    <yellow>/duels arena setcenter <name></yellow> <dark_gray>-</dark_gray> <gray>middle of the arena; spectators appear there if no spectator spawn (optional)
+    <yellow>/duels arena category <name> add|remove <category></yellow> <dark_gray>-</dark_gray> <gray>arena pools kits pick from
+    <yellow>/duels arena buildlimit <name> <y|none></yellow> <dark_gray>-</dark_gray> <gray>highest Y fighters may place blocks at
     <yellow>/duels arena seticon <name></yellow> <dark_gray>-</dark_gray> <gray>menu icon: the item in your hand
     <yellow>/duels arena setname <name> <text></yellow> <dark_gray>-</dark_gray> <gray>name shown to players
     <yellow>/duels arena snapshot <name></yellow> <dark_gray>-</dark_gray> <gray>save its blocks, to rebuild it after a crash
     <yellow>/duels arena reset <name></yellow> <dark_gray>-</dark_gray> <gray>put its blocks back as in the snapshot
+    <yellow>/duels arena pregen <name> <count|clear></yellow> <dark_gray>-</dark_gray> <gray>copies in the arenas world, one duel each
     <yellow>/duels arena toggle|info|tp|delete <name></yellow> <dark_gray>·</dark_gray> <yellow>/duels arena list</yellow>
   kit-help: |-
     <gradient:#f7971e:#ffd200><bold>Kit setup</bold></gradient> <dark_gray>(uses your inventory, armor and off hand)</dark_gray>
@@ -45,6 +49,7 @@ command:
     <yellow>/duels kit setname <name> <text></yellow> <dark_gray>-</dark_gray> <gray>name shown to players
     <yellow>/duels kit setpermission <name> <permission|none></yellow> <dark_gray>-</dark_gray> <gray>who may use it
     <yellow>/duels kit build <name></yellow> <dark_gray>-</dark_gray> <gray>let fighters place blocks, or stop it
+    <yellow>/duels kit arenas <name> <category...|any></yellow> <dark_gray>-</dark_gray> <gray>which arena categories its duels use
     <yellow>/duels kit delete <name></yellow> <dark_gray>·</dark_gray> <yellow>/duels kit list</yellow>
 
 general:
@@ -57,6 +62,8 @@ general:
   busy-other: "<prefix><red><player> is busy right now."
   no-free-arena: "<prefix><red>Every arena is in use; try again in a moment."
   arena-busy: "<prefix><red><arena> is in use; pick another arena or a random one."
+  no-arena-for-kit: "<prefix><red>No arena is ready for <kit> yet."
+  arena-wrong-kit: "<prefix><red><arena> can't be used with <kit>."
   not-dueling: "<prefix><red><player> isn't in a duel."
   storage-error: "<prefix><red>Your duel data couldn't be saved, so nothing changed. Try again or tell an admin."
   menu-error: "<prefix><red>That menu is misconfigured; please tell an admin."
@@ -183,9 +190,32 @@ admin:
     not-ready: "<prefix><red><arena> isn't ready: <problems>"
     info: |-
       <gradient:#4facfe:#00f2fe><bold><arena></bold></gradient> <dark_gray>(<id>)</dark_gray>
-       <gray>World: <white><world></white> <dark_gray>·</dark_gray> <gray>Enabled: <white><enabled></white> <dark_gray>·</dark_gray> <gray>In use: <white><in-use>
+       <gray>World: <white><world></white> <dark_gray>·</dark_gray> <gray>Enabled: <white><enabled></white> <dark_gray>·</dark_gray> <gray>In use: <white><in-use></white><copy>
+       <gray>Categories: <white><categories></white> <dark_gray>·</dark_gray> <gray>Build limit: <white><build-limit>
        <gray>Status: <status>
+    copy-of: " <dark_gray>·</dark_gray> <gray>Copy of <white><source>"
     ready: "<green>ready"
+    center-set: "<prefix><green>Set the center of <white><arena></white>."
+    center-outside: "<prefix><red>Stand inside the corners of <arena> to set its center."
+    category-usage: "<prefix><red>Use /duels arena category <name> add|remove <category>; categories use lowercase letters, digits, - and _."
+    category-added: "<prefix><green><arena> is now in category <white><category></white>."
+    category-removed: "<prefix><green><arena> is no longer in category <white><category></white>."
+    category-present: "<prefix><gray><arena> is already in category <category>."
+    category-missing: "<prefix><gray><arena> isn't in category <category>."
+    build-limit-set: "<prefix><green>Fighters in <white><arena></white> can place blocks up to Y <white><y></white>."
+    build-limit-cleared: "<prefix><green>Fighters in <white><arena></white> can place blocks anywhere inside it."
+    build-limit-outside: "<prefix><red>Use a Y from <min> to <max>, inside <arena>, or none."
+    is-copy: "<prefix><red><arena> is a copy of <white><source></white>; change that arena, then make its copies again."
+    has-copies: "<prefix><red><arena> has copies; remove them first with <white>/duels arena pregen <id> clear</white>."
+    no-copies: "<prefix><gray><arena> has no copies."
+    no-arenas-world: "<prefix><red>The arenas world <world> couldn't be loaded, so copies can't be made; check the console."
+    name-too-long: "<prefix><red>The copies of <arena> would have names over 32 characters; use a shorter arena name."
+    pregen-count: "<prefix><red>Make 1 to <max> copies, or use clear."
+    pregen-started: "<prefix><gray>Pasting <white><count></white> copies of <white><arena></white> in <white><world></white>..."
+    pregen-progress: "<prefix><gray>Pasted copy <white><done></white> of <count>."
+    pregen-done: "<prefix><green>Made <white><count></white> copies of <white><arena></white> in <white><world></white>; each takes duels."
+    pregen-failed: "<prefix><red>Making copies of <arena> stopped; check the console. Copies pasted so far are kept."
+    copies-cleared: "<prefix><green>Removed <white><count></white> copies of <white><arena></white>; their blocks are being cleared."
     list-header: "<prefix><gray>Arenas (<count>):"
     list-entry: " <dark_gray>▪</dark_gray> <arena> <dark_gray>(<id>)</dark_gray> <status>"
     list-empty: "<prefix><gray>No arenas yet. Create one with <white>/duels arena create <name>"
@@ -202,6 +232,7 @@ admin:
       missing-corners: "<red>both corners aren't set"
       spawn-outside: "<red>a spawn is outside the corners"
       spectator-outside: "<red>the spectator spawn is outside the corners"
+      center-outside: "<red>the center is outside the corners"
       disabled: "<yellow>disabled"
   kit:
     created: "<prefix><green>Created kit <white><id></white> from your inventory."
@@ -221,3 +252,6 @@ admin:
     list-empty: "<prefix><gray>No kits yet. Create one with <white>/duels kit create <name>"
     build-on: "<prefix><green>Fighters with <white><kit></white> can now place blocks; arenas are put back after each duel."
     build-off: "<prefix><green>Fighters with <white><kit></white> can no longer place blocks."
+    arenas-usage: "<prefix><red>Use /duels kit arenas <name> <category...> or any; categories use lowercase letters, digits, - and _."
+    arenas-set: "<prefix><green>Duels with <white><kit></white> now use arenas in: <white><categories></white>."
+    arenas-any: "<prefix><green>Duels with <white><kit></white> now use any arena."

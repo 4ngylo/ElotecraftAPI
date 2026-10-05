@@ -11,10 +11,12 @@ import org.bukkit.plugin.Plugin;
 
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.logging.Logger;
@@ -113,7 +115,7 @@ public final class KitRegistry {
             try {
                 ItemStack[] items = ItemStack.deserializeItemsFromBytes(Base64.getDecoder().decode(section.getString("items", "")));
                 kits.put(name, new Kit(name, section.getString("display-name", name), icon(section),
-                        permission(section), Arrays.asList(items), section.getBoolean("build", false)));
+                        permission(section), Arrays.asList(items), section.getBoolean("build", false), arenaCategories(section)));
             } catch (RuntimeException e) {
                 logger.warning("Skipping kit '" + name + "' in kits.yml: its items could not be read (" + e.getMessage() + ")");
             }
@@ -128,6 +130,19 @@ public final class KitRegistry {
             return Kit.DEFAULT_ICON;
         }
         return icon;
+    }
+
+    private Set<String> arenaCategories(ConfigurationSection section) {
+        Set<String> categories = new HashSet<>();
+        for (String raw : section.getStringList("arena-categories")) {
+            String category = raw.strip().toLowerCase(Locale.ROOT);
+            if (ArenaRegistry.validName(category)) {
+                categories.add(category);
+            } else {
+                logger.warning("Kit '" + section.getName() + "' has an invalid arena category '" + raw + "'; skipping it");
+            }
+        }
+        return categories;
     }
 
     private String permission(ConfigurationSection section) {
@@ -150,6 +165,7 @@ public final class KitRegistry {
         yaml.set(path + ".icon", kit.icon().name());
         yaml.set(path + ".permission", kit.permission() == null ? "" : kit.permission());
         yaml.set(path + ".build", kit.build());
+        yaml.set(path + ".arena-categories", kit.arenaCategories().stream().sorted().toList());
         yaml.set(path + ".items", Base64.getEncoder().encodeToString(ItemStack.serializeItemsAsBytes(kit.items())));
     }
 }

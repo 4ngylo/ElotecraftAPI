@@ -2,8 +2,9 @@
 
 1v1 duels for Paper 1.21.11, built on ElotecraftAPI: challenges with kit and arena menus, matchmaking
 queues, spectators, rematches, statistics, build kits, Vault rewards and PlaceholderAPI placeholders.
-Several duels run at once, one per arena. Nothing a duel touches can leak out: players are saved before a
-duel and put back afterwards, and arenas are put back after build duels, even after a crash.
+Several duels run at once, one per arena, and `/duels arena pregen` copies an arena as often as needed.
+Nothing a duel touches can leak out: players are saved before a duel and put back afterwards, and arenas
+are put back after build duels, even after a crash.
 
 ## Install
 
@@ -25,9 +26,35 @@ Arenas and kits are made in game with `/duels` (operators by default).
 2. Stand where each fighter starts: `/duels arena setspawn desert 1`, then `... desert 2`.
 3. Stand at two opposite corners of a box around the whole arena, including the air above it:
    `/duels arena setcorner desert 1` and `... desert 2`. Players cannot leave this box during a duel.
-4. Optional: `/duels arena setspectator desert`, `/duels arena seticon desert` (item in hand) and
+4. Optional: `/duels arena setspectator desert`, `/duels arena setcenter desert` (where spectators
+   appear when no spectator spawn is set), `/duels arena seticon desert` (item in hand) and
    `/duels arena setname desert <gold>Desert`.
 5. `/duels arena info desert` says `ready`, or what is missing.
+
+A fighter who falls out of the bottom of the box loses, as in the void (`rules.void-eliminates`); leaving
+it any other way sends them back to their spawn.
+
+**Arena pools.** `/duels arena category desert add bridge` puts an arena in a category, and
+`/duels kit arenas <kit> bridge` makes that kit's duels use only arenas in it (several categories are
+allowed; `any` undoes it). Queues, challenges, rematches and the arena menu all follow it, and a kit with
+no ready arena in its categories cannot be queued for or challenged with.
+
+**Build limit.** `/duels arena buildlimit desert 80` stops fighters placing blocks above Y 80 (`none`
+removes it), so bridges and towers stay low.
+
+**Copies.** One arena hosts one duel at a time; to host more, build it once and copy it:
+
+1. `/duels arena snapshot desert` saves its blocks.
+2. `/duels arena pregen desert 8` pastes `desert-1` to `desert-8` on a grid in the arenas world
+   (`arenas.world`, an empty void world made at start), `arenas.pregen-spacing` blocks apart, a few blocks
+   per tick. Each copy takes duels as soon as it is pasted and has the arena's spawns, center, categories
+   and build limit.
+3. Copies cannot be edited. To change them, change `desert`, snapshot it again, then
+   `/duels arena pregen desert clear` (removes the copies and empties their space) and pregen again.
+   `desert` cannot be deleted while it has copies.
+
+A restart during a pregen stops it; the copies pasted so far keep working. Copies are pasted from the
+snapshot, which keeps blocks only (see below).
 
 The arena must allow PvP: check the world's `pvp` setting and WorldGuard flags. If you use a combat-tag
 or graves plugin, exclude the arena regions; duels never fire death events, but combat tags still apply.
@@ -74,8 +101,8 @@ with their arena and limited to 256 x 256 blocks across.
 | `/duel spectate <player>` | `duels.spectate` | Watch someone's duel |
 | `/duel leave` | | Leave the queue, stop spectating, or forfeit |
 | `/duel stats [player]`, `/duel top [elo]` | `duels.stats`, `duels.top` | Statistics and leaderboard by wins or rating |
-| `/duels arena ...` | `duels.admin.arena` | `create`, `delete`, `setspawn`, `setcorner`, `setspectator`, `seticon`, `setname`, `toggle`, `info`, `tp`, `list`, `snapshot`, `reset` |
-| `/duels kit ...` | `duels.admin.kit` | `create`, `save`, `load`, `delete`, `seticon`, `setname`, `setpermission`, `build`, `list` |
+| `/duels arena ...` | `duels.admin.arena` | `create`, `delete`, `setspawn`, `setcorner`, `setspectator`, `setcenter`, `seticon`, `setname`, `category`, `buildlimit`, `toggle`, `info`, `tp`, `list`, `snapshot`, `reset`, `pregen` |
+| `/duels kit ...` | `duels.admin.kit` | `create`, `save`, `load`, `delete`, `seticon`, `setname`, `setpermission`, `build`, `arenas`, `list` |
 | `/duels stop <player>` | `duels.admin.stop` | End a duel without a result |
 | `/duels reload` | `duels.admin.reload` | Reload config, messages, menus, arenas and kits |
 
@@ -106,8 +133,9 @@ cut short by a crash is undone when the player next joins.
 ## Configuration
 
 - `config.yml`: database, countdown, duration, end delay, boss bar, request expiry and cooldown, rematch
-  window, hunger and regeneration rules, allowed commands, build kit and arena regen rules, ranked
-  rating and queue range, rewards, title timings, sounds and particles.
+  window, hunger, regeneration and void rules, allowed commands, build kit and arena regen rules, the
+  arenas world and pregen spacing, ranked rating and queue range, rewards, title timings, sounds and
+  particles.
   Invalid values are logged and replaced by defaults.
 - `messages.yml`: every text players see, in [MiniMessage](https://docs.advntr.dev/minimessage/format.html).
   Add `messages_<language>.yml` (e.g. `messages_es.yml`) for players whose client uses that language.
@@ -148,9 +176,13 @@ The automated tests run on MockBukkit, which cannot click menus. Before a releas
   back after the duel and nothing flowed or burned outside the box
 - [ ] `/duels arena snapshot`, break the arena by hand, `/duels arena reset`; `/stop` mid build duel, start
   again: the console says the arena was rebuilt
+- [ ] The arenas world is created empty; `/duels arena pregen` of a real arena, several duels at once on
+  its copies, `pregen clear` empties their space; `/stop` mid build duel on a copy rebuilds the copy
+- [ ] A kit limited to a category only gets those arenas; the build limit stops towering; falling off the
+  bottom of the arena loses the duel
 
 ## Not included
 
-Bets, per-kit ratings and rating seasons, team duels, own-inventory duels, per-kit rules, kits limited to certain arenas,
-match history, a sidebar and leaderboard holograms. Arenas cannot span worlds or be loaded from
-schematic files.
+Bets, per-kit ratings and rating seasons, team duels, own-inventory duels, per-kit rules, match history,
+a sidebar and leaderboard holograms. Arenas cannot span worlds or be loaded from schematic files, and
+copies don't keep chest contents or sign text.

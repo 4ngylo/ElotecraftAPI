@@ -74,6 +74,10 @@ public final class QueueManager {
             messages.send(player, "general.kit-locked", kitTag(kit));
             return;
         }
+        if (!matches.hasArenaFor(kit)) {
+            messages.send(player, "general.no-arena-for-kit", kitTag(kit));
+            return;
+        }
         remove(player.getUniqueId());
         queues.computeIfAbsent(id, key -> new LinkedHashMap<>()).put(player.getUniqueId(), (long) Bukkit.getCurrentTick());
         queued.put(player.getUniqueId(), id);
@@ -152,7 +156,7 @@ public final class QueueManager {
         dropUnavailable(queue);
         Optional<List<Player>> pair;
         while ((pair = id.ranked() ? findRankedPair(queue) : firstTwo(queue)).isPresent()) {
-            Optional<Arena> arena = matches.randomFreeArena();
+            Optional<Arena> arena = matches.randomFreeArena(kit.get());
             if (arena.isEmpty()) {
                 for (Player player : pair.get()) {
                     if (toldWaiting.add(player.getUniqueId())) {

@@ -8,6 +8,7 @@ import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.Plugin;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -62,6 +63,11 @@ public final class ArenaRegistry {
 
     public List<String> names() {
         return List.copyOf(arenas.keySet());
+    }
+
+    /** The pregen copies of {@code base}, sorted by name. */
+    public List<Arena> copiesOf(String base) {
+        return arenas.values().stream().filter(arena -> arena.copy() != null && arena.copy().source().equals(base)).toList();
     }
 
     /**
@@ -152,8 +158,32 @@ public final class ArenaRegistry {
             arenas.put(name, new Arena(name, section.getString("display-name", name), icon(section),
                     world, section.getBoolean("enabled", true),
                     position(section, "spawn1"), position(section, "spawn2"), position(section, "spectator"),
-                    position(section, "corner1"), position(section, "corner2")));
+                    position(section, "corner1"), position(section, "corner2"), categories(section),
+                    position(section, "center"), section.isInt("build-limit") ? section.getInt("build-limit") : null,
+                    copy(section)));
         }
+    }
+
+    private Set<String> categories(ConfigurationSection section) {
+        Set<String> categories = new HashSet<>();
+        for (String raw : section.getStringList("categories")) {
+            String category = raw.strip().toLowerCase(Locale.ROOT);
+            if (validName(category)) {
+                categories.add(category);
+            } else {
+                logger.warning("Arena '" + section.getName() + "' has an invalid category '" + raw + "'; skipping it");
+            }
+        }
+        return categories;
+    }
+
+    private Arena.Copy copy(ConfigurationSection arena) {
+        ConfigurationSection section = arena.getConfigurationSection("copy-of");
+        String source = section == null ? null : section.getString("arena");
+        if (source == null) {
+            return null;
+        }
+        return new Arena.Copy(source, section.getInt("dx"), section.getInt("dy"), section.getInt("dz"));
     }
 
     private Material icon(ConfigurationSection section) {
@@ -188,6 +218,19 @@ public final class ArenaRegistry {
         writePosition(yaml, path + ".spectator", arena.spectator());
         writePosition(yaml, path + ".corner1", arena.corner1());
         writePosition(yaml, path + ".corner2", arena.corner2());
+        if (!arena.categories().isEmpty()) {
+            yaml.set(path + ".categories", arena.categories().stream().sorted().toList());
+        }
+        writePosition(yaml, path + ".center", arena.center());
+        if (arena.buildLimit() != null) {
+            yaml.set(path + ".build-limit", arena.buildLimit());
+        }
+        if (arena.copy() != null) {
+            yaml.set(path + ".copy-of.arena", arena.copy().source());
+            yaml.set(path + ".copy-of.dx", arena.copy().dx());
+            yaml.set(path + ".copy-of.dy", arena.copy().dy());
+            yaml.set(path + ".copy-of.dz", arena.copy().dz());
+        }
     }
 
     private static void writePosition(YamlConfiguration yaml, String path, Position position) {

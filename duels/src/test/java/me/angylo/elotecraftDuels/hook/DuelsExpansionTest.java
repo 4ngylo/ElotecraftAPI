@@ -6,6 +6,7 @@ import me.angylo.elotecraftDuels.kit.Kit;
 import me.angylo.elotecraftAPI.CleanupListener;
 import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.World;
 import org.bukkit.inventory.ItemStack;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -16,6 +17,7 @@ import org.mockbukkit.mockbukkit.entity.PlayerMock;
 import org.mockbukkit.mockbukkit.plugin.PluginMock;
 
 import java.util.List;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -25,13 +27,14 @@ class DuelsExpansionTest {
 
     private ServerMock server;
     private Duels duels;
+    private World world;
 
     @BeforeEach
     void setUp() {
         server = MockBukkit.mock();
         server.getPluginManager().registerEvents(new CleanupListener(), MockBukkit.createMockPlugin("ElotecraftAPI"));
         PluginMock plugin = MockBukkit.createMockPlugin("ElotecraftDuels");
-        server.addSimpleWorld("world");
+        world = server.addSimpleWorld("world");
         duels = Duels.start(plugin);
     }
 
@@ -47,8 +50,9 @@ class DuelsExpansionTest {
     @Test
     void answersFromCachedStatsAndQueues() {
         PlayerMock alex = server.addPlayer("Alex");
-        Kit kit = new Kit("sword", "Sword", Material.DIAMOND_SWORD, null, List.of(ItemStack.of(Material.DIAMOND_SWORD)), false);
+        Kit kit = new Kit("sword", "Sword", Material.DIAMOND_SWORD, null, List.of(ItemStack.of(Material.DIAMOND_SWORD)), false, Set.of());
         duels.kits().update(kit);
+        readyArena();
         duels.queues().toggle(alex, kit, true);
         DuelsExpansion expansion = new DuelsExpansion(duels);
 
@@ -64,5 +68,15 @@ class DuelsExpansionTest {
         assertEquals("", expansion.onRequest(null, "wins"));
         assertNull(expansion.onRequest(alex, "unknown"));
         assertEquals(13, expansion.getPlaceholders().size());
+    }
+
+    /** Queues need a ready arena for the kit. */
+    private void readyArena() {
+        duels.arenas().create("pit", new Location(world, 0, 64, 0)).join();
+        duels.arenas().update(duels.arenas().get("pit").orElseThrow()
+                .withSpawn(1, new Arena.Position(1.5, 64, 1.5, 0, 0))
+                .withSpawn(2, new Arena.Position(5.5, 64, 1.5, 0, 0))
+                .withCorner(1, new Arena.Position(0, 60, 0, 0, 0))
+                .withCorner(2, new Arena.Position(8, 70, 8, 0, 0)));
     }
 }

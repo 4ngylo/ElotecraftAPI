@@ -6,7 +6,9 @@ import me.angylo.elotecraftAPI.util.Messages;
 import me.angylo.elotecraftAPI.util.Tasks;
 import me.angylo.elotecraftDuels.arena.Arena;
 import me.angylo.elotecraftDuels.arena.ArenaInstances;
+import me.angylo.elotecraftDuels.arena.ArenaPregen;
 import me.angylo.elotecraftDuels.arena.ArenaRegistry;
+import me.angylo.elotecraftDuels.arena.ArenaWorld;
 import me.angylo.elotecraftDuels.command.AdminCommand;
 import me.angylo.elotecraftDuels.command.DuelCommand;
 import me.angylo.elotecraftDuels.hook.PlaceholderHook;
@@ -23,6 +25,7 @@ import me.angylo.elotecraftDuels.menu.KitMenu;
 import me.angylo.elotecraftDuels.state.SnapshotStore;
 import me.angylo.elotecraftDuels.stats.StatsService;
 import org.bukkit.Bukkit;
+import org.bukkit.World;
 import org.bukkit.command.Command;
 import org.bukkit.event.Listener;
 import org.bukkit.plugin.Plugin;
@@ -51,6 +54,7 @@ public final class Duels {
     private final StatsService stats;
     private final SnapshotStore snapshots;
     private final ArenaInstances instances;
+    private final ArenaPregen pregen;
     private final MatchManager matches;
     private final RequestManager requests;
     private final QueueManager queues;
@@ -71,7 +75,10 @@ public final class Duels {
         this.kits = new KitRegistry(plugin);
         this.stats = new StatsService(plugin, database);
         this.snapshots = new SnapshotStore(plugin, database);
+        // Loaded before arenas are rebuilt after a crash: pregen copies live there.
+        World arenasWorld = ArenaWorld.load(plugin, settings.arenasWorld()).orElse(null);
         this.instances = new ArenaInstances(plugin, this::settings, arenas);
+        this.pregen = new ArenaPregen(plugin, this::settings, arenas, arenasWorld);
         this.matches = new MatchManager(plugin, messages, this::settings, arenas, instances, snapshots, stats);
         this.requests = new RequestManager(messages, this::settings, kits, arenas, matches);
         this.queues = new QueueManager(messages, this::settings, kits, matches, stats);
@@ -143,6 +150,10 @@ public final class Duels {
         return instances;
     }
 
+    public ArenaPregen pregen() {
+        return pregen;
+    }
+
     public MatchManager matches() {
         return matches;
     }
@@ -162,7 +173,7 @@ public final class Duels {
 
     /**
      * Reloads config.yml, messages, menus.yml, arenas.yml and kits.yml; running duels keep the arena and
-     * kit they started with. The database needs a restart.
+     * kit they started with. The database and {@code arenas.world} need a restart.
      *
      * @return false if a file failed to load (its previous contents are kept)
      */

@@ -29,9 +29,9 @@ import java.util.zip.GZIPOutputStream;
 
 /**
  * Every block of an arena's box, saved with {@code /duels arena snapshot} to
- * {@code arenas/<arena>.blocks}, to rebuild the arena after a crash cut a build duel short. Block data
- * only: containers come back empty and signs blank. Read and written off the main thread; pasted on it,
- * a few blocks per tick, by one {@link #paste} call per tick.
+ * {@code arenas/<arena>.blocks}, to rebuild the arena after a crash cut a build duel short and to paste
+ * its pregen copies. Block data only: containers come back empty and signs blank. Read and written off
+ * the main thread; pasted on it, a few blocks per tick, by one {@link #paste} call per tick.
  */
 public final class ArenaTemplate {
 
@@ -79,8 +79,13 @@ public final class ArenaTemplate {
 
     /** Whether this template was saved from {@code arena}'s current box. */
     public boolean fits(Arena arena) {
+        return fits(arena, 0, 0, 0);
+    }
+
+    /** Whether this template, moved by the offset, covers {@code arena}'s current box; for pregen copies. */
+    public boolean fits(Arena arena, int dx, int dy, int dz) {
         BoundingBox box = arena.bounds();
-        return minX == (int) box.getMinX() && minY == (int) box.getMinY() && minZ == (int) box.getMinZ()
+        return minX + dx == (int) box.getMinX() && minY + dy == (int) box.getMinY() && minZ + dz == (int) box.getMinZ()
                 && sizeX == (int) box.getWidthX() && sizeY == (int) box.getHeight() && sizeZ == (int) box.getWidthZ();
     }
 
@@ -157,6 +162,11 @@ public final class ArenaTemplate {
      * @return whether the whole box matches the template
      */
     public boolean paste(World world, int budget) {
+        return paste(world, budget, 0, 0, 0);
+    }
+
+    /** Like {@link #paste(World, int)}, with every block moved by the offset. */
+    public boolean paste(World world, int budget, int dx, int dy, int dz) {
         if (parsed == null) {
             parsed = palette.stream().map(Bukkit::createBlockData).toArray(BlockData[]::new);
         }
@@ -166,7 +176,7 @@ public final class ArenaTemplate {
             int z = (cursor / sizeX) % sizeZ;
             int y = cursor / (sizeX * sizeZ);
             BlockData data = parsed[Short.toUnsignedInt(blocks[cursor])];
-            Block block = world.getBlockAt(minX + x, minY + y, minZ + z);
+            Block block = world.getBlockAt(minX + x + dx, minY + y + dy, minZ + z + dz);
             if (!block.getBlockData().equals(data)) {
                 block.setBlockData(data, false);
                 changedNow++;
@@ -179,6 +189,12 @@ public final class ArenaTemplate {
     /** Blocks changed by {@link #paste} so far. */
     public int changed() {
         return changed;
+    }
+
+    /** Starts over, to paste the template again somewhere else. */
+    public void rewind() {
+        cursor = 0;
+        changed = 0;
     }
 
     private static Path file(Plugin plugin, String arena) {

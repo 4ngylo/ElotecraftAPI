@@ -9,6 +9,7 @@ import me.angylo.elotecraftDuels.Effects;
 import me.angylo.elotecraftDuels.Settings;
 import me.angylo.elotecraftDuels.arena.Arena;
 import me.angylo.elotecraftDuels.arena.ArenaRegistry;
+import me.angylo.elotecraftDuels.kit.Kit;
 import me.angylo.elotecraftDuels.match.MatchManager;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver;
@@ -43,12 +44,12 @@ public final class ArenaMenu {
     }
 
     /**
-     * Shows every ready arena; busy ones say so and cannot be picked.
+     * Shows every ready arena {@code kit} accepts; busy ones say so and cannot be picked.
      *
      * @param onChoose gets the arena, or empty for a random one; runs after the menu closes
      */
-    public void open(Player viewer, Consumer<Optional<Arena>> onChoose) {
-        List<Arena> ready = arenas.all().stream().filter(Arena::isReady).toList();
+    public void open(Player viewer, Kit kit, Consumer<Optional<Arena>> onChoose) {
+        List<Arena> ready = arenas.all().stream().filter(arena -> arena.isReady() && kit.accepts(arena)).toList();
         if (ready.isEmpty()) {
             messages.send(viewer, "general.no-free-arena");
             return;

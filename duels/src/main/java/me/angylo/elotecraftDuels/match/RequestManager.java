@@ -88,6 +88,14 @@ public final class RequestManager {
             messages.send(sender, "general.kit-locked", kitTag(kit));
             return;
         }
+        if (arena != null && !kit.accepts(arena)) {
+            messages.send(sender, "general.arena-wrong-kit", kitTag(kit), arenaTag(sender, arena));
+            return;
+        }
+        if (arena == null && !matches.hasArenaFor(kit)) {
+            messages.send(sender, "general.no-arena-for-kit", kitTag(kit));
+            return;
+        }
         if (pending.getOrDefault(target.getUniqueId(), Map.of()).containsKey(sender.getUniqueId())) {
             messages.send(sender, "request.already-sent", Placeholder.unparsed("player", target.getName()));
             return;
@@ -145,7 +153,7 @@ public final class RequestManager {
             messages.send(target, "general.kit-locked", kitTag(kit.get()));
             return;
         }
-        Optional<Arena> arena = request.arena() == null ? matches.randomFreeArena() : freeArena(target, request.arena());
+        Optional<Arena> arena = request.arena() == null ? matches.randomFreeArena(kit.get()) : freeArena(target, request.arena());
         if (arena.isEmpty()) {
             if (request.arena() == null) {
                 messages.send(target, "general.no-free-arena");
@@ -189,7 +197,8 @@ public final class RequestManager {
             messages.send(player, "general.kit-not-found", Placeholder.unparsed("kit", rematch.get().kit()));
             return;
         }
-        send(player, opponent, kit.get(), arenas.get(rematch.get().arena()).orElse(null), true);
+        // An arena the kit no longer accepts falls back to a random one.
+        send(player, opponent, kit.get(), arenas.get(rematch.get().arena()).filter(kit.get()::accepts).orElse(null), true);
     }
 
     /** Names of the players who challenged {@code target}, oldest first; for tab completion. */

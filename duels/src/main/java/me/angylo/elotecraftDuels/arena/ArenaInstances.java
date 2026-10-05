@@ -122,8 +122,9 @@ public final class ArenaInstances {
     }
 
     /**
-     * Rebuilds {@code arena} from the template saved with {@code /duels arena snapshot}; it takes no duels
-     * meanwhile. Callers check that it is not in use and its world is loaded.
+     * Rebuilds {@code arena} from the template saved with {@code /duels arena snapshot}; a pregen copy from
+     * its source arena's template, moved to the copy. It takes no duels meanwhile. Callers check that it is
+     * not in use and its world is loaded.
      *
      * @return the number of blocks changed; fails with {@link java.nio.file.NoSuchFileException} (as the
      * cause) if no template was saved
@@ -133,16 +134,18 @@ public final class ArenaInstances {
         if (world == null || arena.corner1() == null || arena.corner2() == null || !resetting.add(arena.name())) {
             return CompletableFuture.failedFuture(new IllegalStateException("Arena " + arena.name() + " cannot be reset now"));
         }
+        Arena.Copy copy = arena.copy() != null ? arena.copy() : new Arena.Copy(arena.name(), 0, 0, 0);
         CompletableFuture<Integer> done = new CompletableFuture<>();
-        ArenaTemplate.load(plugin, arena.name()).whenComplete((template, error) -> Tasks.sync(plugin, () -> {
-            Throwable problem = error != null || template.fits(arena) ? error : new IllegalStateException("The snapshot of arena "
-                    + arena.name() + " was taken with other corners; take it again with /duels arena snapshot");
+        ArenaTemplate.load(plugin, copy.source()).whenComplete((template, error) -> Tasks.sync(plugin, () -> {
+            Throwable problem = error != null || template.fits(arena, copy.dx(), copy.dy(), copy.dz()) ? error
+                    : new IllegalStateException("The snapshot of arena " + copy.source() + " was taken with other corners; "
+                    + (arena.copy() == null ? "take it again with /duels arena snapshot" : "make its copies again with /duels arena pregen"));
             if (problem != null) {
                 resetting.remove(arena.name());
                 done.completeExceptionally(problem);
                 return;
             }
-            paste(arena, world, template, done);
+            paste(arena, world, template, copy, done);
         }));
         return done;
     }
@@ -182,14 +185,14 @@ public final class ArenaInstances {
         }
     }
 
-    private void paste(Arena arena, World world, ArenaTemplate template, CompletableFuture<Integer> done) {
+    private void paste(Arena arena, World world, ArenaTemplate template, Arena.Copy copy, CompletableFuture<Integer> done) {
         if (!resetting.contains(arena.name())) {
             done.completeExceptionally(new IllegalStateException("Stopped by shutdown"));
             return;
         }
         try {
-            if (!template.paste(world, settings.get().regenBlocksPerTick())) {
-                Tasks.later(plugin, () -> paste(arena, world, template, done), NEXT_TICK);
+            if (!template.paste(world, settings.get().regenBlocksPerTick(), copy.dx(), copy.dy(), copy.dz())) {
+                Tasks.later(plugin, () -> paste(arena, world, template, copy, done), NEXT_TICK);
                 return;
             }
         } catch (RuntimeException e) {

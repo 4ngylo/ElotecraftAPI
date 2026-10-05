@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.logging.Logger;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
@@ -20,11 +21,14 @@ public record Settings(int countdownSeconds, Duration maxDuration, int endDelayS
                 BossBar.Color bossBarColor, boolean logResults, Duration requestExpiry, Duration requestCooldown,
                 Duration rematchWindow, boolean hunger, boolean naturalRegeneration, Set<String> allowedCommands,
                 Reward winReward, Reward lossReward, Title.Times titleTimes, Effects effects,
-                boolean breakArenaBlocks, int regenBlocksPerTick, Ranked ranked) {
+                boolean breakArenaBlocks, int regenBlocksPerTick, boolean voidEliminates, String arenasWorld,
+                int pregenSpacing, int maxCopies, Ranked ranked) {
 
     private static final long MILLIS_PER_TICK = 50;
     private static final int MAX_TITLE_TICKS = 200;
     private static final int MAX_ELO_RANGE = 5000;
+    private static final String DEFAULT_ARENAS_WORLD = "duels_arenas";
+    private static final Pattern WORLD_NAME = Pattern.compile("[a-z0-9_-]{1,64}");
 
     /** Elo rating of queue duels and how far apart two queued players may be rated. */
     public record Ranked(int kFactor, int range, int rangeGrowth, int rangeMax) {
@@ -69,6 +73,10 @@ public record Settings(int countdownSeconds, Duration maxDuration, int endDelayS
                 Effects.load(config.getConfigurationSection("effects"), logger),
                 config.getBoolean("build.break-arena-blocks", false),
                 integer(config, logger, "regen.blocks-per-tick", 2000, 1, 100_000),
+                config.getBoolean("rules.void-eliminates", true),
+                worldName(config, logger),
+                integer(config, logger, "arenas.pregen-spacing", 64, 16, 1024),
+                integer(config, logger, "arenas.max-copies", 32, 1, 256),
                 new Ranked(
                         integer(config, logger, "ranked.k-factor", 32, 1, 100),
                         integer(config, logger, "ranked.range", 100, 0, MAX_ELO_RANGE),
@@ -83,6 +91,16 @@ public record Settings(int countdownSeconds, Duration maxDuration, int endDelayS
             return fallback;
         }
         return value;
+    }
+
+    private static String worldName(ConfigurationSection config, Logger logger) {
+        String raw = config.getString("arenas.world", DEFAULT_ARENAS_WORLD).strip();
+        if (!WORLD_NAME.matcher(raw).matches()) {
+            logger.warning("config.yml arenas.world '" + raw + "' must be 1 to 64 lowercase letters, digits, - or _; using "
+                    + DEFAULT_ARENAS_WORLD);
+            return DEFAULT_ARENAS_WORLD;
+        }
+        return raw;
     }
 
     private static Duration duration(ConfigurationSection config, Logger logger, String path, Duration fallback, Duration min) {

@@ -132,8 +132,8 @@ public final class DuelCommand {
 
     /** Opens the arena menu if the player may and can choose; otherwise the arena is random. */
     private void chooseArena(Player player, Player target, Kit kit) {
-        if (player.hasPermission(SELECT_ARENA) && duels.arenas().all().stream().filter(Arena::isReady).count() > 1) {
-            arenaMenu.open(player, arena -> duels.requests().send(player, target, kit, arena.orElse(null), false));
+        if (player.hasPermission(SELECT_ARENA) && duels.arenas().all().stream().filter(arena -> arena.isReady() && kit.accepts(arena)).count() > 1) {
+            arenaMenu.open(player, kit, arena -> duels.requests().send(player, target, kit, arena.orElse(null), false));
         } else {
             duels.requests().send(player, target, kit, null, false);
         }
@@ -144,7 +144,8 @@ public final class DuelCommand {
             case 1 -> Args.players(args).stream().filter(name -> !name.equals(sender.getName())).toList();
             case 2 -> Args.filter(usableKits(sender), args);
             case 3 -> sender.hasPermission(SELECT_ARENA)
-                    ? Args.filter(duels.arenas().all().stream().filter(Arena::isReady).map(Arena::name).toList(), args)
+                    ? Args.filter(duels.arenas().all().stream().filter(arena -> arena.isReady()
+                            && duels.kits().get(args[1]).map(kit -> kit.accepts(arena)).orElse(true)).map(Arena::name).toList(), args)
                     : List.of();
             default -> List.of();
         };

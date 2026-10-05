@@ -7,6 +7,7 @@ import me.angylo.elotecraftAPI.util.Tasks;
 import me.angylo.elotecraftAPI.util.Text;
 import me.angylo.elotecraftDuels.Duels;
 import me.angylo.elotecraftDuels.arena.Arena;
+import me.angylo.elotecraftDuels.arena.ArenaPregen;
 import me.angylo.elotecraftDuels.arena.ArenaRegistry;
 import me.angylo.elotecraftDuels.arena.ArenaTemplate;
 import me.angylo.elotecraftDuels.kit.Kit;
@@ -24,12 +25,15 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
 
 import java.nio.file.NoSuchFileException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
@@ -40,6 +44,10 @@ import java.util.logging.Level;
 public final class AdminCommand {
 
     private static final List<String> NUMBERS = List.of("1", "2");
+    private static final List<String> ADD_REMOVE = List.of("add", "remove");
+    private static final String NONE = "none";
+    private static final String ANY = "any";
+    private static final String CLEAR = "clear";
 
     private final Duels duels;
     private final Messages messages;
@@ -70,18 +78,30 @@ public final class AdminCommand {
                 .sub(CommandBuilder.create("arena").permission("duels.admin.arena")
                         .executes((sender, args) -> messages.send(sender, "command.arena-help"))
                         .playerSub("create", null, this::createArena)
-                        .sub("delete", null, (sender, args) -> withArena(sender, args, this::deleteArena), arenaNames)
+                        .sub("delete", null, (sender, args) -> withEditableArena(sender, args, this::deleteArena), arenaNames)
                         .playerSub("setspawn", null, (player, args) -> setPoint(player, args, true), arenaNumber)
                         .playerSub("setcorner", null, (player, args) -> setPoint(player, args, false), arenaNumber)
-                        .playerSub("setspectator", null, (player, args) -> withArena(player, args, (arena, rest) ->
+                        .playerSub("setspectator", null, (player, args) -> withEditableArena(player, args, (arena, rest) ->
                                 inWorld(player, arena, () -> save(player, arenas.update(arena.withSpectator(Arena.Position.of(player.getLocation()))),
                                         "admin.arena.spectator-set", arenaTags(arena)))), arenaNames)
-                        .playerSub("seticon", null, (player, args) -> withArena(player, args, (arena, rest) ->
+                        .playerSub("setcenter", null, (player, args) -> withEditableArena(player, args, (arena, rest) ->
+                                inWorld(player, arena, () -> setCenter(player, arena))), arenaNames)
+                        .playerSub("seticon", null, (player, args) -> withEditableArena(player, args, (arena, rest) ->
                                 heldIcon(player).ifPresent(icon -> save(player, arenas.update(arena.withIcon(icon)),
                                         "admin.arena.icon-set", arenaTags(arena)))), arenaNames)
-                        .sub("setname", null, (sender, args) -> withArena(sender, args, (arena, rest) -> rename(sender, rest,
+                        .sub("setname", null, (sender, args) -> withEditableArena(sender, args, (arena, rest) -> rename(sender, rest,
                                 text -> save(sender, arenas.update(arena.withDisplayName(text)), "admin.arena.name-set",
                                         arenaTags(arena.withDisplayName(text))))), arenaNames)
+                        .sub("category", null, (sender, args) -> withEditableArena(sender, args, this::category),
+                                (sender, args) -> args.length == 1 ? Args.filter(arenas.names(), args)
+                                        : args.length == 2 ? Args.filter(ADD_REMOVE, args)
+                                        : args.length == 3 ? Args.filter(categories(), args) : List.of())
+                        .sub("buildlimit", null, (sender, args) -> withEditableArena(sender, args, this::buildLimit),
+                                (sender, args) -> args.length == 1 ? Args.filter(arenas.names(), args)
+                                        : args.length == 2 ? Args.filter(List.of(NONE), args) : List.of())
+                        .sub("pregen", null, (sender, args) -> withArena(sender, args, this::pregen),
+                                (sender, args) -> args.length == 1 ? Args.filter(arenas.names(), args)
+                                        : args.length == 2 ? Args.filter(List.of(CLEAR), args) : List.of())
                         .sub("toggle", null, (sender, args) -> withArena(sender, args, (arena, rest) -> {
                             Arena toggled = arena.withEnabled(!arena.enabled());
                             save(sender, arenas.update(toggled), toggled.enabled() ? "admin.arena.enabled" : "admin.arena.disabled",
@@ -90,7 +110,7 @@ public final class AdminCommand {
                         .sub("info", null, (sender, args) -> withArena(sender, args, (arena, rest) -> info(sender, arena)), arenaNames)
                         .playerSub("tp", null, (player, args) -> withArena(player, args, (arena, rest) -> teleport(player, arena)), arenaNames)
                         .sub("list", null, (sender, args) -> listArenas(sender))
-                        .sub("snapshot", null, (sender, args) -> withArena(sender, args, (arena, rest) -> snapshot(sender, arena)), arenaNames)
+                        .sub("snapshot", null, (sender, args) -> withEditableArena(sender, args, (arena, rest) -> snapshot(sender, arena)), arenaNames)
                         .sub("reset", null, (sender, args) -> withArena(sender, args, (arena, rest) -> reset(sender, arena)), arenaNames))
                 .sub(CommandBuilder.create("kit").permission("duels.admin.kit")
                         .executes((sender, args) -> messages.send(sender, "command.kit-help"))
@@ -125,6 +145,9 @@ public final class AdminCommand {
                             Kit changed = kit.withBuild(!kit.build());
                             save(sender, kits.update(changed), changed.build() ? "admin.kit.build-on" : "admin.kit.build-off", kitTags(kit));
                         }), kitNames)
+                        .sub("arenas", null, (sender, args) -> withKit(sender, args, (kit, rest) -> kitArenas(sender, kit, rest)),
+                                (sender, args) -> args.length == 1 ? Args.filter(kits.names(), args)
+                                        : Args.filter(args.length == 2 ? withAny(categories()) : categories(), args))
                         .sub("list", null, (sender, args) -> listKits(sender)))
                 .sub("reload", "duels.admin.reload", (sender, args) ->
                         messages.send(sender, duels.reload() ? "admin.reloaded" : "admin.reload-failed"))
@@ -147,8 +170,12 @@ public final class AdminCommand {
     }
 
     private void deleteArena(CommandSender sender, Arena arena, String[] rest) {
-        if (duels.matches().isArenaInUse(arena.name())) {
+        if (duels.matches().isArenaInUse(arena.name()) || duels.pregen().isBusy(arena.name())) {
             messages.send(sender, "admin.arena.in-use", arenaTags(arena));
+            return;
+        }
+        if (!arenas.copiesOf(arena.name()).isEmpty()) {
+            messages.send(sender, "admin.arena.has-copies", arenaTags(arena));
             return;
         }
         save(sender, arenas.delete(arena.name()), "admin.arena.deleted", arenaTags(arena));
@@ -160,7 +187,7 @@ public final class AdminCommand {
     }
 
     private void setPoint(Player player, String[] args, boolean spawn) {
-        withArena(player, args, (arena, rest) -> {
+        withEditableArena(player, args, (arena, rest) -> {
             String number = Args.get(rest, 0);
             if (!NUMBERS.contains(number)) {
                 messages.send(player, "admin.use-number");
@@ -177,6 +204,10 @@ public final class AdminCommand {
     private void info(CommandSender sender, Arena arena) {
         messages.send(sender, "admin.arena.info", with(arenaTags(arena),
                 Placeholder.unparsed("world", arena.world()),
+                Placeholder.unparsed("categories", arena.categories().isEmpty() ? NONE : String.join(", ", new TreeSet<>(arena.categories()))),
+                Placeholder.unparsed("build-limit", arena.buildLimit() == null ? NONE : String.valueOf(arena.buildLimit())),
+                Placeholder.component("copy", arena.copy() == null ? Component.empty()
+                        : messages.get(sender, "admin.arena.copy-of", Placeholder.unparsed("source", arena.copy().source()))),
                 Placeholder.unparsed("enabled", String.valueOf(arena.enabled())),
                 Placeholder.unparsed("in-use", String.valueOf(duels.matches().isArenaInUse(arena.name()))),
                 Placeholder.component("status", status(sender, arena))));
@@ -250,6 +281,163 @@ public final class AdminCommand {
                 messages.send(sender, "admin.save-failed");
             }
         }));
+    }
+
+    /** The center must be inside the arena's corners. */
+    private void setCenter(Player player, Arena arena) {
+        if (!arena.inBox(player.getLocation())) {
+            messages.send(player, "admin.arena.center-outside", arenaTags(arena));
+            return;
+        }
+        save(player, arenas.update(arena.withCenter(Arena.Position.of(player.getLocation()))), "admin.arena.center-set", arenaTags(arena));
+    }
+
+    /** {@code category <arena> add|remove <category>} */
+    private void category(CommandSender sender, Arena arena, String[] rest) {
+        String action = Args.get(rest, 0).toLowerCase(Locale.ROOT);
+        String category = Args.get(rest, 1).toLowerCase(Locale.ROOT);
+        if (!ADD_REMOVE.contains(action) || !ArenaRegistry.validName(category)) {
+            messages.send(sender, "admin.arena.category-usage");
+            return;
+        }
+        boolean add = action.equals("add");
+        Set<String> changed = new HashSet<>(arena.categories());
+        TagResolver[] tags = with(arenaTags(arena), Placeholder.unparsed("category", category));
+        if (add ? !changed.add(category) : !changed.remove(category)) {
+            messages.send(sender, add ? "admin.arena.category-present" : "admin.arena.category-missing", tags);
+            return;
+        }
+        save(sender, arenas.update(arena.withCategories(changed)), add ? "admin.arena.category-added" : "admin.arena.category-removed", tags);
+    }
+
+    /** {@code buildlimit <arena> <y|none>}: the Y must be inside the arena's box. */
+    private void buildLimit(CommandSender sender, Arena arena, String[] rest) {
+        String raw = Args.get(rest, 0);
+        if (raw.equalsIgnoreCase(NONE)) {
+            save(sender, arenas.update(arena.withBuildLimit(null)), "admin.arena.build-limit-cleared", arenaTags(arena));
+            return;
+        }
+        if (arena.corner1() == null || arena.corner2() == null) {
+            messages.send(sender, "admin.arena.not-ready", with(arenaTags(arena), Placeholder.component("problems", status(sender, arena))));
+            return;
+        }
+        int min = (int) arena.bounds().getMinY();
+        int max = (int) arena.bounds().getMaxY() - 1;
+        OptionalInt y = Args.integer(raw, min, max);
+        if (y.isEmpty()) {
+            messages.send(sender, "admin.arena.build-limit-outside", with(arenaTags(arena),
+                    Placeholder.unparsed("min", String.valueOf(min)), Placeholder.unparsed("max", String.valueOf(max))));
+            return;
+        }
+        save(sender, arenas.update(arena.withBuildLimit(y.getAsInt())), "admin.arena.build-limit-set",
+                with(arenaTags(arena), Placeholder.unparsed("y", String.valueOf(y.getAsInt()))));
+    }
+
+    /** {@code pregen <arena> <count>} pastes copies in the arenas world; {@code pregen <arena> clear} removes them. */
+    private void pregen(CommandSender sender, Arena base, String[] rest) {
+        ArenaPregen pregen = duels.pregen();
+        if (base.copy() != null) {
+            messages.send(sender, "admin.arena.is-copy", with(arenaTags(base), Placeholder.unparsed("source", base.copy().source())));
+        } else if (!pregen.isAvailable()) {
+            messages.send(sender, "admin.arena.no-arenas-world", Placeholder.unparsed("world", pregen.worldName()));
+        } else if (pregen.isBusy(base.name())) {
+            messages.send(sender, "admin.arena.in-use", arenaTags(base));
+        } else if (Args.get(rest, 0).equalsIgnoreCase(CLEAR)) {
+            clearCopies(sender, base);
+        } else {
+            makeCopies(sender, base, Args.get(rest, 0));
+        }
+    }
+
+    private void clearCopies(CommandSender sender, Arena base) {
+        List<Arena> copies = arenas.copiesOf(base.name());
+        if (copies.isEmpty()) {
+            messages.send(sender, "admin.arena.no-copies", arenaTags(base));
+            return;
+        }
+        if (copies.stream().anyMatch(copy -> duels.matches().isArenaInUse(copy.name()))) {
+            messages.send(sender, "admin.arena.in-use", arenaTags(base));
+            return;
+        }
+        int removed = duels.pregen().clear(base);
+        messages.send(sender, "admin.arena.copies-cleared", with(arenaTags(base), Placeholder.unparsed("count", String.valueOf(removed))));
+    }
+
+    private void makeCopies(CommandSender sender, Arena base, String rawCount) {
+        int max = duels.settings().maxCopies();
+        OptionalInt count = Args.integer(rawCount, 1, max);
+        if (count.isEmpty()) {
+            messages.send(sender, "admin.arena.pregen-count", Placeholder.unparsed("max", String.valueOf(max)));
+            return;
+        }
+        if (!arenas.copiesOf(base.name()).isEmpty()) {
+            messages.send(sender, "admin.arena.has-copies", arenaTags(base));
+            return;
+        }
+        if (!base.isReady()) {
+            messages.send(sender, "admin.arena.not-ready", with(arenaTags(base), Placeholder.component("problems", status(sender, base))));
+            return;
+        }
+        for (int number = 1; number <= count.getAsInt(); number++) {
+            String name = ArenaPregen.copyName(base.name(), number);
+            if (!ArenaRegistry.validName(name)) {
+                messages.send(sender, "admin.arena.name-too-long", arenaTags(base));
+                return;
+            }
+            if (arenas.get(name).isPresent()) {
+                messages.send(sender, "admin.arena.exists", Placeholder.unparsed("id", name));
+                return;
+            }
+        }
+        TagResolver[] tags = with(arenaTags(base), Placeholder.unparsed("count", String.valueOf(count.getAsInt())),
+                Placeholder.unparsed("world", duels.pregen().worldName()));
+        messages.send(sender, "admin.arena.pregen-started", tags);
+        duels.pregen().pregen(base, count.getAsInt(),
+                        done -> messages.send(sender, "admin.arena.pregen-progress", with(tags, Placeholder.unparsed("done", String.valueOf(done)))))
+                .whenComplete((made, error) -> Tasks.sync(duels.plugin(), () -> {
+                    if (error == null) {
+                        messages.send(sender, "admin.arena.pregen-done", tags);
+                    } else if (rootCause(error) instanceof NoSuchFileException) {
+                        messages.send(sender, "admin.arena.no-snapshot", arenaTags(base));
+                    } else {
+                        duels.plugin().getLogger().log(Level.WARNING, "Could not make copies of arena " + base.name(), error);
+                        messages.send(sender, "admin.arena.pregen-failed", arenaTags(base));
+                    }
+                }));
+    }
+
+    /** {@code arenas <kit> <category...>|any}: which arena categories the kit's duels use. */
+    private void kitArenas(CommandSender sender, Kit kit, String[] rest) {
+        if (rest.length == 0) {
+            messages.send(sender, "admin.kit.arenas-usage");
+            return;
+        }
+        if (rest.length == 1 && rest[0].equalsIgnoreCase(ANY)) {
+            save(sender, kits.update(kit.withArenaCategories(Set.of())), "admin.kit.arenas-any", kitTags(kit));
+            return;
+        }
+        Set<String> categories = new TreeSet<>();
+        for (String raw : rest) {
+            String category = raw.toLowerCase(Locale.ROOT);
+            if (!ArenaRegistry.validName(category)) {
+                messages.send(sender, "admin.kit.arenas-usage");
+                return;
+            }
+            categories.add(category);
+        }
+        save(sender, kits.update(kit.withArenaCategories(categories)), "admin.kit.arenas-set",
+                with(kitTags(kit), Placeholder.unparsed("categories", String.join(", ", categories))));
+    }
+
+    /** Every category some arena has, sorted; for tab completion. */
+    private List<String> categories() {
+        return arenas.all().stream().flatMap(arena -> arena.categories().stream()).distinct().sorted().toList();
+    }
+
+    private static List<String> withAny(List<String> categories) {
+        List<String> all = new ArrayList<>(categories);
+        all.add(ANY);
+        return all;
     }
 
     private static Throwable rootCause(Throwable error) {
@@ -329,6 +517,21 @@ public final class AdminCommand {
 
     private void withArena(CommandSender sender, String[] args, ArenaAction action) {
         withArena(sender, args, (arena, rest) -> action.run(sender, arena, rest));
+    }
+
+    /** Like {@link #withArena}, refusing pregen copies: they change with the arena they copy. */
+    private void withEditableArena(CommandSender sender, String[] args, BiConsumer<Arena, String[]> action) {
+        withArena(sender, args, (arena, rest) -> {
+            if (arena.copy() != null) {
+                messages.send(sender, "admin.arena.is-copy", with(arenaTags(arena), Placeholder.unparsed("source", arena.copy().source())));
+                return;
+            }
+            action.accept(arena, rest);
+        });
+    }
+
+    private void withEditableArena(CommandSender sender, String[] args, ArenaAction action) {
+        withEditableArena(sender, args, (arena, rest) -> action.run(sender, arena, rest));
     }
 
     @FunctionalInterface

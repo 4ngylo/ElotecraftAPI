@@ -62,4 +62,9 @@ public final class ArenaInstance {
     public boolean contains(Location location) {
         return world.equals(location.getWorld()) && arena.inBox(location);
     }
+
+    /** Whether fighters may put a block at {@code location}: inside the arena, up to its build limit. */
+    public boolean allowsPlacingAt(Location location) {
+        return contains(location) && arena.allowsBuildingAt(location.getBlockY());
+    }
 }

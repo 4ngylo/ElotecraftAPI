@@ -13,6 +13,7 @@ import me.angylo.elotecraftDuels.match.Match.EndReason;
 import me.angylo.elotecraftDuels.match.Match.State;
 import me.angylo.elotecraftDuels.state.PlayerSnapshot;
 import me.angylo.elotecraftDuels.state.SnapshotStore;
+import me.angylo.elotecraftDuels.stats.PlayerStats;
 import me.angylo.elotecraftDuels.stats.StatsService;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver;
@@ -140,12 +141,18 @@ public final class MatchManager {
         rematches.values().removeIf(Rematch::expired);
     }
 
+    /** Starts an unranked duel; see {@link #start(Player, Player, Kit, Arena, boolean)}. */
+    public boolean start(Player first, Player second, Kit kit, Arena arena) {
+        return start(first, second, kit, arena, false);
+    }
+
     /**
      * Starts a duel. Their state is saved first; nothing about them changes unless that succeeds.
      *
+     * @param ranked whether the result moves the fighters' Elo ratings
      * @return false if either player is busy or the arena is not ready and free; callers check and explain first
      */
-    public boolean start(Player first, Player second, Kit kit, Arena arena) {
+    public boolean start(Player first, Player second, Kit kit, Arena arena, boolean ranked) {
         if (first.equals(second) || !available(first) || !available(second) || !instances.available(arena)) {
             return false;
         }
@@ -162,7 +169,7 @@ public final class MatchManager {
             messages.send(second, "match.arena-failed");
             return true;
         }
-        Match match = new Match(instance, kit, first, second);
+        Match match = new Match(instance, kit, first, second, ranked);
         for (Player fighter : List.of(first, second)) {
             match.addSnapshot(fighter, taken.get(fighter.getUniqueId()));
         }
@@ -486,12 +493,19 @@ public final class MatchManager {
         display.removeBossBar(match);
         Player loser = winner == null ? null : match.opponentOf(winner);
         if (winner != null) {
-            stats.recordResult(winner, loser);
+            // Forfeits and quits move the rating too, so leaving a losing ranked duel does not save it.
+            int eloChange = match.isRanked() ? PlayerStats.eloChange(stats.elo(winner.getUniqueId()),
+                    stats.elo(loser.getUniqueId()), settings.get().ranked().kFactor()) : 0;
+            stats.recordResult(winner, loser, eloChange);
             // Only a real fight pays out, so two accounts cannot farm rewards by forfeiting to each other.
             if (reason == EndReason.ELIMINATED) {
                 rewards.give(winner, loser, match);
             }
             display.result(match, winner, loser, reason);
+            if (match.isRanked()) {
+                display.eloChange(match, winner, loser, eloChange,
+                        stats.elo(winner.getUniqueId()), stats.elo(loser.getUniqueId()));
+            }
             if (match.isParticipant(loser) && !loser.isDead()) {
                 loser.setGameMode(GameMode.SPECTATOR);
             }

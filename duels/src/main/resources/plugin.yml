@@ -17,6 +17,7 @@ permissions:
       duels.duel: true
       duels.select-arena: true
       duels.queue: true
+      duels.queue.ranked: true
       duels.spectate: true
       duels.stats: true
       duels.top: true
@@ -27,7 +28,10 @@ permissions:
     description: Choose the arena when challenging someone.
     default: true
   duels.queue:
-    description: Join matchmaking queues.
+    description: Join unranked matchmaking queues.
+    default: true
+  duels.queue.ranked:
+    description: Join ranked matchmaking queues, which move the Elo rating.
     default: true
   duels.spectate:
     description: Spectate other players' duels.

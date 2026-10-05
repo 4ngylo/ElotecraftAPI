@@ -45,6 +45,8 @@ public final class Match {
     private final Kit kit;
     private final Player first;
     private final Player second;
+    /** Whether the result moves the fighters' Elo ratings: duels from the queue. */
+    private final boolean ranked;
     /** Everyone still to be restored, fighters and spectators, with their pre-duel state. */
     private final Map<UUID, PlayerSnapshot> snapshots = new HashMap<>();
     private final Map<UUID, Player> spectators = new LinkedHashMap<>();
@@ -60,11 +62,16 @@ public final class Match {
     private BukkitTask task;
     private boolean over;
 
-    Match(ArenaInstance instance, Kit kit, Player first, Player second) {
+    Match(ArenaInstance instance, Kit kit, Player first, Player second, boolean ranked) {
         this.instance = instance;
         this.kit = kit;
         this.first = first;
         this.second = second;
+        this.ranked = ranked;
+    }
+
+    public boolean isRanked() {
+        return ranked;
     }
 
     public Arena arena() {

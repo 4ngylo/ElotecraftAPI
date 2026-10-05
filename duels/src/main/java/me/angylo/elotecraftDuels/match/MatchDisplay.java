@@ -105,6 +105,18 @@ final class MatchDisplay {
         }
     }
 
+    /** Tells both fighters, if still there, how a ranked result moved their rating. */
+    void eloChange(Match match, Player winner, Player loser, int change, int winnerElo, int loserElo) {
+        if (match.isParticipant(winner)) {
+            messages.send(winner, "match.elo-gained", Placeholder.unparsed("change", String.valueOf(change)),
+                    Placeholder.unparsed("elo", String.valueOf(winnerElo)));
+        }
+        if (match.isParticipant(loser)) {
+            messages.send(loser, "match.elo-lost", Placeholder.unparsed("change", String.valueOf(change)),
+                    Placeholder.unparsed("elo", String.valueOf(loserElo)));
+        }
+    }
+
     void draw(Match match) {
         TagResolver[] tags = with(setup(match),
                 Placeholder.unparsed("first", match.first().getName()),

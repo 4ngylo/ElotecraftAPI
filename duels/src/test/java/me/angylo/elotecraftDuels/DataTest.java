@@ -41,6 +41,7 @@ class DataTest extends DuelsTestBase {
                 match: {countdown-seconds: 99, max-duration: soon, boss-bar-color: CHARTREUSE}
                 rules: {allowed-commands: ["/MSG"]}
                 rewards: {win: {money: -5}}
+                ranked: {k-factor: 0, range-max: 9999}
                 effects:
                   broken: {sound: "Not A Key", particle: DUST}
                   good: {sound: ui.button.click}
@@ -52,6 +53,10 @@ class DataTest extends DuelsTestBase {
         assertEquals(BossBar.Color.RED, settings.bossBarColor());
         assertEquals(Set.of("msg"), settings.allowedCommands());
         assertEquals(0, settings.winReward().money());
+        assertEquals(32, settings.ranked().kFactor());
+        assertEquals(1000, settings.ranked().rangeMax());
+        assertEquals(500, settings.ranked().range(40));
+        assertEquals(1000, settings.ranked().range(500));
     }
 
     @Test

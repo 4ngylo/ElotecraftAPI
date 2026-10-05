@@ -21,12 +21,15 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.logging.Level;
 
-/** Picks a kit: to challenge someone, or to join (or leave) its queue. Layout in menus.yml {@code kits}. */
+/**
+ * Picks a kit: to challenge someone, or to join (or leave) its unranked or ranked queue. Layout in
+ * menus.yml {@code kits}.
+ */
 public final class KitMenu {
 
     /** What clicking a kit is for; changes its lore. */
     public enum Mode {
-        CHALLENGE, QUEUE
+        CHALLENGE, QUEUE, RANKED
     }
 
     private final Plugin plugin;
@@ -58,14 +61,19 @@ public final class KitMenu {
         ConfigurationSection section = menus.get().getConfigurationSection("kits");
         try {
             Effects effects = settings.get().effects();
-            String queued = queues.queuedKit(viewer.getUniqueId()).orElse(null);
+            boolean ranked = mode == Mode.RANKED;
+            QueueManager.QueueId queued = queues.queued(viewer.getUniqueId()).orElse(null);
             PaginatedMenu menu = MenuLayout.frame(plugin, section);
             menu.items(usable.stream().map(kit -> {
-                boolean inQueue = kit.name().equals(queued);
+                boolean inQueue = mode != Mode.CHALLENGE && new QueueManager.QueueId(kit.name(), ranked).equals(queued);
                 String lore = mode == Mode.CHALLENGE ? "lore" : inQueue ? "queued-lore" : "queue-lore";
+                // Challenging shows everyone queued for the kit; a queue menu shows that queue.
+                int waiting = mode == Mode.CHALLENGE ? queues.size(kit.name(), false) + queues.size(kit.name(), true)
+                        : queues.size(kit.name(), ranked);
                 return Button.of(MenuLayout.icon(kit.icon(), section.getConfigurationSection("kit"), lore, inQueue,
                                 Placeholder.component("kit", Text.mm(kit.displayName())),
-                                Placeholder.unparsed("queued", String.valueOf(queues.size(kit.name()))),
+                                Placeholder.component("type", messages.get(viewer, ranked ? "queue.type-ranked" : "queue.type-unranked")),
+                                Placeholder.unparsed("queued", String.valueOf(waiting)),
                                 Placeholder.unparsed("dueling", String.valueOf(matches.fightingWith(kit.name()))),
                                 Placeholder.component("building", messages.get(viewer, kit.build() ? "general.kit-build" : "general.kit-no-build"))),
                         MenuLayout.choose(plugin, effects, player -> onChoose.accept(kit)));

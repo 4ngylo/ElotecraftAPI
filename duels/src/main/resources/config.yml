@@ -46,6 +46,14 @@ slime:
   enabled: true           # restart to apply
   copies-per-arena: 4     # 1 to 64 duels at once in one arena
 
+ranked:
+  # /duel ranked duels move Elo rating: the winner takes it from the loser (forfeits and quits count as
+  # losses, draws change nothing). /duel queue, challenges and rematches are unranked. Everyone starts at 1000.
+  k-factor: 32            # 1 to 100; the most rating one duel can move
+  range: 100              # 0 to 5000; how far apart two queued players' ratings may be at first
+  range-growth: 10        # 0 to 1000; added to the range for every second a player waits
+  range-max: 1000         # 0 to 5000; the range never grows past this
+
 rewards:
   # Money needs Vault and an economy plugin. Commands run from the console and may use
   # <winner>, <loser>, <kit> and <arena>, e.g. "give <winner> diamond 1". Only paid for a lethal hit:

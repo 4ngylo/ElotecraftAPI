@@ -20,10 +20,21 @@ public record Settings(int countdownSeconds, Duration maxDuration, int endDelayS
                 BossBar.Color bossBarColor, boolean logResults, Duration requestExpiry, Duration requestCooldown,
                 Duration rematchWindow, boolean hunger, boolean naturalRegeneration, Set<String> allowedCommands,
                 Reward winReward, Reward lossReward, Title.Times titleTimes, Effects effects,
-                boolean breakArenaBlocks, int regenBlocksPerTick, boolean slimeEnabled, int slimeCopiesPerArena) {
+                boolean breakArenaBlocks, int regenBlocksPerTick, boolean slimeEnabled, int slimeCopiesPerArena,
+                Ranked ranked) {
 
     private static final long MILLIS_PER_TICK = 50;
     private static final int MAX_TITLE_TICKS = 200;
+    private static final int MAX_ELO_RANGE = 5000;
+
+    /** Elo rating of queue duels and how far apart two queued players may be rated. */
+    public record Ranked(int kFactor, int range, int rangeGrowth, int rangeMax) {
+
+        /** The rating gap allowed for a player who has waited {@code seconds}. */
+        public int range(long seconds) {
+            return (int) Math.min(range + rangeGrowth * seconds, rangeMax);
+        }
+    }
 
     /** Money and console commands for one outcome of a duel. */
     public record Reward(double money, List<String> commands) {
@@ -60,7 +71,12 @@ public record Settings(int countdownSeconds, Duration maxDuration, int endDelayS
                 config.getBoolean("build.break-arena-blocks", false),
                 integer(config, logger, "regen.blocks-per-tick", 2000, 1, 100_000),
                 config.getBoolean("slime.enabled", true),
-                integer(config, logger, "slime.copies-per-arena", 4, 1, 64));
+                integer(config, logger, "slime.copies-per-arena", 4, 1, 64),
+                new Ranked(
+                        integer(config, logger, "ranked.k-factor", 32, 1, 100),
+                        integer(config, logger, "ranked.range", 100, 0, MAX_ELO_RANGE),
+                        integer(config, logger, "ranked.range-growth", 10, 0, 1000),
+                        integer(config, logger, "ranked.range-max", 1000, 0, MAX_ELO_RANGE)));
     }
 
     private static int integer(ConfigurationSection config, Logger logger, String path, int fallback, int min, int max) {

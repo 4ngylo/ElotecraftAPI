@@ -78,7 +78,7 @@ public final class Duels {
         this.instances = new ArenaInstances(plugin, this::settings, arenas, slime);
         this.matches = new MatchManager(plugin, messages, this::settings, arenas, instances, snapshots, stats);
         this.requests = new RequestManager(messages, this::settings, kits, arenas, matches);
-        this.queues = new QueueManager(messages, this::settings, kits, matches);
+        this.queues = new QueueManager(messages, this::settings, kits, matches, stats);
         KitMenu kitMenu = new KitMenu(plugin, messages, menus, this::settings, kits, matches, queues);
         ArenaMenu arenaMenu = new ArenaMenu(plugin, messages, menus, this::settings, arenas, matches);
 

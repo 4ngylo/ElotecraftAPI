@@ -10,6 +10,7 @@ import org.bukkit.inventory.ItemStack;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -86,6 +87,16 @@ class CommandTest extends DuelsTestBase {
 
         assertTrue(duels.matches().isBusy(alex));
         assertTrue(duels.matches().isBusy(steve));
+        assertFalse(duels.matches().matchOf(alex).orElseThrow().isRanked());
+    }
+
+    @Test
+    void twoPlayersInTheRankedQueueGetARankedDuel() {
+        server.dispatchCommand(alex, "duel ranked sword");
+        assertTrue(anyMessage(alex, "Joined the Ranked Sword queue."));
+        server.dispatchCommand(steve, "duel ranked sword");
+
+        assertTrue(duels.matches().matchOf(alex).orElseThrow().isRanked());
     }
 
     @Test
@@ -95,7 +106,7 @@ class CommandTest extends DuelsTestBase {
         server.dispatchCommand(alex, "duel leave");
 
         List<String> lines = messages(alex);
-        assertTrue(lines.stream().anyMatch(line -> line.contains("You left the Sword queue.")));
+        assertTrue(lines.stream().anyMatch(line -> line.contains("You left the Unranked Sword queue.")));
         assertTrue(lines.stream().anyMatch(line -> line.contains("You're not in a queue, a duel or spectating.")));
     }
 
@@ -123,6 +134,16 @@ class CommandTest extends DuelsTestBase {
 
         server.dispatchCommand(alex, "duel top");
         tickUntil(() -> !messages(alex).isEmpty());
+
+        duels.stats().recordResult(steve, alex, 16);
+        tickUntil(() -> !await(duels.stats().topByElo(1)).isEmpty());
+        server.dispatchCommand(steve, "duel top elo");
+        List<String> lines = new ArrayList<>();
+        tickUntil(() -> {
+            lines.addAll(messages(steve));
+            return lines.stream().anyMatch(line -> line.contains("Steve · 1016 rating"));
+        });
+        assertTrue(lines.getFirst().contains("Top ranked duelists"));
     }
 
     @Test

@@ -29,6 +29,7 @@ public final class DuelCommand {
     static final String DUEL = "duels.duel";
     static final String SELECT_ARENA = "duels.select-arena";
     private static final int TOP_SIZE = 10;
+    private static final String TOP_ELO = "elo";
     /** Between database lookups and spectate attempts by one player, so they cannot be spammed. */
     private static final Duration LOOKUP_COOLDOWN = Duration.ofSeconds(3);
 
@@ -55,12 +56,16 @@ public final class DuelCommand {
                 .playerSub("accept", DUEL, (player, args) -> duels.requests().accept(player, Args.get(args, 0)), this::suggestSenders)
                 .playerSub("deny", DUEL, (player, args) -> duels.requests().deny(player, Args.get(args, 0)), this::suggestSenders)
                 .playerSub("rematch", DUEL, (player, args) -> duels.requests().rematch(player))
-                .playerSub("queue", "duels.queue", this::queue, (sender, args) -> Args.filter(usableKits(sender), args))
+                .playerSub("queue", "duels.queue", (player, args) -> queue(player, args, false),
+                        (sender, args) -> Args.filter(usableKits(sender), args))
+                .playerSub("ranked", "duels.queue.ranked", (player, args) -> queue(player, args, true),
+                        (sender, args) -> Args.filter(usableKits(sender), args))
                 .playerSub("leave", null, this::leave)
                 .playerSub("spectate", "duels.spectate", this::spectate, (sender, args) -> Args.players(args))
                 .sub("stats", "duels.stats", (sender, args) -> limited(sender, () -> stats(sender, args)),
                         (sender, args) -> Args.players(args))
-                .sub("top", "duels.top", (sender, args) -> limited(sender, () -> top(sender)))
+                .sub("top", "duels.top", (sender, args) -> limited(sender, () -> top(sender, args)),
+                        (sender, args) -> Args.filter(List.of(TOP_ELO), args))
                 .register(duels.plugin());
     }
 
@@ -154,9 +159,11 @@ public final class DuelCommand {
         return duels.kits().all().stream().filter(kit -> kit.canUse(sender) && !kit.isEmpty()).map(Kit::name).toList();
     }
 
-    private void queue(Player player, String[] args) {
+    /** {@code /duel queue} and {@code /duel ranked}: joins or leaves a kit's queue; the kit menu without a kit. */
+    private void queue(Player player, String[] args, boolean ranked) {
         if (args.length == 0) {
-            kitMenu.open(player, KitMenu.Mode.QUEUE, kit -> duels.queues().toggle(player, kit));
+            kitMenu.open(player, ranked ? KitMenu.Mode.RANKED : KitMenu.Mode.QUEUE,
+                    kit -> duels.queues().toggle(player, kit, ranked));
             return;
         }
         Optional<Kit> kit = duels.kits().get(args[0]).filter(found -> !found.isEmpty());
@@ -164,7 +171,7 @@ public final class DuelCommand {
             messages.send(player, "general.kit-not-found", Placeholder.unparsed("kit", args[0]));
             return;
         }
-        duels.queues().toggle(player, kit.get());
+        duels.queues().toggle(player, kit.get(), ranked);
     }
 
     private void leave(Player player, String[] args) {
@@ -219,23 +226,27 @@ public final class DuelCommand {
                 Placeholder.unparsed("losses", String.valueOf(stats.losses())),
                 Placeholder.unparsed("rate", String.valueOf(stats.winRate())),
                 Placeholder.unparsed("streak", String.valueOf(stats.winStreak())),
-                Placeholder.unparsed("best", String.valueOf(stats.bestWinStreak())));
+                Placeholder.unparsed("best", String.valueOf(stats.bestWinStreak())),
+                Placeholder.unparsed("elo", String.valueOf(stats.elo())));
     }
 
-    private void top(CommandSender sender) {
-        duels.stats().top(TOP_SIZE).thenAccept(top -> {
+    /** {@code /duel top} by wins, {@code /duel top elo} by rating. */
+    private void top(CommandSender sender, String[] args) {
+        boolean byElo = args.length > 0 && args[0].equalsIgnoreCase(TOP_ELO);
+        (byElo ? duels.stats().topByElo(TOP_SIZE) : duels.stats().top(TOP_SIZE)).thenAccept(top -> {
             if (top.isEmpty()) {
                 messages.send(sender, "top.empty");
                 return;
             }
-            messages.send(sender, "top.header");
+            messages.send(sender, byElo ? "top.elo-header" : "top.header");
             for (int i = 0; i < top.size(); i++) {
                 PlayerStats stats = top.get(i);
-                messages.send(sender, "top.line",
+                messages.send(sender, byElo ? "top.elo-line" : "top.line",
                         Placeholder.unparsed("rank", String.valueOf(i + 1)),
                         Placeholder.unparsed("player", stats.name()),
                         Placeholder.unparsed("wins", String.valueOf(stats.wins())),
-                        Placeholder.unparsed("losses", String.valueOf(stats.losses())));
+                        Placeholder.unparsed("losses", String.valueOf(stats.losses())),
+                        Placeholder.unparsed("elo", String.valueOf(stats.elo())));
             }
         }).exceptionally(error -> {
             duels.plugin().getLogger().log(Level.WARNING, "Could not load the duel leaderboard", error);

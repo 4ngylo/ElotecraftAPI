@@ -49,18 +49,20 @@ class DuelsExpansionTest {
         PlayerMock alex = server.addPlayer("Alex");
         Kit kit = new Kit("sword", "Sword", Material.DIAMOND_SWORD, null, List.of(ItemStack.of(Material.DIAMOND_SWORD)), false);
         duels.kits().update(kit);
-        duels.queues().toggle(alex, kit);
+        duels.queues().toggle(alex, kit, true);
         DuelsExpansion expansion = new DuelsExpansion(duels);
 
         assertEquals("duels", expansion.getIdentifier());
         assertEquals("0", expansion.onRequest(alex, "active_matches"));
         assertEquals("0", expansion.onRequest(alex, "wins"));
         assertEquals("0", expansion.onRequest(alex, "win_rate"));
+        assertEquals("1000", expansion.onRequest(alex, "elo"));
         assertEquals("false", expansion.onRequest(alex, "in_match"));
         assertEquals("", expansion.onRequest(alex, "opponent"));
         assertEquals("sword", expansion.onRequest(alex, "queue"));
+        assertEquals("ranked", expansion.onRequest(alex, "queue_type"));
         assertEquals("", expansion.onRequest(null, "wins"));
         assertNull(expansion.onRequest(alex, "unknown"));
-        assertEquals(11, expansion.getPlaceholders().size());
+        assertEquals(13, expansion.getPlaceholders().size());
     }
 }

@@ -15,9 +15,10 @@ command:
     <yellow>/duel accept|deny [player]</yellow> <dark_gray>-</dark_gray> <gray>answer a challenge
     <yellow>/duel rematch</yellow> <dark_gray>-</dark_gray> <gray>challenge your last opponent again
     <yellow>/duel queue [kit]</yellow> <dark_gray>-</dark_gray> <gray>find an opponent
+    <yellow>/duel ranked [kit]</yellow> <dark_gray>-</dark_gray> <gray>find an opponent near your rating
     <yellow>/duel spectate <player></yellow> <dark_gray>-</dark_gray> <gray>watch a duel
     <yellow>/duel leave</yellow> <dark_gray>-</dark_gray> <gray>leave the queue, stop spectating or forfeit
-    <yellow>/duel stats [player]</yellow> <dark_gray>·</dark_gray> <yellow>/duel top</yellow> <dark_gray>-</dark_gray> <gray>statistics
+    <yellow>/duel stats [player]</yellow> <dark_gray>·</dark_gray> <yellow>/duel top [elo]</yellow> <dark_gray>-</dark_gray> <gray>statistics
   admin-help: |-
     <gradient:#ff416c:#ff4b2b><bold>⚔ Duels admin</bold></gradient>
     <yellow>/duels arena</yellow> <dark_gray>-</dark_gray> <gray>create and edit arenas
@@ -97,9 +98,14 @@ request:
   rematch-none: "<prefix><red>There is nobody to rematch right now."
 
 queue:
-  joined: "<prefix><green>Joined the <white><kit></white> queue. <gray>(<queued> waiting)"
-  left: "<prefix><gray>You left the <white><kit></white> queue."
+  # <type> is type-ranked or type-unranked below.
+  type-ranked: "Ranked"
+  type-unranked: "Unranked"
+  joined: "<prefix><green>Joined the <type> <white><kit></white> queue. <gray>(<queued> waiting)"
+  left: "<prefix><gray>You left the <type> <white><kit></white> queue."
   action-bar: "<gray>Looking for an opponent <dark_gray>·</dark_gray> <white><kit></white> <dark_gray>·</dark_gray> <yellow><time>"
+  # <elo> is the player's rating, <range> how far from it an opponent may be rated right now.
+  action-bar-ranked: "<gold>Ranked</gold> <dark_gray>·</dark_gray> <white><kit></white> <dark_gray>·</dark_gray> <yellow><time></yellow> <dark_gray>·</dark_gray> <gray>Rating <white><elo></white> ±<range>"
   waiting-arena: "<prefix><yellow>Opponent found! Waiting for a free arena..."
   kit-removed: "<prefix><red>The <kit> kit is gone, so you left its queue."
 
@@ -120,6 +126,8 @@ match:
   result-quit: "<prefix><white><loser></white> <gray>left the duel, so <white><winner></white> wins."
   result-forfeit: "<prefix><white><loser></white> <gray>forfeited, so <white><winner></white> wins."
   result-draw: "<prefix><gray>The duel between <white><first></white> and <white><second></white> ended in a draw."
+  elo-gained: "<prefix><gray>Rating <green>+<change></green> <dark_gray>·</dark_gray> <white><elo>"
+  elo-lost: "<prefix><gray>Rating <red>-<change></red> <dark_gray>·</dark_gray> <white><elo>"
   cancelled: "<prefix><red>The duel was cancelled."
   cancelled-quit: "<prefix><red><player> left before the fight, so the duel was cancelled."
   cancelled-admin: "<prefix><red>An admin stopped the duel."
@@ -145,6 +153,7 @@ stats:
     <gradient:#ff416c:#ff4b2b><bold>⚔ <player></bold></gradient>
      <gray>Wins <green><wins></green> <dark_gray>·</dark_gray> Losses <red><losses></red> <dark_gray>·</dark_gray> Win rate <white><rate>%
      <gray>Win streak <gold><streak></gold> <dark_gray>·</dark_gray> Best <gold><best>
+     <gray>Rating <aqua><elo>
   unknown: "<prefix><red>No duel stats for '<player>' yet."
   error: "<prefix><red>Couldn't load duel stats; try again later."
 
@@ -152,6 +161,8 @@ top:
   header: "<gradient:#f7971e:#ffd200><bold>⚔ Top duelists"
   line: " <gold>#<rank></gold> <white><player></white> <dark_gray>·</dark_gray> <green><wins> wins</green> <dark_gray>·</dark_gray> <red><losses> losses"
   empty: "<prefix><gray>No duels have been played yet."
+  elo-header: "<gradient:#f7971e:#ffd200><bold>⚔ Top ranked duelists"
+  elo-line: " <gold>#<rank></gold> <white><player></white> <dark_gray>·</dark_gray> <aqua><elo> rating</aqua> <dark_gray>·</dark_gray> <green><wins> wins"
 
 admin:
   reloaded: "<prefix><green>Reloaded the config, messages, menus, arenas and kits."

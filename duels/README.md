@@ -91,10 +91,11 @@ Without ASP, `/duels arena world` explains that it is needed. `slime.enabled: fa
 | `/duel <player> [kit] [arena]` | `duels.duel` | Challenge; without a kit the kit menu opens, then the arena menu |
 | `/duel accept [player]`, `/duel deny [player]` | `duels.duel` | Answer a challenge (clickable in chat too) |
 | `/duel rematch` | `duels.duel` | Challenge your last opponent again, or accept their rematch |
-| `/duel queue [kit]` | `duels.queue` | Join or leave a kit's matchmaking queue (menu without a kit) |
+| `/duel queue [kit]` | `duels.queue` | Join or leave a kit's unranked queue (menu without a kit) |
+| `/duel ranked [kit]` | `duels.queue.ranked` | Join or leave a kit's ranked queue (menu without a kit) |
 | `/duel spectate <player>` | `duels.spectate` | Watch someone's duel |
 | `/duel leave` | | Leave the queue, stop spectating, or forfeit |
-| `/duel stats [player]`, `/duel top` | `duels.stats`, `duels.top` | Statistics and leaderboard |
+| `/duel stats [player]`, `/duel top [elo]` | `duels.stats`, `duels.top` | Statistics and leaderboard by wins or rating |
 | `/duels arena ...` | `duels.admin.arena` | `create`, `delete`, `setspawn`, `setcorner`, `setspectator`, `seticon`, `setname`, `toggle`, `info`, `tp`, `list`, `snapshot`, `reset` |
 | `/duels arena world ...` | `duels.admin.arena` | `create`, `import`, `save`: arena worlds on AdvancedSlimePaper |
 | `/duels kit ...` | `duels.admin.kit` | `create`, `save`, `load`, `delete`, `seticon`, `setname`, `setpermission`, `build`, `list` |
@@ -129,7 +130,7 @@ cut short by a crash is undone when the player next joins.
 
 - `config.yml`: database, countdown, duration, end delay, boss bar, request expiry and cooldown, rematch
   window, hunger and regeneration rules, allowed commands, build kit and arena regen rules,
-  AdvancedSlimePaper, rewards, title timings, sounds and particles.
+  AdvancedSlimePaper, ranked rating and queue range, rewards, title timings, sounds and particles.
   Invalid values are logged and replaced by defaults.
 - `messages.yml`: every text players see, in [MiniMessage](https://docs.advntr.dev/minimessage/format.html).
   Add `messages_<language>.yml` (e.g. `messages_es.yml`) for players whose client uses that language.
@@ -140,11 +141,19 @@ accounts cannot farm them): money through Vault and console commands with `<winn
 and `<arena>`. Commands are skipped for players whose name is not letters, digits and underscores
 (offline-mode servers allow names such as `@a`). Wins and losses by forfeit or quit still count in the stats.
 
+Every kit has an unranked queue (`/duel queue`, first come first served) and a ranked one (`/duel ranked`).
+Ranked duels move ratings: everyone starts at an Elo rating of 1000 and the winner takes rating from the
+loser, more for beating a higher-rated player (`ranked.k-factor` caps it). Forfeits and quits count as
+losses; draws, unranked queue duels, challenges and rematches leave ratings alone. The ranked queue pairs the longest-waiting player
+with the first opponent rated within `ranked.range`; the range grows by `ranked.range-growth` every
+second they wait, up to `ranked.range-max`. Updating from an older version adds the rating to the
+existing stats table on startup.
+
 ## Placeholders
 
 With PlaceholderAPI: `%duels_wins%`, `%duels_losses%`, `%duels_win_streak%`, `%duels_best_win_streak%`,
-`%duels_win_rate%`, `%duels_in_match%`, `%duels_opponent%`, `%duels_kit%`, `%duels_arena%`,
-`%duels_queue%`, `%duels_active_matches%`. Stats placeholders are for online players.
+`%duels_win_rate%`, `%duels_elo%`, `%duels_in_match%`, `%duels_opponent%`, `%duels_kit%`, `%duels_arena%`,
+`%duels_queue%`, `%duels_queue_type%` (`ranked` or `unranked`), `%duels_active_matches%`. Stats placeholders are for online players.
 
 ## Testing on a server
 
@@ -154,6 +163,7 @@ The automated tests run on MockBukkit, which cannot click menus. Before a releas
 - [ ] Countdown freeze, fight, lethal hit, result, everyone back with their own items
 - [ ] Quit mid-fight, `/duel leave`, a timeout draw, `/duels stop`
 - [ ] Queue pairing and spectating; spectators cannot fly out of the arena
+- [ ] Ranked: rating change shown after a `/duel ranked` duel and not after a `/duel queue` one, `/duel top elo`, an older database gains the rating
 - [ ] `/stop` during a duel, then join again: items and position restored
 - [ ] Ender pearl inside the arena works, out of it is blocked
 - [ ] With MySQL: a duel's result appears in `/duel top`
@@ -166,6 +176,6 @@ The automated tests run on MockBukkit, which cannot click menus. Before a releas
 
 ## Not included
 
-Bets, ranked/ELO queues, team duels, own-inventory duels, per-kit rules, kits limited to certain arenas,
+Bets, per-kit ratings and rating seasons, team duels, own-inventory duels, per-kit rules, kits limited to certain arenas,
 match history, a sidebar and leaderboard holograms. Arenas cannot span worlds or be loaded from
 schematic files.

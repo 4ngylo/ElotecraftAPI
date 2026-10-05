@@ -55,6 +55,13 @@ class MenuAndRulesTest extends DuelsTestBase {
 
         List<String> lore = alex.getOpenInventory().getTopInventory().getItem(0).getItemMeta().lore().stream().map(Text::plain).toList();
         assertTrue(lore.contains("✔ You're in this queue"));
+        assertTrue(lore.contains("▪ In Unranked queue: 1"));
+
+        server.dispatchCommand(alex, "duel ranked");
+
+        List<String> ranked = alex.getOpenInventory().getTopInventory().getItem(0).getItemMeta().lore().stream().map(Text::plain).toList();
+        assertFalse(ranked.contains("✔ You're in this queue"));
+        assertTrue(ranked.contains("▪ In Ranked queue: 0"));
     }
 
     @Test

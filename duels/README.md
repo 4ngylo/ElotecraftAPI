@@ -53,8 +53,18 @@ removes it), so bridges and towers stay low.
    `/duels arena pregen desert clear` (removes the copies and empties their space) and pregen again.
    `desert` cannot be deleted while it has copies.
 
-A restart during a pregen stops it; the copies pasted so far keep working. Copies are pasted from the
-snapshot, which keeps blocks only (see below).
+A restart during a pregen stops it; the copies pasted so far keep working.
+
+**With [FastAsyncWorldEdit](https://github.com/IntellectualSites/FastAsyncWorldEdit) or WorldEdit**
+(optional, recommended):
+
+- Pregen copies the arena as it stands, chest contents, sign text, banners and heads included. FAWE
+  pastes off the main thread; plain WorldEdit pastes each copy at once on the main thread, which can lag
+  for big arenas. Without either, copies are pasted from the snapshot, which keeps blocks only.
+- `/duels arena setbox desert` sets both corners from your WorldEdit selection (`//wand`).
+- `/duels arena import desert desert.schem` pastes `plugins/ElotecraftDuels/schematics/desert.schem` at a
+  free place in the arenas world (lowest layer at Y 64) and makes it arena `desert` with its corners set;
+  set its spawns, then snapshot it.
 
 The arena must allow PvP: check the world's `pvp` setting and WorldGuard flags. If you use a combat-tag
 or graves plugin, exclude the arena regions; duels never fire death events, but combat tags still apply.
@@ -101,7 +111,7 @@ with their arena and limited to 256 x 256 blocks across.
 | `/duel spectate <player>` | `duels.spectate` | Watch someone's duel |
 | `/duel leave` | | Leave the queue, stop spectating, or forfeit |
 | `/duel stats [player]`, `/duel top [elo]` | `duels.stats`, `duels.top` | Statistics and leaderboard by wins or rating |
-| `/duels arena ...` | `duels.admin.arena` | `create`, `delete`, `setspawn`, `setcorner`, `setspectator`, `setcenter`, `seticon`, `setname`, `category`, `buildlimit`, `toggle`, `info`, `tp`, `list`, `snapshot`, `reset`, `pregen` |
+| `/duels arena ...` | `duels.admin.arena` | `create`, `delete`, `setspawn`, `setcorner`, `setbox`, `import`, `setspectator`, `setcenter`, `seticon`, `setname`, `category`, `buildlimit`, `toggle`, `info`, `tp`, `list`, `snapshot`, `reset`, `pregen` |
 | `/duels kit ...` | `duels.admin.kit` | `create`, `save`, `load`, `delete`, `seticon`, `setname`, `setpermission`, `build`, `arenas`, `list` |
 | `/duels stop <player>` | `duels.admin.stop` | End a duel without a result |
 | `/duels reload` | `duels.admin.reload` | Reload config, messages, menus, arenas and kits |
@@ -178,11 +188,13 @@ The automated tests run on MockBukkit, which cannot click menus. Before a releas
   again: the console says the arena was rebuilt
 - [ ] The arenas world is created empty; `/duels arena pregen` of a real arena, several duels at once on
   its copies, `pregen clear` empties their space; `/stop` mid build duel on a copy rebuilds the copy
+- [ ] With FAWE: pregen keeps a chest's contents and a sign's text in every copy with no lag spike;
+  `/duels arena setbox` from a `//wand` selection; `/duels arena import` of a `.schem`. Plain WorldEdit too
 - [ ] A kit limited to a category only gets those arenas; the build limit stops towering; falling off the
   bottom of the arena loses the duel
 
 ## Not included
 
 Bets, per-kit ratings and rating seasons, team duels, own-inventory duels, per-kit rules, match history,
-a sidebar and leaderboard holograms. Arenas cannot span worlds or be loaded from schematic files, and
-copies don't keep chest contents or sign text.
+a sidebar and leaderboard holograms. Arenas cannot span worlds, and without WorldEdit copies don't keep
+chest contents or sign text.

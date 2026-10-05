@@ -2,6 +2,7 @@ package me.angylo.elotecraftDuels.arena;
 
 import me.angylo.elotecraftAPI.util.Tasks;
 import me.angylo.elotecraftDuels.Settings;
+import me.angylo.elotecraftDuels.hook.WorldEditHook;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.World;
@@ -20,9 +21,10 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
- * {@code /duels arena pregen}: pastes copies of an arena from its snapshot on a grid in the arenas world,
- * so one arena layout hosts several duels at once. Copies are pasted one after another,
- * {@code regen.blocks-per-tick} blocks per tick, and each takes duels once it is fully pasted. Main thread only.
+ * {@code /duels arena pregen}: pastes copies of an arena on a grid in the arenas world, so one arena layout
+ * hosts several duels at once. With FastAsyncWorldEdit or WorldEdit the arena is copied as it stands, chest
+ * contents and sign text included; without, copies come from its snapshot, {@code regen.blocks-per-tick}
+ * blocks per tick. Copies are pasted one after another and each takes duels once fully pasted. Main thread only.
  */
 public final class ArenaPregen {
 
@@ -41,16 +43,37 @@ public final class ArenaPregen {
     private final Supplier<Settings> settings;
     private final ArenaRegistry arenas;
     private final World world;
+    private final WorldEditHook worldEdit;
     /** Arenas whose copies are being pasted or cleared. */
     private final Set<String> busy = new HashSet<>();
 
-    /** @param world the arenas world, or null if it could not be loaded (pregen is off) */
-    public ArenaPregen(Plugin plugin, Supplier<Settings> settings, ArenaRegistry arenas, World world) {
+    /**
+     * @param world     the arenas world, or null if it could not be loaded (pregen is off)
+     * @param worldEdit null to paste copies from snapshots
+     */
+    public ArenaPregen(Plugin plugin, Supplier<Settings> settings, ArenaRegistry arenas, World world, WorldEditHook worldEdit) {
         this.plugin = plugin;
         this.logger = plugin.getLogger();
         this.settings = settings;
         this.arenas = arenas;
         this.world = world;
+        this.worldEdit = worldEdit;
+    }
+
+    /** Whether copies keep chest contents, sign text and the like: WorldEdit pastes them. */
+    public boolean keepsBlockData() {
+        return worldEdit != null;
+    }
+
+    public World world() {
+        return world;
+    }
+
+    /** The lowest corner of a free grid place in the arenas world for a box of this size, at height {@code y}. */
+    public int[] freePlace(int sizeX, int sizeY, int sizeZ, int y) {
+        BoundingBox box = new BoundingBox(0, y, 0, sizeX, y + sizeY, sizeZ);
+        Place place = places(box, 1).getFirst();
+        return new int[]{place.dx(), y, place.dz()};
     }
 
     /** Whether the arenas world is loaded, so copies can be made. */
@@ -93,7 +116,25 @@ public final class ArenaPregen {
                 done.completeExceptionally(problem);
                 return;
             }
-            paste(base, template, places(base, count), 0, pasted, done);
+            List<Place> places = places(base.bounds(), count);
+            if (worldEdit == null) {
+                paste(base, template, places, 0, pasted, done);
+                return;
+            }
+            World source = Bukkit.getWorld(base.world());
+            if (source == null) {
+                busy.remove(base.name());
+                done.completeExceptionally(new IllegalStateException("The world of arena " + base.name() + " is not loaded"));
+                return;
+            }
+            worldEdit.copy(source, base.bounds()).whenComplete((copy, copyError) -> Tasks.sync(plugin, () -> {
+                if (copyError != null) {
+                    busy.remove(base.name());
+                    done.completeExceptionally(copyError);
+                    return;
+                }
+                paste(base, copy, places, 0, pasted, done);
+            }));
         }));
         return done;
     }
@@ -127,9 +168,8 @@ public final class ArenaPregen {
         return copies.size();
     }
 
-    /** Free grid places for {@code count} copies, clear of every arena in the arenas world by the spacing. */
-    private List<Place> places(Arena base, int count) {
-        BoundingBox source = base.bounds();
+    /** Free grid places for {@code count} copies of {@code source}, clear of every arena in the arenas world by the spacing. */
+    private List<Place> places(BoundingBox source, int count) {
         int spacing = settings.get().pregenSpacing();
         int cellX = (int) source.getWidthX() + spacing;
         int cellZ = (int) source.getWidthZ() + spacing;
@@ -169,14 +209,41 @@ public final class ArenaPregen {
             done.completeExceptionally(e);
             return;
         }
+        register(base, place, index);
+        template.rewind();
+        pasted.accept(index + 1);
+        Tasks.later(plugin, () -> paste(base, template, places, index + 1, pasted, done), NEXT_TICK);
+    }
+
+    /** Pastes copy {@code index} with WorldEdit, registers it, then goes on to the next on a later tick. */
+    private void paste(Arena base, WorldEditHook.Copy copy, List<Place> places, int index, IntConsumer pasted,
+                       CompletableFuture<Integer> done) {
+        if (index == places.size()) {
+            busy.remove(base.name());
+            done.complete(places.size());
+            return;
+        }
+        Place place = places.get(index);
+        BoundingBox box = base.bounds();
+        worldEdit.paste(copy, world, (int) box.getMinX() + place.dx(), (int) box.getMinY(), (int) box.getMinZ() + place.dz())
+                .whenComplete((ignored, error) -> Tasks.sync(plugin, () -> {
+                    if (error != null) {
+                        busy.remove(base.name());
+                        done.completeExceptionally(error);
+                        return;
+                    }
+                    register(base, place, index);
+                    pasted.accept(index + 1);
+                    Tasks.later(plugin, () -> paste(base, copy, places, index + 1, pasted, done), NEXT_TICK);
+                }));
+    }
+
+    private void register(Arena base, Place place, int index) {
         Arena copy = base.copyAt(copyName(base.name(), index + 1), world.getName(), place.dx(), 0, place.dz());
         arenas.update(copy).exceptionally(error -> {
             logger.log(Level.WARNING, "Could not save arenas.yml after adding " + copy.name(), error);
             return null;
         });
-        template.rewind();
-        pasted.accept(index + 1);
-        Tasks.later(plugin, () -> paste(base, template, places, index + 1, pasted, done), NEXT_TICK);
     }
 
     /** Sets the blocks of {@code boxes} to air, a few per tick, starting at box {@code index}, block {@code cursor}. */

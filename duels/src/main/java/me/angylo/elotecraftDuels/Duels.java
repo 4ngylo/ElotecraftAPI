@@ -12,6 +12,7 @@ import me.angylo.elotecraftDuels.arena.ArenaWorld;
 import me.angylo.elotecraftDuels.command.AdminCommand;
 import me.angylo.elotecraftDuels.command.DuelCommand;
 import me.angylo.elotecraftDuels.hook.PlaceholderHook;
+import me.angylo.elotecraftDuels.hook.WorldEditHook;
 import me.angylo.elotecraftDuels.kit.KitRegistry;
 import me.angylo.elotecraftDuels.listener.BuildListener;
 import me.angylo.elotecraftDuels.listener.CombatListener;
@@ -32,6 +33,7 @@ import org.bukkit.plugin.Plugin;
 import org.bukkit.scheduler.BukkitTask;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -54,6 +56,7 @@ public final class Duels {
     private final StatsService stats;
     private final SnapshotStore snapshots;
     private final ArenaInstances instances;
+    private final WorldEditHook worldEdit;
     private final ArenaPregen pregen;
     private final MatchManager matches;
     private final RequestManager requests;
@@ -78,7 +81,8 @@ public final class Duels {
         // Loaded before arenas are rebuilt after a crash: pregen copies live there.
         World arenasWorld = ArenaWorld.load(plugin, settings.arenasWorld()).orElse(null);
         this.instances = new ArenaInstances(plugin, this::settings, arenas);
-        this.pregen = new ArenaPregen(plugin, this::settings, arenas, arenasWorld);
+        this.worldEdit = WorldEditHook.detect(plugin).orElse(null);
+        this.pregen = new ArenaPregen(plugin, this::settings, arenas, arenasWorld, worldEdit);
         this.matches = new MatchManager(plugin, messages, this::settings, arenas, instances, snapshots, stats);
         this.requests = new RequestManager(messages, this::settings, kits, arenas, matches);
         this.queues = new QueueManager(messages, this::settings, kits, matches, stats);
@@ -99,7 +103,8 @@ public final class Duels {
         this.placeholders = PlaceholderHook.register(this);
         this.ticker = Tasks.timer(plugin, this::tick, SECOND_TICKS, SECOND_TICKS);
         plugin.getLogger().info("Loaded " + arenas.all().size() + " arenas (" + arenas.all().stream().filter(Arena::isReady).count()
-                + " ready) and " + kits.all().size() + " kits" + (placeholders.registered() ? "; PlaceholderAPI hooked" : ""));
+                + " ready) and " + kits.all().size() + " kits" + (placeholders.registered() ? "; PlaceholderAPI hooked" : "")
+                + (worldEdit != null ? "; " + worldEdit.name() + " pastes arena copies" : ""));
     }
 
     /**
@@ -152,6 +157,11 @@ public final class Duels {
 
     public ArenaPregen pregen() {
         return pregen;
+    }
+
+    /** FastAsyncWorldEdit or WorldEdit, when enabled. */
+    public Optional<WorldEditHook> worldEdit() {
+        return Optional.ofNullable(worldEdit);
     }
 
     public MatchManager matches() {

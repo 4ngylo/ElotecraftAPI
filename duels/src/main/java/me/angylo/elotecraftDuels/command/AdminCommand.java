@@ -10,6 +10,7 @@ import me.angylo.elotecraftDuels.arena.Arena;
 import me.angylo.elotecraftDuels.arena.ArenaPregen;
 import me.angylo.elotecraftDuels.arena.ArenaRegistry;
 import me.angylo.elotecraftDuels.arena.ArenaTemplate;
+import me.angylo.elotecraftDuels.hook.WorldEditHook;
 import me.angylo.elotecraftDuels.kit.Kit;
 import me.angylo.elotecraftDuels.kit.KitRegistry;
 import net.kyori.adventure.text.Component;
@@ -17,14 +18,18 @@ import net.kyori.adventure.text.JoinConfiguration;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver;
 import org.bukkit.Bukkit;
+import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.World;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.event.player.PlayerTeleportEvent.TeleportCause;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
+import org.bukkit.util.BoundingBox;
 
 import java.nio.file.NoSuchFileException;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -39,6 +44,7 @@ import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.logging.Level;
+import java.util.regex.Pattern;
 
 /** {@code /duels}: arena and kit setup, reload and stopping duels. Admin permissions only. */
 public final class AdminCommand {
@@ -48,6 +54,11 @@ public final class AdminCommand {
     private static final String NONE = "none";
     private static final String ANY = "any";
     private static final String CLEAR = "clear";
+    /** Schematic files /duels arena import reads from plugins/ElotecraftDuels/schematics; no paths. */
+    private static final Pattern SCHEMATIC = Pattern.compile("[a-z0-9_-]{1,64}\\.schem");
+    /** Height the lowest layer of an imported schematic is pasted at. */
+    private static final int IMPORT_Y = 64;
+    private static final int MAX_WIDTH = 256;
 
     private final Duels duels;
     private final Messages messages;
@@ -84,6 +95,9 @@ public final class AdminCommand {
                         .playerSub("setspectator", null, (player, args) -> withEditableArena(player, args, (arena, rest) ->
                                 inWorld(player, arena, () -> save(player, arenas.update(arena.withSpectator(Arena.Position.of(player.getLocation()))),
                                         "admin.arena.spectator-set", arenaTags(arena)))), arenaNames)
+                        .playerSub("setbox", null, (player, args) -> withEditableArena(player, args, (arena, rest) ->
+                                inWorld(player, arena, () -> setBox(player, arena))), arenaNames)
+                        .sub("import", null, this::importSchematic)
                         .playerSub("setcenter", null, (player, args) -> withEditableArena(player, args, (arena, rest) ->
                                 inWorld(player, arena, () -> setCenter(player, arena))), arenaNames)
                         .playerSub("seticon", null, (player, args) -> withEditableArena(player, args, (arena, rest) ->
@@ -283,6 +297,90 @@ public final class AdminCommand {
         }));
     }
 
+    /** Both corners from the player's WorldEdit selection. */
+    private void setBox(Player player, Arena arena) {
+        Optional<WorldEditHook> worldEdit = duels.worldEdit();
+        if (worldEdit.isEmpty()) {
+            messages.send(player, "admin.arena.no-worldedit");
+            return;
+        }
+        Optional<BoundingBox> box = worldEdit.get().selection(player);
+        if (box.isEmpty()) {
+            messages.send(player, "admin.arena.no-selection");
+            return;
+        }
+        BoundingBox b = box.get();
+        Arena changed = arena.withCorner(1, new Arena.Position(b.getMinX(), b.getMinY(), b.getMinZ(), 0, 0))
+                .withCorner(2, new Arena.Position(b.getMaxX() - 1, b.getMaxY() - 1, b.getMaxZ() - 1, 0, 0));
+        save(player, arenas.update(changed), "admin.arena.box-set", arenaTags(arena));
+    }
+
+    /** {@code import <name> <file.schem>}: a new arena from a schematic, pasted at a free place in the arenas world. */
+    private void importSchematic(CommandSender sender, String[] args) {
+        String name = Args.get(args, 0).toLowerCase(Locale.ROOT);
+        String file = Args.get(args, 1);
+        Optional<WorldEditHook> worldEdit = duels.worldEdit();
+        if (!ArenaRegistry.validName(name)) {
+            messages.send(sender, "admin.invalid-name");
+        } else if (arenas.get(name).isPresent()) {
+            messages.send(sender, "admin.arena.exists", Placeholder.unparsed("id", name));
+        } else if (!SCHEMATIC.matcher(file).matches()) {
+            messages.send(sender, "admin.arena.bad-schematic");
+        } else if (worldEdit.isEmpty()) {
+            messages.send(sender, "admin.arena.no-worldedit");
+        } else if (!duels.pregen().isAvailable()) {
+            messages.send(sender, "admin.arena.no-arenas-world", Placeholder.unparsed("world", duels.pregen().worldName()));
+        } else {
+            TagResolver[] tags = {Placeholder.unparsed("id", name), Placeholder.unparsed("arena", name), Placeholder.unparsed("file", file)};
+            messages.send(sender, "admin.arena.importing", tags);
+            Path path = duels.plugin().getDataFolder().toPath().resolve("schematics").resolve(file);
+            worldEdit.get().load(path).whenComplete((copy, error) -> Tasks.sync(duels.plugin(), () -> {
+                if (error != null) {
+                    importFailed(sender, name, error, tags);
+                    return;
+                }
+                pasteImport(sender, worldEdit.get(), copy, name, tags);
+            }));
+        }
+    }
+
+    private void pasteImport(CommandSender sender, WorldEditHook worldEdit, WorldEditHook.Copy copy, String name, TagResolver[] tags) {
+        int[] size = copy.size();
+        if (size[0] > MAX_WIDTH || size[2] > MAX_WIDTH || (long) size[0] * size[1] * size[2] > ArenaTemplate.MAX_BLOCKS) {
+            messages.send(sender, "admin.arena.too-big", tags);
+            return;
+        }
+        int[] at = duels.pregen().freePlace(size[0], size[1], size[2], IMPORT_Y);
+        World world = duels.pregen().world();
+        worldEdit.paste(copy, world, at[0], at[1], at[2]).whenComplete((ignored, error) -> Tasks.sync(duels.plugin(), () -> {
+            if (error != null) {
+                importFailed(sender, name, error, tags);
+                return;
+            }
+            if (arenas.get(name).isPresent()) {
+                messages.send(sender, "admin.arena.exists", Placeholder.unparsed("id", name));
+                return;
+            }
+            // Both changes happen here on the main thread; the second save writes the first one too.
+            arenas.create(name, new Location(world, at[0], at[1], at[2]));
+            CompletableFuture<Void> saving = arenas.update(arenas.get(name).orElseThrow()
+                    .withCorner(1, new Arena.Position(at[0], at[1], at[2], 0, 0))
+                    .withCorner(2, new Arena.Position(at[0] + size[0] - 1, at[1] + size[1] - 1, at[2] + size[2] - 1, 0, 0)));
+            save(sender, saving, "admin.arena.imported", with(tags,
+                    Placeholder.unparsed("world", world.getName()), Placeholder.unparsed("x", String.valueOf(at[0])),
+                    Placeholder.unparsed("y", String.valueOf(at[1])), Placeholder.unparsed("z", String.valueOf(at[2]))));
+        }));
+    }
+
+    private void importFailed(CommandSender sender, String name, Throwable error, TagResolver[] tags) {
+        if (rootCause(error) instanceof NoSuchFileException) {
+            messages.send(sender, "admin.arena.no-schematic", tags);
+            return;
+        }
+        duels.plugin().getLogger().log(Level.WARNING, "Could not import arena " + name, error);
+        messages.send(sender, "admin.arena.import-failed", tags);
+    }
+
     /** The center must be inside the arena's corners. */
     private void setCenter(Player player, Arena arena) {
         if (!arena.inBox(player.getLocation())) {
@@ -392,6 +490,9 @@ public final class AdminCommand {
         TagResolver[] tags = with(arenaTags(base), Placeholder.unparsed("count", String.valueOf(count.getAsInt())),
                 Placeholder.unparsed("world", duels.pregen().worldName()));
         messages.send(sender, "admin.arena.pregen-started", tags);
+        if (!duels.pregen().keepsBlockData()) {
+            messages.send(sender, "admin.arena.pregen-blocks-only");
+        }
         duels.pregen().pregen(base, count.getAsInt(),
                         done -> messages.send(sender, "admin.arena.pregen-progress", with(tags, Placeholder.unparsed("done", String.valueOf(done)))))
                 .whenComplete((made, error) -> Tasks.sync(duels.plugin(), () -> {

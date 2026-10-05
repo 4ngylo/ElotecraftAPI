@@ -30,6 +30,8 @@ command:
     <yellow>/duels arena create <name></yellow> <dark_gray>-</dark_gray> <gray>new arena in your world
     <yellow>/duels arena setspawn <name> <1|2></yellow> <dark_gray>-</dark_gray> <gray>where each fighter starts
     <yellow>/duels arena setcorner <name> <1|2></yellow> <dark_gray>-</dark_gray> <gray>opposite corners around the whole arena
+    <yellow>/duels arena setbox <name></yellow> <dark_gray>-</dark_gray> <gray>both corners from your WorldEdit selection
+    <yellow>/duels arena import <name> <file.schem></yellow> <dark_gray>-</dark_gray> <gray>new arena from a schematic in the arenas world
     <yellow>/duels arena setspectator <name></yellow> <dark_gray>-</dark_gray> <gray>where spectators appear (optional)
     <yellow>/duels arena setcenter <name></yellow> <dark_gray>-</dark_gray> <gray>middle of the arena; spectators appear there if no spectator spawn (optional)
     <yellow>/duels arena category <name> add|remove <category></yellow> <dark_gray>-</dark_gray> <gray>arena pools kits pick from
@@ -211,6 +213,15 @@ admin:
     no-arenas-world: "<prefix><red>The arenas world <world> couldn't be loaded, so copies can't be made; check the console."
     name-too-long: "<prefix><red>The copies of <arena> would have names over 32 characters; use a shorter arena name."
     pregen-count: "<prefix><red>Make 1 to <max> copies, or use clear."
+    pregen-blocks-only: "<prefix><gray>Without FastAsyncWorldEdit or WorldEdit, copies don't keep chest contents or sign text."
+    no-worldedit: "<prefix><red>This needs FastAsyncWorldEdit or WorldEdit."
+    no-selection: "<prefix><red>Select a cuboid with WorldEdit first, e.g. with //wand."
+    box-set: "<prefix><green>Set both corners of <white><arena></white> from your selection."
+    bad-schematic: "<prefix><red>Use the name of a .schem file in plugins/ElotecraftDuels/schematics, e.g. <white>desert.schem</white>: lowercase letters, digits, - and _."
+    no-schematic: "<prefix><red>There is no <file> in plugins/ElotecraftDuels/schematics."
+    importing: "<prefix><gray>Importing <white><file></white> as arena <white><id></white>..."
+    imported: "<prefix><green>Imported arena <white><id></white> in <white><world></white> at <x> <y> <z>. <gray>Set its spawns, then snapshot it."
+    import-failed: "<prefix><red>Couldn't import <file>; check the console."
     pregen-started: "<prefix><gray>Pasting <white><count></white> copies of <white><arena></white> in <white><world></white>..."
     pregen-progress: "<prefix><gray>Pasted copy <white><done></white> of <count>."
     pregen-done: "<prefix><green>Made <white><count></white> copies of <white><arena></white> in <white><world></white>; each takes duels."

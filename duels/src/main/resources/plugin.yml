@@ -6,7 +6,7 @@ description: 1v1 duels with kits, arenas, queues, spectators and stats.
 main: me.angylo.elotecraftDuels.ElotecraftDuels
 api-version: '1.21.11'
 depend: [ElotecraftAPI]
-softdepend: [Vault, PlaceholderAPI]
+softdepend: [Vault, PlaceholderAPI, FastAsyncWorldEdit, WorldEdit]
 
 # Commands (/duel, /duels) are registered at runtime by ElotecraftAPI's CommandBuilder.
 permissions:

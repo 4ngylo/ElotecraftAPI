@@ -4,6 +4,7 @@ import me.angylo.elotecraftDuels.arena.Arena;
 import me.angylo.elotecraftDuels.arena.ArenaTemplate;
 import me.angylo.elotecraftDuels.kit.Kit;
 import org.bukkit.Bukkit;
+import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.block.Block;
@@ -93,6 +94,21 @@ class PregenTest extends DuelsTestBase {
         assertSays(admin, "duels arena pregen pit 0", "Make 1 to 32 copies");
         assertSays(admin, "duels arena pregen pit lots", "Make 1 to 32 copies");
         assertFalse(duels.pregen().isBusy("yard"));
+    }
+
+    /** MockBukkit runs no WorldEdit, so copies come from snapshots and WorldEdit commands explain what they need. */
+    @Test
+    void withoutWorldEditCopiesKeepBlocksOnlyAndSchematicsAreRefused() {
+        assertTrue(duels.worldEdit().isEmpty());
+        assertSays(admin, "duels arena pregen pit 1", "don't keep chest contents or sign text");
+        assertSays(admin, "duels arena setbox yard", "There is no arena called 'yard'");
+        assertSays(admin, "duels arena setbox pit", "go there first");
+        admin.teleport(new Location(arenaWorld, 5, 64, 5));
+        assertSays(admin, "duels arena setbox pit", "This needs FastAsyncWorldEdit or WorldEdit.");
+        assertSays(admin, "duels arena import desert ../x.schem", "Use the name of a .schem file");
+        assertSays(admin, "duels arena import desert desert.txt", "Use the name of a .schem file");
+        assertSays(admin, "duels arena import desert desert.schem", "This needs FastAsyncWorldEdit or WorldEdit.");
+        assertSays(admin, "duels arena import pit desert.schem", "Arena pit already exists.");
     }
 
     @Test

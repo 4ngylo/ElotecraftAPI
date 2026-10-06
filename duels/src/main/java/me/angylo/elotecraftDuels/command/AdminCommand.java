@@ -11,9 +11,6 @@ import me.angylo.elotecraftDuels.arena.ArenaPregen;
 import me.angylo.elotecraftDuels.arena.ArenaRegistry;
 import me.angylo.elotecraftDuels.arena.ArenaTemplate;
 import me.angylo.elotecraftDuels.hook.WorldEditHook;
-import me.angylo.elotecraftDuels.kit.Kit;
-import me.angylo.elotecraftDuels.kit.KitRegistry;
-import me.angylo.elotecraftDuels.kit.KitRule;
 import me.angylo.elotecraftDuels.menu.ArenaAdminMenu;
 import me.angylo.elotecraftDuels.menu.KitAdminMenu;
 import net.kyori.adventure.text.Component;
@@ -27,7 +24,6 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.event.player.PlayerTeleportEvent.TeleportCause;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.PlayerInventory;
 import org.bukkit.util.BoundingBox;
 
 import java.nio.file.NoSuchFileException;
@@ -48,15 +44,13 @@ import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.regex.Pattern;
 
-/** {@code /duels}: arena and kit setup, reload and stopping duels. Admin permissions only. */
+/** {@code /duels}: arena setup, reload and stopping duels, with kit setup in {@link KitAdminCommand}. Admin permissions only. */
 public final class AdminCommand {
 
     private static final List<String> NUMBERS = List.of("1", "2");
     private static final List<String> ADD_REMOVE = List.of("add", "remove");
     private static final String NONE = "none";
-    private static final String ANY = "any";
     private static final String CLEAR = "clear";
-    private static final String DEFAULT = "default";
     /** Schematic files /duels arena import reads from plugins/ElotecraftDuels/schematics; no paths. */
     private static final Pattern SCHEMATIC = Pattern.compile("[a-z0-9_-]{1,64}\\.schem");
     /** Height the lowest layer of an imported schematic is pasted at. */
@@ -66,7 +60,6 @@ public final class AdminCommand {
     private final Duels duels;
     private final Messages messages;
     private final ArenaRegistry arenas;
-    private final KitRegistry kits;
     private final ArenaAdminMenu arenaMenu;
     private final KitAdminMenu kitMenu;
     /** Arenas whose snapshot is being written, so two cannot write the same file at once. */
@@ -76,7 +69,6 @@ public final class AdminCommand {
         this.duels = duels;
         this.messages = duels.messages();
         this.arenas = duels.arenas();
-        this.kits = duels.kits();
         this.arenaMenu = arenaMenu;
         this.kitMenu = kitMenu;
     }
@@ -85,7 +77,6 @@ public final class AdminCommand {
         BiFunction<CommandSender, String[], List<String>> arenaNames = (sender, args) -> args.length == 1 ? Args.filter(arenas.names(), args) : List.of();
         BiFunction<CommandSender, String[], List<String>> arenaNumber = (sender, args) ->
                 args.length == 1 ? Args.filter(arenas.names(), args) : args.length == 2 ? Args.filter(NUMBERS, args) : List.of();
-        BiFunction<CommandSender, String[], List<String>> kitNames = (sender, args) -> args.length == 1 ? Args.filter(kits.names(), args) : List.of();
 
         CommandBuilder.create("duels")
                 .description(Text.plain(messages.get("command.admin-description")))
@@ -139,56 +130,7 @@ public final class AdminCommand {
                         .sub("list", null, (sender, args) -> listArenas(sender))
                         .sub("snapshot", null, (sender, args) -> withEditableArena(sender, args, (arena, rest) -> snapshot(sender, arena)), arenaNames)
                         .sub("reset", null, (sender, args) -> withArena(sender, args, (arena, rest) -> reset(sender, arena)), arenaNames))
-                .sub(CommandBuilder.create("kit").permission("duels.admin.kit")
-                        .executes(menu(messages, "command.kit-help", kitMenu::openList,
-                                (player, args) -> withKit(player, args, (kit, rest) -> kitMenu.openSettings(player, kit.name()))), kitNames)
-                        .sub("help", null, (sender, args) -> messages.send(sender, "command.kit-help"))
-                        .playerSub("create", null, this::createKit)
-                        .playerSub("save", null, (player, args) -> withKit(player, args, (kit, rest) -> {
-                            if (isEmpty(player.getInventory())) {
-                                messages.send(player, "admin.kit.empty-inventory");
-                                return;
-                            }
-                            save(player, kits.update(kit.withItems(player.getInventory())), "admin.kit.saved", kitTags(kit));
-                        }), kitNames)
-                        .playerSub("load", null, (player, args) -> withKit(player, args, (kit, rest) -> {
-                            if (duels.matches().isBusy(player) || !isEmpty(player.getInventory())) {
-                                messages.send(player, "admin.kit.inventory-not-empty");
-                                return;
-                            }
-                            kit.apply(player);
-                            messages.send(player, "admin.kit.loaded", kitTags(kit));
-                        }), kitNames)
-                        .sub("delete", null, (sender, args) -> withKit(sender, args, (kit, rest) ->
-                                save(sender, kits.delete(kit.name()), "admin.kit.deleted", kitTags(kit))), kitNames)
-                        .playerSub("seticon", null, (player, args) -> withKit(player, args, (kit, rest) ->
-                                heldIcon(player).ifPresent(icon -> save(player, kits.update(kit.withIcon(icon)),
-                                        "admin.kit.icon-set", kitTags(kit)))), kitNames)
-                        .sub("setname", null, (sender, args) -> withKit(sender, args, (kit, rest) -> rename(sender, rest,
-                                text -> save(sender, kits.update(kit.withDisplayName(text)), "admin.kit.name-set",
-                                        kitTags(kit.withDisplayName(text))))), kitNames)
-                        .sub("setpermission", null, (sender, args) -> withKit(sender, args, (kit, rest) -> setPermission(sender, kit, rest)),
-                                (sender, args) -> args.length == 1 ? Args.filter(kits.names(), args)
-                                        : args.length == 2 ? Args.filter(List.of("none", "duels.kit." + args[0]), args) : List.of())
-                        .sub("build", null, (sender, args) -> withKit(sender, args, (kit, rest) -> {
-                            Kit changed = kit.withBuild(!kit.build());
-                            save(sender, kits.update(changed), changed.build() ? "admin.kit.build-on" : "admin.kit.build-off", kitTags(kit));
-                        }), kitNames)
-                        .sub("damage", null, (sender, args) -> withKit(sender, args, (kit, rest) -> {
-                            Kit changed = kit.withDamage(!kit.damage());
-                            save(sender, kits.update(changed), changed.damage() ? "admin.kit.damage-on" : "admin.kit.damage-off", kitTags(kit));
-                        }), kitNames)
-                        .sub("rule", null, (sender, args) -> withKit(sender, args, (kit, rest) -> kitRule(sender, kit, rest)),
-                                (sender, args) -> args.length == 1 ? Args.filter(kits.names(), args)
-                                        : args.length == 2 ? Args.filter(KitRule.keys(), args)
-                                        : args.length == 3 ? Args.filter(KitRule.byKey(args[1]).map(AdminCommand::ruleValues).orElse(List.of()), args)
-                                        : List.of())
-                        .sub("defaults", null, (sender, args) -> messages.send(sender, "admin.kit.defaults-added",
-                                Placeholder.unparsed("count", String.valueOf(kits.installDefaults()))))
-                        .sub("arenas", null, (sender, args) -> withKit(sender, args, (kit, rest) -> kitArenas(sender, kit, rest)),
-                                (sender, args) -> args.length == 1 ? Args.filter(kits.names(), args)
-                                        : Args.filter(args.length == 2 ? withAny(categories()) : categories(), args))
-                        .sub("list", null, (sender, args) -> listKits(sender)))
+                .sub(new KitAdminCommand(this, duels, kitMenu).node())
                 .sub("reload", "duels.admin.reload", (sender, args) ->
                         messages.send(sender, duels.reload() ? "admin.reloaded" : "admin.reload-failed"))
                 .sub("stop", "duels.admin.stop", this::stop, (sender, args) -> Args.players(args))
@@ -546,81 +488,9 @@ public final class AdminCommand {
                 }));
     }
 
-    /** {@code arenas <kit> <category...>|any}: which arena categories the kit's duels use. */
-    private void kitArenas(CommandSender sender, Kit kit, String[] rest) {
-        if (rest.length == 0) {
-            messages.send(sender, "admin.kit.arenas-usage");
-            return;
-        }
-        if (rest.length == 1 && rest[0].equalsIgnoreCase(ANY)) {
-            save(sender, kits.update(kit.withArenaCategories(Set.of())), "admin.kit.arenas-any", kitTags(kit));
-            return;
-        }
-        Set<String> categories = new TreeSet<>();
-        for (String raw : rest) {
-            String category = raw.toLowerCase(Locale.ROOT);
-            if (!ArenaRegistry.validName(category)) {
-                messages.send(sender, "admin.kit.arenas-usage");
-                return;
-            }
-            categories.add(category);
-        }
-        save(sender, kits.update(kit.withArenaCategories(categories)), "admin.kit.arenas-set",
-                with(kitTags(kit), Placeholder.unparsed("categories", String.join(", ", categories))));
-    }
-
-    /** {@code rule <kit> [rule] [value|default]}: lists the kit's game rules, or sets one. */
-    private void kitRule(CommandSender sender, Kit kit, String[] rest) {
-        if (rest.length == 0) {
-            messages.send(sender, "admin.kit.rules-header", kitTags(kit));
-            for (KitRule rule : KitRule.values()) {
-                messages.send(sender, kit.rules().containsKey(rule) ? "admin.kit.rule-entry" : "admin.kit.rule-entry-default",
-                        Placeholder.unparsed("rule", rule.key()), Placeholder.component("value", ruleValue(sender, kit, rule)));
-            }
-            return;
-        }
-        Optional<KitRule> rule = KitRule.byKey(rest[0]);
-        if (rule.isEmpty() || rest.length != 2) {
-            messages.send(sender, "admin.kit.rule-usage", Placeholder.unparsed("rules", String.join(", ", KitRule.keys())));
-            return;
-        }
-        Object value = null;
-        if (!rest[1].equalsIgnoreCase(DEFAULT)) {
-            try {
-                value = rule.get().parse(rest[1]);
-            } catch (IllegalArgumentException e) {
-                messages.send(sender, rule.get().isFlag() ? "admin.kit.rule-flag-usage" : "admin.kit.rule-seconds-usage",
-                        Placeholder.unparsed("rule", rule.get().key()), Placeholder.unparsed("max", String.valueOf(KitRule.MAX_SECONDS)));
-                return;
-            }
-        }
-        Kit changed = kit.withRule(rule.get(), value);
-        save(sender, kits.update(changed), "admin.kit.rule-set", with(kitTags(kit), Placeholder.unparsed("rule", rule.get().key()),
-                Placeholder.component("value", ruleValue(sender, changed, rule.get()))));
-    }
-
-    /** true or false, a number of seconds, or vanilla for an unset cooldown. */
-    private Component ruleValue(CommandSender viewer, Kit kit, KitRule rule) {
-        if (rule.isFlag()) {
-            return Component.text(kit.flag(rule, duels.settings()));
-        }
-        OptionalInt seconds = kit.seconds(rule);
-        return seconds.isPresent() ? Component.text(seconds.getAsInt() + "s") : messages.get(viewer, "admin.kit.rule-vanilla");
-    }
-
-    private static List<String> ruleValues(KitRule rule) {
-        return rule.isFlag() ? List.of("true", "false", DEFAULT) : List.of("0", "15", DEFAULT);
-    }
-
     /** Every category some arena has, sorted; for tab completion. */
-    private List<String> categories() {
+    List<String> categories() {
         return arenas.all().stream().flatMap(arena -> arena.categories().stream()).distinct().sorted().toList();
-    }
-
-    private static List<String> withAny(List<String> categories) {
-        List<String> all = new ArrayList<>(categories);
-        all.add(ANY);
-        return all;
     }
 
     private static Throwable rootCause(Throwable error) {
@@ -632,7 +502,7 @@ public final class AdminCommand {
     }
 
     /** {@code arena|kit [name]}: the list or one entry's settings menu for players, the help for the console. */
-    private static BiConsumer<CommandSender, String[]> menu(Messages messages, String helpKey, Consumer<Player> list,
+    static BiConsumer<CommandSender, String[]> menu(Messages messages, String helpKey, Consumer<Player> list,
                                                             BiConsumer<Player, String[]> one) {
         return (sender, args) -> {
             if (!(sender instanceof Player player)) {
@@ -643,53 +513,6 @@ public final class AdminCommand {
                 one.accept(player, args);
             }
         };
-    }
-
-    private void createKit(Player player, String[] args) {
-        String name = Args.get(args, 0).toLowerCase(Locale.ROOT);
-        if (!ArenaRegistry.validName(name)) {
-            messages.send(player, "admin.invalid-name");
-            return;
-        }
-        if (kits.get(name).isPresent()) {
-            messages.send(player, "admin.kit.exists", Placeholder.unparsed("id", name));
-            return;
-        }
-        PlayerInventory inventory = player.getInventory();
-        if (isEmpty(inventory)) {
-            messages.send(player, "admin.kit.empty-inventory");
-            return;
-        }
-        Material hand = inventory.getItemInMainHand().getType();
-        save(player, kits.create(name, hand.isAir() ? Kit.DEFAULT_ICON : hand, inventory), "admin.kit.created",
-                Placeholder.unparsed("id", name));
-    }
-
-    private void setPermission(CommandSender sender, Kit kit, String[] rest) {
-        String permission = Args.get(rest, 0).toLowerCase(Locale.ROOT);
-        if (rest.length != 1) {
-            messages.send(sender, "admin.kit.invalid-permission");
-        } else if (permission.equals("none")) {
-            save(sender, kits.update(kit.withPermission(null)), "admin.kit.permission-cleared", kitTags(kit));
-        } else if (KitRegistry.validPermission(permission)) {
-            save(sender, kits.update(kit.withPermission(permission)), "admin.kit.permission-set",
-                    with(kitTags(kit), Placeholder.unparsed("permission", permission)));
-        } else {
-            messages.send(sender, "admin.kit.invalid-permission");
-        }
-    }
-
-    private void listKits(CommandSender sender) {
-        List<Kit> all = kits.all();
-        if (all.isEmpty()) {
-            messages.send(sender, "admin.kit.list-empty");
-            return;
-        }
-        messages.send(sender, "admin.kit.list-header", Placeholder.unparsed("count", String.valueOf(all.size())));
-        for (Kit kit : all) {
-            messages.send(sender, "admin.kit.list-entry", with(kitTags(kit),
-                    Placeholder.unparsed("permission", kit.permission() == null ? "" : kit.permission())));
-        }
     }
 
     private void stop(CommandSender sender, String[] args) {
@@ -736,15 +559,6 @@ public final class AdminCommand {
         void run(CommandSender sender, Arena arena, String[] rest);
     }
 
-    private void withKit(CommandSender sender, String[] args, BiConsumer<Kit, String[]> action) {
-        Optional<Kit> kit = kits.get(Args.get(args, 0));
-        if (kit.isEmpty()) {
-            messages.send(sender, "general.kit-not-found", Placeholder.unparsed("kit", Args.get(args, 0)));
-            return;
-        }
-        action.accept(kit.get(), Arrays.copyOfRange(args, 1, args.length));
-    }
-
     /** Points must be in the arena's world. */
     private void inWorld(Player player, Arena arena, Runnable action) {
         if (!player.getWorld().getName().equals(arena.world())) {
@@ -755,7 +569,7 @@ public final class AdminCommand {
     }
 
     /** The held item's material, or empty after telling the player to hold one. */
-    private Optional<Material> heldIcon(Player player) {
+    Optional<Material> heldIcon(Player player) {
         ItemStack held = player.getInventory().getItemInMainHand();
         if (held.isEmpty()) {
             messages.send(player, "admin.hold-item");
@@ -764,7 +578,7 @@ public final class AdminCommand {
         return Optional.of(held.getType());
     }
 
-    private void rename(CommandSender sender, String[] rest, Consumer<String> action) {
+    void rename(CommandSender sender, String[] rest, Consumer<String> action) {
         String text = Args.join(rest, 0).strip();
         if (text.isEmpty()) {
             messages.send(sender, "admin.invalid-display-name");
@@ -774,7 +588,7 @@ public final class AdminCommand {
     }
 
     /** Sends {@code successKey} once the file is written, or a failure message; files are written off the main thread. */
-    private void save(CommandSender sender, CompletableFuture<?> saving, String successKey, TagResolver... tags) {
+    void save(CommandSender sender, CompletableFuture<?> saving, String successKey, TagResolver... tags) {
         saving.whenComplete((ignored, error) -> Tasks.sync(duels.plugin(), () -> {
             if (error == null) {
                 messages.send(sender, successKey, tags);
@@ -789,19 +603,11 @@ public final class AdminCommand {
         return ArenaAdminMenu.status(messages, viewer, arena);
     }
 
-    private static boolean isEmpty(PlayerInventory inventory) {
-        return Arrays.stream(inventory.getContents()).allMatch(item -> item == null || item.isEmpty());
-    }
-
     private static TagResolver[] arenaTags(Arena arena) {
         return new TagResolver[]{Placeholder.unparsed("id", arena.name()), Placeholder.component("arena", Text.mm(arena.displayName()))};
     }
 
-    private static TagResolver[] kitTags(Kit kit) {
-        return new TagResolver[]{Placeholder.unparsed("id", kit.name()), Placeholder.component("kit", Text.mm(kit.displayName()))};
-    }
-
-    private static TagResolver[] with(TagResolver[] tags, TagResolver... more) {
+    static TagResolver[] with(TagResolver[] tags, TagResolver... more) {
         TagResolver[] all = Arrays.copyOf(tags, tags.length + more.length);
         System.arraycopy(more, 0, all, tags.length, more.length);
         return all;

@@ -34,7 +34,7 @@ import static me.angylo.elotecraftDuels.menu.MenuLayout.with;
 /**
  * Kit setup in menus: every kit, and a settings menu per kit. Each button runs the matching
  * {@code /duels kit} command as the clicking player, so permissions, checks, saving and messages stay
- * in AdminCommand; names, permissions and numbers are asked for in chat. Layouts in menus.yml
+ * in KitAdminCommand; names, permissions and numbers are asked for in chat. Layouts in menus.yml
  * {@code kit-admin} and {@code kit-settings}.
  */
 public final class KitAdminMenu {

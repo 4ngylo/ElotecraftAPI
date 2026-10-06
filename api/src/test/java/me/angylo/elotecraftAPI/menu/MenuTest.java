@@ -100,6 +100,16 @@ class MenuTest {
     }
 
     @Test
+    void buttonLooksUpTheButtonInASlot() {
+        Menu menu = new Menu(plugin, 1, "Test").set(0, Button.of(new ItemStack(Material.STONE), (clicker, click) -> clicks.add("stone")));
+
+        menu.button(0).orElseThrow().onClick().accept(player, ClickType.LEFT);
+
+        assertEquals(List.of("stone"), clicks);
+        assertTrue(menu.button(1).isEmpty());
+    }
+
+    @Test
     void buttonCopiesItsItem() {
         ItemStack item = new ItemStack(Material.STONE);
         Button button = Button.display(item);

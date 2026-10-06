@@ -259,6 +259,16 @@ The automated tests run on MockBukkit, which cannot click menus. Before a releas
   `/duels arena setbox` from a `//wand` selection; `/duels arena import` of a `.schem`. Plain WorldEdit too
 - [ ] A kit limited to a category only gets those arenas; the build limit stops towering; falling off the
   bottom of the arena loses the duel
+- [ ] Parties: invite by clicking [ACCEPT] in chat, `/party split` (move heads in the team menu, Start),
+  `/party ffa` with 3+ players on extra spawns and without them, `/party duel` between two parties;
+  knocked-out fighters watch until one side is left, teammates can't hurt each other, everyone gets their
+  own items back; the leader quitting mid-fight hands the party over
+- [ ] `/duel editkit`: rearrange, [SAVE], the next duel uses the layout; [CANCEL] and `/stop` while
+  editing give your own items back
+- [ ] Kit rules on a real client: `hit-delay false` combos, `pearl-cooldown 15` shows the cooldown on the
+  pearl, `natural-regeneration false` stops healing on a full hunger bar, `crafting false` blocks the 2x2 grid
+- [ ] `/duels arena` and `/duels kit` menus: every button, chat prompts for names and numbers,
+  shift + right-click on delete and reset
 
 ## Not included
 

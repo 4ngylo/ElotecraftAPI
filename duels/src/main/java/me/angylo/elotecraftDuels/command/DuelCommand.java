@@ -205,7 +205,10 @@ public final class DuelCommand {
     }
 
     private void leave(Player player, String[] args) {
-        if (!duels.queues().leave(player) && !duels.matches().leave(player)) {
+        // The editor counts as busy, and the busy message points to /duel leave.
+        if (duels.editor().isEditing(player)) {
+            duels.editor().cancel(player);
+        } else if (!duels.queues().leave(player) && !duels.matches().leave(player)) {
             messages.send(player, "general.nothing-to-leave");
         }
     }

@@ -131,6 +131,16 @@ class KitEditorTest extends DuelsTestBase {
     }
 
     @Test
+    void duelLeaveStopsEditing() {
+        editAndSwap();
+
+        assertSays(alex, "duel leave", "Stopped editing; nothing was saved.");
+
+        assertFalse(duels.editor().isEditing(alex));
+        assertTrue(alex.getInventory().contains(Material.DIRT, 5));
+    }
+
+    @Test
     void shuttingDownGivesEditorsTheirItemsBack() {
         editAndSwap();
 

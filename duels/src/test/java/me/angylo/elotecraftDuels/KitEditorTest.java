@@ -5,6 +5,9 @@ import me.angylo.elotecraftDuels.kit.Kit;
 import me.angylo.elotecraftDuels.match.Match;
 import org.bukkit.GameMode;
 import org.bukkit.Material;
+import org.bukkit.event.Event;
+import org.bukkit.event.block.Action;
+import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.ItemStack;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -108,6 +111,35 @@ class KitEditorTest extends DuelsTestBase {
         tickUntil(() -> !duels.matches().isBusy(alex));
 
         assertSays(alex, "duel editkit reset pvp", "Your layout of PvP is gone");
+    }
+
+    @Test
+    void theEditorTimesOutAndBlocksItemUse() {
+        setConfig("kit-editor.timeout", "30s");
+        editAndSwap();
+        PlayerInteractEvent drink = new PlayerInteractEvent(alex, Action.RIGHT_CLICK_AIR, alex.getInventory().getItem(0), null, null);
+        server.getPluginManager().callEvent(drink);
+        assertTrue(drink.useItemInHand() == Event.Result.DENY);
+
+        messages(alex);
+        ticks(20 * 31);
+
+        assertTrue(messages(alex).stream().anyMatch(line -> line.contains("The kit editor timed out")));
+        assertFalse(duels.editor().isEditing(alex));
+        assertTrue(alex.getInventory().contains(Material.DIRT, 5));
+        assertSays(alex, "duel editkit save", "You're not editing a kit.");
+    }
+
+    @Test
+    void shuttingDownGivesEditorsTheirItemsBack() {
+        editAndSwap();
+
+        duels.shutdown();
+
+        assertTrue(alex.getInventory().contains(Material.DIRT, 5));
+        assertEquals(GameMode.SURVIVAL, alex.getGameMode());
+        duels = Duels.start(plugin);
+        await(duels.ready());
     }
 
     @Test

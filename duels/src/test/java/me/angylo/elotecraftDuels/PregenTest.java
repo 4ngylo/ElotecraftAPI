@@ -8,6 +8,7 @@ import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.block.Block;
+import org.bukkit.util.BoundingBox;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -59,6 +60,23 @@ class PregenTest extends DuelsTestBase {
                 assertTrue(other == copy || !copy.bounds().overlaps(other.bounds()));
             }
         }
+    }
+
+    @Test
+    void aFreePlaceStaysClearOfCopiesAndASecondPregenWaits() {
+        assertSays(admin, "duels arena pregen pit 2", "Made 2 copies");
+        BoundingBox size = pit.bounds();
+
+        int[] at = duels.pregen().freePlace((int) size.getWidthX(), (int) size.getHeight(), (int) size.getWidthZ(), 64);
+
+        BoundingBox free = new BoundingBox(at[0], at[1], at[2], at[0] + size.getWidthX(), at[1] + size.getHeight(), at[2] + size.getWidthZ());
+        assertEquals(64, at[1]);
+        for (Arena copy : duels.arenas().copiesOf("pit")) {
+            assertFalse(free.overlaps(copy.bounds()), copy.name());
+        }
+
+        assertSays(admin, "duels arena pregen pit clear", "Removed 2 copies");
+        assertTrue(duels.pregen().pregen(pit, 1, done -> { }).isCompletedExceptionally());
     }
 
     @Test

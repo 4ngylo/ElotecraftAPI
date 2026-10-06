@@ -9,6 +9,12 @@ import org.bukkit.event.player.PlayerCommandPreprocessEvent;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
+import org.bukkit.event.Cancellable;
+import org.bukkit.event.Event;
+import org.bukkit.event.block.Action;
+import org.bukkit.event.entity.EntityPickupItemEvent;
+import org.bukkit.event.player.PlayerInteractEntityEvent;
+import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.ItemStack;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -34,6 +40,25 @@ class ProtectionTest extends DuelsTestBase {
         match = duels.matches().matchOf(alex).orElseThrow();
         tickUntil(() -> match.state() == Match.State.COUNTDOWN);
         ticks(20 * duels.settings().countdownSeconds());
+    }
+
+    private <T extends Event & Cancellable> boolean cancelled(T event) {
+        server.getPluginManager().callEvent(event);
+        return event.isCancelled();
+    }
+
+    @Test
+    void fightersCannotUseTheWorldButOutsidersCan() {
+        Block bed = arenaWorld.getBlockAt(alex.getLocation());
+        Item item = arenaWorld.dropItem(alex.getLocation(), ItemStack.of(Material.DIAMOND));
+
+        assertTrue(cancelled(new PlayerInteractEvent(alex, Action.PHYSICAL, null, bed, null)));
+        assertTrue(cancelled(new PlayerInteractEntityEvent(alex, steve)));
+        assertTrue(cancelled(new EntityPickupItemEvent(alex, item, 0)));
+
+        assertFalse(cancelled(new PlayerInteractEvent(outsider, Action.PHYSICAL, null, bed, null)));
+        assertFalse(cancelled(new PlayerInteractEntityEvent(outsider, steve)));
+        assertFalse(cancelled(new EntityPickupItemEvent(outsider, item, 0)));
     }
 
     @Test

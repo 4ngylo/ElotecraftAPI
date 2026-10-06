@@ -29,7 +29,7 @@ public final class KitMenu {
 
     /** What clicking a kit is for; changes its lore. */
     public enum Mode {
-        CHALLENGE, QUEUE, RANKED
+        CHALLENGE, QUEUE, RANKED, EDIT
     }
 
     private final Plugin plugin;
@@ -65,8 +65,12 @@ public final class KitMenu {
             QueueManager.QueueId queued = queues.queued(viewer.getUniqueId()).orElse(null);
             PaginatedMenu menu = MenuLayout.frame(plugin, section);
             menu.items(usable.stream().map(kit -> {
-                boolean inQueue = mode != Mode.CHALLENGE && new QueueManager.QueueId(kit.name(), ranked).equals(queued);
-                String lore = mode == Mode.CHALLENGE ? "lore" : inQueue ? "queued-lore" : "queue-lore";
+                boolean inQueue = (mode == Mode.QUEUE || mode == Mode.RANKED) && new QueueManager.QueueId(kit.name(), ranked).equals(queued);
+                String lore = switch (mode) {
+                    case CHALLENGE -> "lore";
+                    case EDIT -> "edit-lore";
+                    default -> inQueue ? "queued-lore" : "queue-lore";
+                };
                 // Challenging shows everyone queued for the kit; a queue menu shows that queue.
                 int waiting = mode == Mode.CHALLENGE ? queues.size(kit.name(), false) + queues.size(kit.name(), true)
                         : queues.size(kit.name(), ranked);

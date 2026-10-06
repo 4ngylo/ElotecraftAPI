@@ -9,6 +9,15 @@ command:
   player-only: "<prefix><red>Only players can do that."
   duel-description: "Challenge players to 1v1 duels"
   admin-description: "Manage duel arenas and kits"
+  party-description: "Play with friends in a party"
+  party-help: |-
+    <gradient:#ff416c:#ff4b2b><bold>⚔ Parties</bold></gradient>
+    <yellow>/party <player></yellow> <dark_gray>-</dark_gray> <gray>invite someone (makes a party if you have none)
+    <yellow>/party accept|deny [player]</yellow> <dark_gray>-</dark_gray> <gray>answer an invite
+    <yellow>/party kick|promote <player></yellow> <dark_gray>-</dark_gray> <gray>manage members (leader)
+    <yellow>/party leave</yellow> <dark_gray>·</dark_gray> <yellow>/party disband</yellow> <dark_gray>·</dark_gray> <yellow>/party info</yellow>
+    <yellow>/party split|ffa [kit] [arena]</yellow> <dark_gray>-</dark_gray> <gray>fight inside your party: two teams, or everyone for themselves
+    <yellow>/party duel <leader> [kit] [arena]</yellow> <dark_gray>-</dark_gray> <gray>challenge another party
   help: |-
     <gradient:#ff416c:#ff4b2b><bold>⚔ Duels</bold></gradient>
     <yellow>/duel <player> [kit] [arena]</yellow> <dark_gray>-</dark_gray> <gray>challenge someone
@@ -17,6 +26,7 @@ command:
     <yellow>/duel queue [kit]</yellow> <dark_gray>-</dark_gray> <gray>find an opponent
     <yellow>/duel ranked [kit]</yellow> <dark_gray>-</dark_gray> <gray>find an opponent near your rating
     <yellow>/duel spectate <player></yellow> <dark_gray>-</dark_gray> <gray>watch a duel
+    <yellow>/duel editkit [kit]</yellow> <dark_gray>-</dark_gray> <gray>arrange your items in a kit
     <yellow>/duel leave</yellow> <dark_gray>-</dark_gray> <gray>leave the queue, stop spectating or forfeit
     <yellow>/duel stats [player]</yellow> <dark_gray>·</dark_gray> <yellow>/duel top [elo]</yellow> <dark_gray>-</dark_gray> <gray>statistics
   admin-help: |-
@@ -27,12 +37,14 @@ command:
     <yellow>/duels reload</yellow> <dark_gray>-</dark_gray> <gray>reload config, messages, menus, arenas and kits
   arena-help: |-
     <gradient:#4facfe:#00f2fe><bold>Arena setup</bold></gradient> <dark_gray>(stand where each point should be)</dark_gray>
+    <yellow>/duels arena [name]</yellow> <dark_gray>-</dark_gray> <gray>menu of every arena, or of one arena's settings
     <yellow>/duels arena create <name></yellow> <dark_gray>-</dark_gray> <gray>new arena in your world
     <yellow>/duels arena setspawn <name> <1|2></yellow> <dark_gray>-</dark_gray> <gray>where each fighter starts
     <yellow>/duels arena setcorner <name> <1|2></yellow> <dark_gray>-</dark_gray> <gray>opposite corners around the whole arena
     <yellow>/duels arena setbox <name></yellow> <dark_gray>-</dark_gray> <gray>both corners from your WorldEdit selection
     <yellow>/duels arena import <name> <file.schem></yellow> <dark_gray>-</dark_gray> <gray>new arena from a schematic in the arenas world
     <yellow>/duels arena setspectator <name></yellow> <dark_gray>-</dark_gray> <gray>where spectators appear (optional)
+    <yellow>/duels arena addspawn|clearspawns <name></yellow> <dark_gray>-</dark_gray> <gray>spawns for party FFAs (one per player)
     <yellow>/duels arena setcenter <name></yellow> <dark_gray>-</dark_gray> <gray>middle of the arena; spectators appear there if no spectator spawn (optional)
     <yellow>/duels arena category <name> add|remove <category></yellow> <dark_gray>-</dark_gray> <gray>arena pools kits pick from
     <yellow>/duels arena buildlimit <name> <y|none></yellow> <dark_gray>-</dark_gray> <gray>highest Y fighters may place blocks at
@@ -44,6 +56,7 @@ command:
     <yellow>/duels arena toggle|info|tp|delete <name></yellow> <dark_gray>·</dark_gray> <yellow>/duels arena list</yellow>
   kit-help: |-
     <gradient:#f7971e:#ffd200><bold>Kit setup</bold></gradient> <dark_gray>(uses your inventory, armor and off hand)</dark_gray>
+    <yellow>/duels kit [name]</yellow> <dark_gray>-</dark_gray> <gray>menu of every kit, or of one kit's settings
     <yellow>/duels kit create <name></yellow> <dark_gray>-</dark_gray> <gray>new kit from your inventory
     <yellow>/duels kit save <name></yellow> <dark_gray>-</dark_gray> <gray>overwrite a kit with your inventory
     <yellow>/duels kit load <name></yellow> <dark_gray>-</dark_gray> <gray>put a kit in your empty inventory to edit it
@@ -51,6 +64,9 @@ command:
     <yellow>/duels kit setname <name> <text></yellow> <dark_gray>-</dark_gray> <gray>name shown to players
     <yellow>/duels kit setpermission <name> <permission|none></yellow> <dark_gray>-</dark_gray> <gray>who may use it
     <yellow>/duels kit build <name></yellow> <dark_gray>-</dark_gray> <gray>let fighters place blocks, or stop it
+    <yellow>/duels kit damage <name></yellow> <dark_gray>-</dark_gray> <gray>knockback-only hits (Sumo), or normal again
+    <yellow>/duels kit rule <name> [rule] [value|default]</yellow> <dark_gray>-</dark_gray> <gray>game rules: hunger, regeneration, pearl cooldown...
+    <yellow>/duels kit defaults</yellow> <dark_gray>-</dark_gray> <gray>add the default kits that are missing
     <yellow>/duels kit arenas <name> <category...|any></yellow> <dark_gray>-</dark_gray> <gray>which arena categories its duels use
     <yellow>/duels kit delete <name></yellow> <dark_gray>·</dark_gray> <yellow>/duels kit list</yellow>
 
@@ -128,6 +144,11 @@ match:
   result-quit: "<prefix><white><loser></white> <gray>left the duel, so <white><winner></white> wins."
   result-forfeit: "<prefix><white><loser></white> <gray>forfeited, so <white><winner></white> wins."
   result-draw: "<prefix><gray>The duel between <white><first></white> and <white><second></white> ended in a draw."
+  # Team and party fights: <winners> are the winning team's names.
+  result-team: "<prefix><white><winners></white> <gray>won the fight <dark_gray>(<time> · <kit>)"
+  result-draw-team: "<prefix><gray>The fight between <white><first></white> and <white><second></white> ended in a draw."
+  team-defeat-subtitle: "<white><winners></white> <gray>won"
+  knocked-out: "<prefix><white><player></white> <gray>is out."
   elo-gained: "<prefix><gray>Rating <green>+<change></green> <dark_gray>·</dark_gray> <white><elo>"
   elo-lost: "<prefix><gray>Rating <red>-<change></red> <dark_gray>·</dark_gray> <white><elo>"
   cancelled: "<prefix><red>The duel was cancelled."
@@ -149,6 +170,60 @@ spectate:
   stopped: "<prefix><gray>You stopped spectating."
   ended: "<prefix><gray>The duel you were watching ended."
   failed: "<prefix><red>Couldn't take you to that duel."
+
+editor:
+  started: "<prefix><gray>Arrange <white><kit></white> in your inventory, then <save><green><bold>[SAVE]</bold></green></save> or <cancel><red><bold>[CANCEL]</bold></red></cancel> <dark_gray>(/duel editkit save|cancel)"
+  save-hover: "<green>Click to save this layout"
+  cancel-hover: "<red>Click to stop without saving"
+  saved: "<prefix><green>Saved your layout of <white><kit></white>; your duels with it use it."
+  invalid: "<prefix><red>Your inventory must hold exactly the items of <kit>: put everything back and try again."
+  cancelled: "<prefix><gray>Stopped editing; nothing was saved."
+  timed-out: "<prefix><gray>The kit editor timed out; nothing was saved."
+  already: "<prefix><red>You're already editing a kit: <white>/duel editkit save</white> or <white>cancel</white>."
+  not-editing: "<prefix><red>You're not editing a kit."
+  reset: "<prefix><green>Your layout of <white><kit></white> is gone; you get the kit as made again."
+
+party:
+  created: "<prefix><green>Created a party. <gray>Invite players with <white>/party <player></white>."
+  already-in-party: "<prefix><red>You're already in a party. <gray>Use <white>/party leave</white> first."
+  not-in-party: "<prefix><red>You're not in a party."
+  not-leader: "<prefix><red>Only the party leader can do that."
+  invite-self: "<prefix><red>You can't invite yourself."
+  target-in-party: "<prefix><red><player> is already in a party."
+  already-invited: "<prefix><red><player> already has an invite."
+  full: "<prefix><red>The party is full."
+  invited: "<prefix><green>Invited <white><player></white> to your party."
+  invite-received: "<prefix><white><player></white> <gray>invited you to their party. <accept><green><bold>[ACCEPT]</bold></green></accept> <deny><red><bold>[DENY]</bold></red></deny>"
+  no-invite: "<prefix><red>You have no party invite."
+  which-invite: "<prefix><red>Several parties invited you; use <white>/party accept <player></white>."
+  you-denied: "<prefix><gray>You denied the party invite."
+  denied: "<prefix><white><player></white> <gray>denied your party invite."
+  joined: "<prefix><white><player></white> <green>joined the party."
+  not-member: "<prefix><red><player> isn't in your party."
+  kick-self: "<prefix><red>You can't kick yourself; use /party leave or /party disband."
+  kicked: "<prefix><red>You were kicked from the party."
+  kicked-broadcast: "<prefix><white><player></white> <gray>was kicked from the party."
+  left: "<prefix><gray>You left the party."
+  left-broadcast: "<prefix><white><player></white> <gray>left the party."
+  new-leader: "<prefix><white><player></white> <gray>leads the party now."
+  disbanded: "<prefix><white><player></white> <gray>disbanded the party."
+  promoted: "<prefix><white><player></white> <gray>leads the party now."
+  info-header: "<prefix><gray>Party (<white><size></white>/<max>):"
+  info-leader: " <gold>★</gold> <white><player></white> <dark_gray>(leader)"
+  info-member: " <dark_gray>▪</dark_gray> <white><player>"
+  not-enough: "<prefix><red>You need at least 2 players in your party for that."
+  member-busy: "<prefix><red><player> is busy: in a duel, spectating or offline."
+  start-failed: "<prefix><red>The fight couldn't start; try again."
+  split-empty-team: "<prefix><red>Both teams need at least one player."
+  duel-not-leader: "<prefix><red><player> doesn't lead a party."
+  duel-same: "<prefix><red>That's your own party; use /party split or /party ffa."
+  duel-sent: "<prefix><green>Challenged <white><player></white>'s party <dark_gray>(<kit> · <arena>)"
+  duel-received: "<prefix><white><player></white><gray>'s party challenged yours <dark_gray>(<kit> · <arena>)</dark_gray> <accept><green><bold>[ACCEPT]</bold></green></accept> <deny><red><bold>[DENY]</bold></red></deny>"
+  duel-none: "<prefix><red>No party challenge to answer."
+  duel-which: "<prefix><red>Several parties challenged yours; use /party duelaccept <player>."
+  duel-gone: "<prefix><red>That party or its kit is gone."
+  duel-you-denied: "<prefix><gray>You denied the party challenge."
+  duel-denied: "<prefix><white><player></white> <gray>denied your party challenge."
 
 stats:
   show: |-
@@ -193,11 +268,14 @@ admin:
     info: |-
       <gradient:#4facfe:#00f2fe><bold><arena></bold></gradient> <dark_gray>(<id>)</dark_gray>
        <gray>World: <white><world></white> <dark_gray>·</dark_gray> <gray>Enabled: <white><enabled></white> <dark_gray>·</dark_gray> <gray>In use: <white><in-use></white><copy>
-       <gray>Categories: <white><categories></white> <dark_gray>·</dark_gray> <gray>Build limit: <white><build-limit>
+       <gray>Categories: <white><categories></white> <dark_gray>·</dark_gray> <gray>Build limit: <white><build-limit></white> <dark_gray>·</dark_gray> <gray>Extra spawns: <white><extra-spawns>
        <gray>Status: <status>
     copy-of: " <dark_gray>·</dark_gray> <gray>Copy of <white><source>"
     ready: "<green>ready"
     center-set: "<prefix><green>Set the center of <white><arena></white>."
+    extra-spawn-added: "<prefix><green>Added spawn <white><count></white> to <white><arena></white> for fights with more than two sides."
+    extra-spawn-outside: "<prefix><red>Stand inside the corners of <arena> to add a spawn."
+    spawns-cleared: "<prefix><green>Removed the extra spawns of <white><arena></white>."
     center-outside: "<prefix><red>Stand inside the corners of <arena> to set its center."
     category-usage: "<prefix><red>Use /duels arena category <name> add|remove <category>; categories use lowercase letters, digits, - and _."
     category-added: "<prefix><green><arena> is now in category <white><category></white>."
@@ -245,6 +323,14 @@ admin:
       spectator-outside: "<red>the spectator spawn is outside the corners"
       center-outside: "<red>the center is outside the corners"
       disabled: "<yellow>disabled"
+    # Asked in chat by the /duels arena menus.
+    prompt-create: "<prefix><gray>Type a name for the new arena (lowercase letters, digits, - and _); it starts where you stand. Or <white>cancel</white>."
+    prompt-import: "<prefix><gray>Type a name and a schematic from the schematics folder, e.g. <white>castle castle.schem</white>, or <white>cancel</white>."
+    prompt-name: "<prefix><gray>Type the name to show for <white><arena></white> (e.g. <white>\\<gold>Desert</white>), or <white>cancel</white>."
+    prompt-category-add: "<prefix><gray>Type a category to add to <white><arena></white>, or <white>cancel</white>."
+    prompt-category-remove: "<prefix><gray>Type a category to remove from <white><arena></white>, or <white>cancel</white>."
+    prompt-build-limit: "<prefix><gray>Type the highest Y fighters may build at in <white><arena></white>, <white>none</white>, or <white>cancel</white>."
+    prompt-pregen: "<prefix><gray>Type how many copies of <white><arena></white> to make, or <white>cancel</white>."
   kit:
     created: "<prefix><green>Created kit <white><id></white> from your inventory."
     exists: "<prefix><red>Kit <id> already exists; use /duels kit save to overwrite it."
@@ -263,6 +349,23 @@ admin:
     list-empty: "<prefix><gray>No kits yet. Create one with <white>/duels kit create <name>"
     build-on: "<prefix><green>Fighters with <white><kit></white> can now place blocks; arenas are put back after each duel."
     build-off: "<prefix><green>Fighters with <white><kit></white> can no longer place blocks."
+    damage-on: "<prefix><green>Hits with <white><kit></white> hurt again."
+    damage-off: "<prefix><green>Hits with <white><kit></white> only knock back now; falling off the arena loses."
+    defaults-added: "<prefix><green>Added <white><count></white> default kits; existing kits were kept."
     arenas-usage: "<prefix><red>Use /duels kit arenas <name> <category...> or any; categories use lowercase letters, digits, - and _."
     arenas-set: "<prefix><green>Duels with <white><kit></white> now use arenas in: <white><categories></white>."
     arenas-any: "<prefix><green>Duels with <white><kit></white> now use any arena."
+    rules-header: "<prefix><gray>Game rules of <white><kit></white> <dark_gray>(gray: default)</dark_gray>:"
+    rule-entry: " <dark_gray>▪</dark_gray> <white><rule></white>: <green><value>"
+    rule-entry-default: " <dark_gray>▪</dark_gray> <gray><rule>: <value>"
+    rule-vanilla: "vanilla"
+    rule-set: "<prefix><green><white><rule></white> of <white><kit></white> is now <white><value></white>."
+    rule-usage: "<prefix><red>Use /duels kit rule <name> [rule] [value|default]. Rules: <gray><rules>"
+    rule-flag-usage: "<prefix><red><rule> is true, false or default."
+    rule-seconds-usage: "<prefix><red><rule> is a number of seconds from 0 to <max>, or default."
+    # Asked in chat by the /duels kit menus.
+    prompt-create: "<prefix><gray>Type a name for the new kit (lowercase letters, digits, - and _), or <white>cancel</white>."
+    prompt-name: "<prefix><gray>Type the name to show for <white><kit></white> (e.g. <white>\\<gold>Sword</white>), or <white>cancel</white>."
+    prompt-permission: "<prefix><gray>Type the permission <white><kit></white> needs, <white>none</white> for everyone, or <white>cancel</white>."
+    prompt-arenas: "<prefix><gray>Type the arena categories for <white><kit></white> separated by spaces, <white>any</white>, or <white>cancel</white>."
+    prompt-seconds: "<prefix><gray>Type <white><rule></white> for <white><kit></white> in seconds (0 to <max>), <white>default</white>, or <white>cancel</white>."

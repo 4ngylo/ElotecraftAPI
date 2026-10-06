@@ -31,6 +31,14 @@ Arenas and kits are made in game with `/duels` (operators by default).
    `/duels arena setname desert <gold>Desert`.
 5. `/duels arena info desert` says `ready`, or what is missing.
 
+**Or use the menus:** `/duels arena` lists the arenas built by hand (pregen copies are counted on their
+source) with buttons for a new arena and a schematic import, and `/duels arena desert` opens one arena's
+settings: status, enabled, spawns, corners, WorldEdit box, spectator, center, FFA spawns, icon, name,
+categories, build limit, teleport, snapshot, pregen copies, reset and delete (reset, delete and clearing
+copies or FFA spawns need shift + right-click). Point buttons use the place you stand when you click; names and numbers are typed in chat. `/duels arena help` lists the commands. After updating, delete
+`menus.yml` (or copy in its new `arena-admin`, `arena-settings`, `kit-admin` and `kit-settings` sections)
+so the menus exist.
+
 A fighter who falls out of the bottom of the box loses, as in the void (`rules.void-eliminates`); leaving
 it any other way sends them back to their spawn.
 
@@ -38,6 +46,15 @@ it any other way sends them back to their spawn.
 `/duels kit arenas <kit> bridge` makes that kit's duels use only arenas in it (several categories are
 allowed; `any` undoes it). Queues, challenges, rematches and the arena menu all follow it, and a kit with
 no ready arena in its categories cannot be queued for or challenged with.
+
+**Party fights.** A party leader starts `/party split` (two teams: a menu opens with a shuffled split; click a
+member's head to move them to the other team, then Start), `/party ffa` (everyone for
+themselves) or `/party duel <leader>` (party against party once the other leader accepts); without a kit
+the kit menu opens. Every member must be online and free, and they leave their queues. Fighters who are
+knocked out watch until one side is left. Party fights are casual: no stats, rating, rewards or rematch.
+Teammates can't hurt each other unless `parties.friendly-fire` is on. A party FFA puts each player on one of
+the arena's extra spawns (`/duels arena addspawn`, one per player) when there are enough; otherwise they are
+spread from spawn 1 to spawn 2, or put on spawn 1 and 2 in turn where there is no floor.
 
 **Build limit.** `/duels arena buildlimit desert 80` stops fighters placing blocks above Y 80 (`none`
 removes it), so bridges and towers stay low.
@@ -75,7 +92,51 @@ or graves plugin, exclude the arena regions; duels never fire death events, but 
 2. Edit it later: empty your inventory, `/duels kit load archer`, change it, `/duels kit save archer`.
 3. Optional: `/duels kit setname archer <green>Archer`, `/duels kit setpermission archer duels.kit.archer`.
 
+**Or use the menus:** `/duels kit` lists every kit (with buttons for a new kit and the default kits),
+and `/duels kit <kit>` opens one kit's settings: building, damage, icon, name, permission, arena
+categories, save or load its items, delete (shift + right-click) and every game rule (left-click
+switches, right-click resets). Names and values are typed in chat. Each button runs the matching
+command, so the same permission and checks apply. `/duels kit help` lists the commands.
+
 Kits are stored in `kits.yml` with Paper's item format, so they survive server updates.
+
+**Own layouts.** Players arrange a kit's items their way with `/duel editkit [kit]` (permission
+`duels.kit.edit`): their inventory is saved, the kit is put in it, and `/duel editkit save` (or the
+[SAVE] button) keeps the layout if it holds exactly the kit's items; `cancel` or a timeout
+(`kit-editor.timeout`) changes nothing, and their own items always come back, even after a crash. Every
+duel with the kit then uses their layout. When an admin changes a kit's items, old layouts are dropped;
+`/duel editkit reset <kit>` drops one by hand.
+
+**Default kits.** A first start (no `kits.yml` yet) adds 15 kits after the most played practice modes:
+NoDebuff, Debuff, Gapple, BuildUHC, Classic, Archer, Sumo, Vanilla (crystals and anchors), UHC, Pot, NethOP,
+SMP, Sword, Axe and Mace. BuildUHC, Vanilla and UHC are build kits. Sumo hits only knock back
+(`/duels kit damage <kit>` toggles that for any kit): falling off the arena loses, so give it a small
+platform arena in category `sumo` (`/duels arena category <arena> add sumo`). Edit them like any kit;
+`/duels kit defaults` adds the ones that are missing on an existing server and never overwrites a kit.
+UHC and BuildUHC drain hunger without natural regeneration; NoDebuff, Debuff and Pot have a 15 second
+pearl cooldown (see [game rules](#kit-game-rules)). Kits added before game rules existed keep the
+defaults: set them by hand, e.g. `/duels kit rule uhc natural-regeneration false`.
+
+## Kit game rules
+
+`/duels kit rule <kit>` lists a kit's game rules; `/duels kit rule <kit> <rule> <value>` sets one, and
+`default` as the value unsets it. They are saved under `rules` in `kits.yml`.
+
+| Rule | Default | |
+|---|---|---|
+| `hunger` | `rules.hunger` | true: food drains during the fight |
+| `natural-regeneration` | `rules.natural-regeneration` | false: a full hunger bar no longer heals (UHC); potions and golden apples still do |
+| `friendly-fire` | `parties.friendly-fire` | Teammates hurt each other in party fights |
+| `void-eliminates` | `rules.void-eliminates` | Falling out of the bottom of the arena loses |
+| `fall-damage` | true | Falling hurts, and so does landing an ender pearl |
+| `fire-damage` | true | Fire, lava, magma blocks and campfires hurt |
+| `explosion-damage` | true | TNT, crystals and anchors hurt |
+| `self-damage` | true | Your own arrows and TNT hurt you (bow boosting) |
+| `item-durability` | true | false: armor, weapons and tools never wear out |
+| `hit-delay` | true | false: combo mode, hits land almost every tick instead of twice a second |
+| `arrow-pickup` | true | Shot arrows can be picked back up (tridents always can) |
+| `crafting` | true | The 2x2 crafting grid works |
+| `pearl-cooldown` | vanilla (1s) | Seconds between ender pearls, 0 to 60 (0: none) |
 
 ## Build kits
 
@@ -111,8 +172,13 @@ with their arena and limited to 256 x 256 blocks across.
 | `/duel spectate <player>` | `duels.spectate` | Watch someone's duel |
 | `/duel leave` | | Leave the queue, stop spectating, or forfeit |
 | `/duel stats [player]`, `/duel top [elo]` | `duels.stats`, `duels.top` | Statistics and leaderboard by wins or rating |
-| `/duels arena ...` | `duels.admin.arena` | `create`, `delete`, `setspawn`, `setcorner`, `setbox`, `import`, `setspectator`, `setcenter`, `seticon`, `setname`, `category`, `buildlimit`, `toggle`, `info`, `tp`, `list`, `snapshot`, `reset`, `pregen` |
-| `/duels kit ...` | `duels.admin.kit` | `create`, `save`, `load`, `delete`, `seticon`, `setname`, `setpermission`, `build`, `arenas`, `list` |
+| `/party <player>`, `/party accept\|deny [player]` | `duels.party` | Invite someone (makes a party if you have none) or answer an invite |
+| `/party kick\|promote <player>`, `/party disband` | `duels.party` | Manage the party (leader only) |
+| `/party leave`, `/party info` | `duels.party` | Leave the party, list its members |
+| `/party split [kit] [arena]`, `/party ffa [kit] [arena]` | `duels.party.fight` | Leader: two teams picked in a menu, or everyone for themselves |
+| `/party duel <leader> [kit] [arena]`, `/party duelaccept\|dueldeny [leader]` | `duels.party.fight` | Leader: challenge another party, or answer a challenge |
+| `/duels arena ...` | `duels.admin.arena` | menus: no argument or an arena name; `help`, `create`, `delete`, `setspawn`, `setcorner`, `setbox`, `import`, `setspectator`, `setcenter`, `seticon`, `setname`, `category`, `buildlimit`, `toggle`, `info`, `tp`, `list`, `snapshot`, `reset`, `pregen` |
+| `/duels kit ...` | `duels.admin.kit` | menus: no argument or a kit name; `help`, `create`, `save`, `load`, `delete`, `seticon`, `setname`, `setpermission`, `build`, `damage`, `rule`, `arenas`, `defaults`, `list` |
 | `/duels stop <player>` | `duels.admin.stop` | End a duel without a result |
 | `/duels reload` | `duels.admin.reload` | Reload config, messages, menus, arenas and kits |
 
@@ -133,7 +199,8 @@ default) grants all player permissions; `duels.admin` (operators) grants all adm
 While in a duel or spectating, players cannot drop, pick up or store items, open containers or other
 menus, change blocks (except with a [build kit](#build-kits)), use commands other than `/duel` and
 `rules.allowed-commands`, or teleport out of the arena (pearls inside it work). Among players only the
-two fighters can hurt each other; mobs, fall damage and the like still apply, so keep arenas mob-free and
+two fighters can hurt each other; mobs, fall damage and the like still apply (unless a
+[game rule](#kit-game-rules) turns them off), so keep arenas mob-free and
 protected (e.g. WorldGuard). Explosions never break arena blocks, and arrows, tridents, pearls, dropped
 items and falling blocks left in an arena are removed when a duel ends.
 
@@ -144,12 +211,12 @@ cut short by a crash is undone when the player next joins.
 
 - `config.yml`: database, countdown, duration, end delay, boss bar, request expiry and cooldown, rematch
   window, hunger, regeneration and void rules, allowed commands, build kit and arena regen rules, the
-  arenas world and pregen spacing, ranked rating and queue range, rewards, title timings, sounds and
+  arenas world and pregen spacing, ranked rating and queue range, party size and invite expiry, rewards, title timings, sounds and
   particles.
   Invalid values are logged and replaced by defaults.
 - `messages.yml`: every text players see, in [MiniMessage](https://docs.advntr.dev/minimessage/format.html).
   Add `messages_<language>.yml` (e.g. `messages_es.yml`) for players whose client uses that language.
-- `menus.yml`: titles, sizes, filler and button items of the kit and arena menus.
+- `menus.yml`: titles, sizes, filler and button items of the kit, arena, team and admin menus.
 
 Rewards are paid when a duel ends with a lethal hit (not for forfeits, quits, draws or cancelled duels, so
 accounts cannot farm them): money through Vault and console commands with `<winner>`, `<loser>`, `<kit>`
@@ -168,7 +235,7 @@ existing stats table on startup.
 
 With PlaceholderAPI: `%duels_wins%`, `%duels_losses%`, `%duels_win_streak%`, `%duels_best_win_streak%`,
 `%duels_win_rate%`, `%duels_elo%`, `%duels_in_match%`, `%duels_opponent%`, `%duels_kit%`, `%duels_arena%`,
-`%duels_queue%`, `%duels_queue_type%` (`ranked` or `unranked`), `%duels_active_matches%`. Stats placeholders are for online players.
+`%duels_queue%`, `%duels_queue_type%` (`ranked` or `unranked`), `%duels_party_size%`, `%duels_party_leader%`, `%duels_active_matches%`. Stats placeholders are for online players.
 
 ## Testing on a server
 

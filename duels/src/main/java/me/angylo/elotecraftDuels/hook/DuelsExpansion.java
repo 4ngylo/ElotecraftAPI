@@ -3,8 +3,10 @@ package me.angylo.elotecraftDuels.hook;
 import me.angylo.elotecraftDuels.Duels;
 import me.angylo.elotecraftDuels.match.Match;
 import me.angylo.elotecraftDuels.match.QueueManager;
+import me.angylo.elotecraftDuels.party.Party;
 import me.angylo.elotecraftDuels.stats.PlayerStats;
 import me.clip.placeholderapi.expansion.PlaceholderExpansion;
+import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
 import org.jetbrains.annotations.NotNull;
 
@@ -49,7 +51,7 @@ final class DuelsExpansion extends PlaceholderExpansion {
     public @NotNull List<String> getPlaceholders() {
         return List.of("%duels_wins%", "%duels_losses%", "%duels_win_streak%", "%duels_best_win_streak%",
                 "%duels_win_rate%", "%duels_elo%", "%duels_in_match%", "%duels_opponent%", "%duels_kit%", "%duels_arena%",
-                "%duels_queue%", "%duels_queue_type%", "%duels_active_matches%");
+                "%duels_queue%", "%duels_queue_type%", "%duels_party_size%", "%duels_party_leader%", "%duels_active_matches%");
     }
 
     @Override
@@ -69,11 +71,13 @@ final class DuelsExpansion extends PlaceholderExpansion {
             case "win_rate" -> stat(player, PlayerStats::winRate);
             case "elo" -> stat(player, PlayerStats::elo);
             case "in_match" -> String.valueOf(match.isPresent());
-            case "opponent" -> match.filter(m -> isFighter(m, player))
-                    .map(m -> m.first().getUniqueId().equals(player.getUniqueId()) ? m.second().getName() : m.first().getName())
-                    .orElse("");
+            case "opponent" -> match.filter(m -> m.teamOf(player.getUniqueId()) >= 0)
+                    .map(m -> m.opponentNames(player.getUniqueId())).orElse("");
             case "kit" -> match.map(m -> m.kit().name()).orElse("");
             case "arena" -> match.map(m -> m.arena().name()).orElse("");
+            case "party_size" -> String.valueOf(duels.parties().partyOf(player.getUniqueId()).map(Party::size).orElse(0));
+            case "party_leader" -> duels.parties().partyOf(player.getUniqueId())
+                    .map(party -> Optional.ofNullable(Bukkit.getOfflinePlayer(party.leader()).getName()).orElse("")).orElse("");
             case "queue" -> duels.queues().queued(player.getUniqueId()).map(QueueManager.QueueId::kit).orElse("");
             case "queue_type" -> duels.queues().queued(player.getUniqueId()).map(id -> id.ranked() ? "ranked" : "unranked").orElse("");
             default -> null;
@@ -84,7 +88,4 @@ final class DuelsExpansion extends PlaceholderExpansion {
         return String.valueOf(duels.stats().cached(player.getUniqueId()).map(value).orElse(0));
     }
 
-    private static boolean isFighter(Match match, OfflinePlayer player) {
-        return match.first().getUniqueId().equals(player.getUniqueId()) || match.second().getUniqueId().equals(player.getUniqueId());
-    }
 }

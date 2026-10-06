@@ -8,10 +8,12 @@ import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.Plugin;
 
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
@@ -160,7 +162,7 @@ public final class ArenaRegistry {
                     position(section, "spawn1"), position(section, "spawn2"), position(section, "spectator"),
                     position(section, "corner1"), position(section, "corner2"), categories(section),
                     position(section, "center"), section.isInt("build-limit") ? section.getInt("build-limit") : null,
-                    copy(section)));
+                    copy(section), extraSpawns(section)));
         }
     }
 
@@ -175,6 +177,23 @@ public final class ArenaRegistry {
             }
         }
         return categories;
+    }
+
+    private static List<Position> extraSpawns(ConfigurationSection arena) {
+        ConfigurationSection section = arena.getConfigurationSection("extra-spawns");
+        if (section == null) {
+            return List.of();
+        }
+        return section.getKeys(false).stream().sorted(Comparator.comparingInt(ArenaRegistry::number))
+                .map(key -> position(section, key)).filter(Objects::nonNull).toList();
+    }
+
+    private static int number(String key) {
+        try {
+            return Integer.parseInt(key);
+        } catch (NumberFormatException e) {
+            return Integer.MAX_VALUE;
+        }
     }
 
     private Arena.Copy copy(ConfigurationSection arena) {
@@ -222,6 +241,9 @@ public final class ArenaRegistry {
             yaml.set(path + ".categories", arena.categories().stream().sorted().toList());
         }
         writePosition(yaml, path + ".center", arena.center());
+        for (int i = 0; i < arena.extraSpawns().size(); i++) {
+            writePosition(yaml, path + ".extra-spawns." + (i + 1), arena.extraSpawns().get(i));
+        }
         if (arena.buildLimit() != null) {
             yaml.set(path + ".build-limit", arena.buildLimit());
         }

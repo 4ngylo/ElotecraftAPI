@@ -9,8 +9,11 @@ import me.angylo.elotecraftDuels.arena.ArenaInstance;
 import me.angylo.elotecraftDuels.arena.ArenaInstances;
 import me.angylo.elotecraftDuels.arena.ArenaRegistry;
 import me.angylo.elotecraftDuels.kit.Kit;
+import me.angylo.elotecraftDuels.kit.KitLayouts;
+import me.angylo.elotecraftDuels.kit.KitRule;
 import me.angylo.elotecraftDuels.match.Match.EndReason;
 import me.angylo.elotecraftDuels.match.Match.State;
+import me.angylo.elotecraftDuels.match.Match.Type;
 import me.angylo.elotecraftDuels.state.PlayerSnapshot;
 import me.angylo.elotecraftDuels.state.SnapshotStore;
 import me.angylo.elotecraftDuels.stats.PlayerStats;
@@ -35,6 +38,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -49,6 +53,8 @@ public final class MatchManager {
 
     private static final long SECOND_TICKS = 20;
     private static final long MILLIS_PER_TICK = 50;
+    /** Hit delay of combo kits (vanilla 20): hits land almost every tick. Reset by {@link PlayerSnapshot}. */
+    private static final int COMBO_NO_DAMAGE_TICKS = 2;
 
     /** The last opponent and setup of a player, for {@code /duel rematch}. */
     public record Rematch(UUID opponent, String opponentName, String kit, String arena, long expiresAtTick) {
@@ -66,6 +72,9 @@ public final class MatchManager {
     private final ArenaInstances instances;
     private final SnapshotStore snapshots;
     private final StatsService stats;
+    private final KitLayouts layouts;
+    /** Players busy outside matches, such as in the kit editor. */
+    private Predicate<Player> busyElsewhere = player -> false;
     private final Rewards rewards;
     private final MatchDisplay display;
     /** Fighters and spectators; read by placeholders from other threads. */
@@ -74,7 +83,7 @@ public final class MatchManager {
     private final Map<UUID, Rematch> rematches = new HashMap<>();
 
     public MatchManager(Plugin plugin, Messages messages, Supplier<Settings> settings, ArenaRegistry arenas,
-                        ArenaInstances instances, SnapshotStore snapshots, StatsService stats) {
+                        ArenaInstances instances, SnapshotStore snapshots, StatsService stats, KitLayouts layouts) {
         this.plugin = plugin;
         this.logger = plugin.getLogger();
         this.messages = messages;
@@ -83,13 +92,19 @@ public final class MatchManager {
         this.instances = instances;
         this.snapshots = snapshots;
         this.stats = stats;
+        this.layouts = layouts;
         this.rewards = new Rewards(plugin, messages, settings);
         this.display = new MatchDisplay(messages, settings);
     }
 
     /** Whether {@code player} is fighting or spectating. */
     public boolean isBusy(Player player) {
-        return byPlayer.containsKey(player.getUniqueId());
+        return byPlayer.containsKey(player.getUniqueId()) || busyElsewhere.test(player);
+    }
+
+    /** Players {@code busy} names count as busy too: they cannot be queued, challenged or spectate. */
+    public void busyElsewhere(Predicate<Player> busy) {
+        this.busyElsewhere = busy;
     }
 
     public Optional<Match> matchOf(Player player) {
@@ -152,17 +167,31 @@ public final class MatchManager {
     }
 
     /**
-     * Starts a duel. Their state is saved first; nothing about them changes unless that succeeds.
+     * Starts a duel; see {@link #start(List, Kit, Arena, Type, boolean)}.
      *
      * @param ranked whether the result moves the fighters' Elo ratings
-     * @return false if either player is busy or the arena is not ready and free; callers check and explain first
      */
     public boolean start(Player first, Player second, Kit kit, Arena arena, boolean ranked) {
-        if (first.equals(second) || !available(first) || !available(second) || !instances.available(arena)) {
+        return start(List.of(List.of(first), List.of(second)), kit, arena, Type.DUEL, ranked);
+    }
+
+    /**
+     * Starts a fight between teams. Everyone's state is saved first; nothing about them changes unless that
+     * succeeds.
+     *
+     * @param teams  the fighters of each team: at least two teams, nobody twice
+     * @param ranked whether the result moves Elo ratings; duels only
+     * @return false if anyone is busy or the arena is not ready and free; callers check and explain first
+     */
+    public boolean start(List<List<Player>> teams, Kit kit, Arena arena, Type type, boolean ranked) {
+        List<Player> fighters = teams.stream().flatMap(List::stream).toList();
+        if (teams.size() < 2 || teams.stream().anyMatch(List::isEmpty) || Set.copyOf(fighters).size() != fighters.size()
+                || !fighters.stream().allMatch(this::available) || !instances.available(arena)) {
             return false;
         }
+        String names = names(fighters, " and ");
         Map<UUID, PlayerSnapshot> taken = new HashMap<>();
-        for (Player fighter : List.of(first, second)) {
+        for (Player fighter : fighters) {
             // Closed before the snapshot, while drops are still allowed: a held cursor item goes back first.
             fighter.closeInventory();
             taken.put(fighter.getUniqueId(), PlayerSnapshot.capture(fighter));
@@ -170,12 +199,11 @@ public final class MatchManager {
         // Reserved only now: nothing above may leave the arena reserved if it throws.
         ArenaInstance instance = instances.acquire(arena, kit.build()).orElse(null);
         if (instance == null) {
-            messages.send(first, "match.arena-failed");
-            messages.send(second, "match.arena-failed");
+            fighters.forEach(fighter -> messages.send(fighter, "match.arena-failed"));
             return true;
         }
-        Match match = new Match(instance, kit, first, second, ranked);
-        for (Player fighter : List.of(first, second)) {
+        Match match = new Match(instance, kit, teams, type, ranked && type == Type.DUEL);
+        for (Player fighter : fighters) {
             match.addSnapshot(fighter, taken.get(fighter.getUniqueId()));
         }
         // Saved before anyone is registered: if serializing throws, nobody is left half in a duel.
@@ -183,13 +211,12 @@ public final class MatchManager {
         try {
             saved = snapshots.save(taken);
         } catch (RuntimeException e) {
-            logger.log(Level.SEVERE, "Could not save " + first.getName() + " and " + second.getName() + " before their duel", e);
-            messages.send(first, "general.storage-error");
-            messages.send(second, "general.storage-error");
+            logger.log(Level.SEVERE, "Could not save " + names + " before their duel", e);
+            fighters.forEach(fighter -> messages.send(fighter, "general.storage-error"));
             instances.release(instance);
             return true;
         }
-        for (Player fighter : List.of(first, second)) {
+        for (Player fighter : fighters) {
             byPlayer.put(fighter.getUniqueId(), match);
         }
         running.add(match);
@@ -199,8 +226,7 @@ public final class MatchManager {
                 return;
             }
             if (error != null) {
-                logger.log(Level.SEVERE, "Could not save " + first.getName() + " and " + second.getName()
-                        + " before their duel, so it was cancelled", error);
+                logger.log(Level.SEVERE, "Could not save " + names + " before their duel, so it was cancelled", error);
                 cancel(match, "general.storage-error");
                 return;
             }
@@ -214,11 +240,11 @@ public final class MatchManager {
         return player.isOnline() && !player.isDead() && !isBusy(player);
     }
 
-    /** A lethal hit on a fighter: the opponent wins. */
+    /** A lethal hit on a fighter: they are out, and the last team with a fighter left wins. */
     public void eliminate(Player loser) {
         Match match = byPlayer.get(loser.getUniqueId());
         if (match != null && match.isFighting(loser)) {
-            end(match, match.opponentOf(loser), EndReason.ELIMINATED);
+            knockOut(match, loser, EndReason.ELIMINATED);
         }
     }
 
@@ -229,8 +255,8 @@ public final class MatchManager {
             return;
         }
         if (match.isFighting(player)) {
-            end(match, match.opponentOf(player), EndReason.ELIMINATED);
-        } else if (match.isFighter(player) && match.state() != State.ENDING) {
+            knockOut(match, player, EndReason.ELIMINATED);
+        } else if (match.isFighter(player) && (match.state() == State.STARTING || match.state() == State.COUNTDOWN)) {
             cancel(match, "match.cancelled");
         }
     }
@@ -238,7 +264,8 @@ public final class MatchManager {
     /** One tick after a player in a match respawned at its spectator spawn. */
     public void respawned(Player player) {
         Match match = byPlayer.get(player.getUniqueId());
-        if (match != null && (match.isSpectator(player) || match.state() == State.ENDING)) {
+        if (match != null && (match.isSpectator(player) || match.state() == State.ENDING
+                || (match.isFighter(player) && !match.isAlive(player)))) {
             player.setGameMode(GameMode.SPECTATOR);
         }
     }
@@ -257,7 +284,7 @@ public final class MatchManager {
         }
         switch (state) {
             case STARTING, COUNTDOWN -> cancel(match, "match.cancelled-quit", Placeholder.unparsed("player", player.getName()));
-            case FIGHTING -> end(match, match.opponentOf(player), EndReason.QUIT);
+            case FIGHTING -> knockOut(match, player, EndReason.QUIT);
             case ENDING -> { }
         }
     }
@@ -279,7 +306,14 @@ public final class MatchManager {
         }
         switch (match.state()) {
             case STARTING, COUNTDOWN -> cancel(match, "match.cancelled");
-            case FIGHTING -> end(match, match.opponentOf(player), EndReason.FORFEIT);
+            // A fighter already out of a team fight just goes home.
+            case FIGHTING -> {
+                if (match.isAlive(player)) {
+                    knockOut(match, player, EndReason.FORFEIT);
+                } else {
+                    release(match, player, false);
+                }
+            }
             case ENDING -> release(match, player, false);
         }
         return true;
@@ -340,7 +374,7 @@ public final class MatchManager {
                     spectator.showBossBar(match.bossBar());
                 }
                 messages.send(spectator, "spectate.started", Placeholder.unparsed("player", match.first().getName()));
-                for (Player fighter : List.of(match.first(), match.second())) {
+                for (Player fighter : match.fighters()) {
                     if (match.isParticipant(fighter)) {
                         messages.send(fighter, "spectate.joined", Placeholder.unparsed("player", spectator.getName()));
                     }
@@ -390,9 +424,11 @@ public final class MatchManager {
             cancel(match, "match.teleport-failed");
             return;
         }
-        CompletableFuture<Boolean> first = teleportIn(match, match.first(), match.instance().spawn(1));
-        CompletableFuture<Boolean> second = teleportIn(match, match.second(), match.instance().spawn(2));
-        first.thenCombine(second, Boolean::logicalAnd).whenComplete((arrived, error) -> guarded(match, () -> {
+        List<CompletableFuture<Boolean>> teleports = match.fighters().stream()
+                .map(fighter -> teleportIn(match, fighter, match.spawnOf(fighter))).toList();
+        CompletableFuture.allOf(teleports.toArray(CompletableFuture[]::new))
+                .thenApply(ignored -> teleports.stream().allMatch(CompletableFuture::join))
+                .whenComplete((arrived, error) -> guarded(match, () -> {
             if (match.isOver()) {
                 return;
             }
@@ -447,9 +483,12 @@ public final class MatchManager {
 
     private void beginCountdown(Match match) {
         Settings current = settings.get();
-        for (Player fighter : List.of(match.first(), match.second())) {
+        for (Player fighter : match.fighters()) {
             PlayerSnapshot.resetForDuel(fighter);
-            match.kit().apply(fighter);
+            if (!match.kit().flag(KitRule.HIT_DELAY, current)) {
+                fighter.setMaximumNoDamageTicks(COMBO_NO_DAMAGE_TICKS);
+            }
+            layouts.apply(fighter, match.kit());
         }
         match.state(State.COUNTDOWN);
         match.secondsLeft(current.countdownSeconds());
@@ -489,43 +528,67 @@ public final class MatchManager {
         }
     }
 
-    /** @param winner null for a draw */
-    private void end(Match match, Player winner, EndReason reason) {
+    /** Takes {@code fighter} out of the fight; once one team is left, it wins. */
+    private void knockOut(Match match, Player fighter, EndReason reason) {
+        match.knockOut(fighter);
+        if (match.isParticipant(fighter) && !fighter.isDead()) {
+            fighter.setGameMode(GameMode.SPECTATOR);
+        }
+        List<Integer> left = match.teamsLeft();
+        if (left.size() <= 1) {
+            end(match, left.isEmpty() ? null : left.getFirst(), reason);
+        } else {
+            display.knockedOut(match, fighter);
+        }
+    }
+
+    /** @param winnerTeam null for a draw */
+    private void end(Match match, Integer winnerTeam, EndReason reason) {
         if (match.isOver() || match.state() == State.ENDING) {
             return;
         }
         match.state(State.ENDING);
         display.removeBossBar(match);
-        Player loser = winner == null ? null : match.opponentOf(winner);
-        if (winner != null) {
-            // Forfeits and quits move the rating too, so leaving a losing ranked duel does not save it.
-            int eloChange = match.isRanked() ? PlayerStats.eloChange(stats.elo(winner.getUniqueId()),
-                    stats.elo(loser.getUniqueId()), settings.get().ranked().kFactor()) : 0;
-            stats.recordResult(winner, loser, eloChange);
-            // Only a real fight pays out, so two accounts cannot farm rewards by forfeiting to each other.
-            if (reason == EndReason.ELIMINATED) {
-                rewards.give(winner, loser, match);
-            }
-            display.result(match, winner, loser, reason);
-            if (match.isRanked()) {
-                display.eloChange(match, winner, loser, eloChange,
-                        stats.elo(winner.getUniqueId()), stats.elo(loser.getUniqueId()));
-            }
-            if (match.isParticipant(loser) && !loser.isDead()) {
-                loser.setGameMode(GameMode.SPECTATOR);
-            }
-        } else {
+        if (winnerTeam == null) {
             display.draw(match);
+        } else if (match.isDuel()) {
+            endDuel(match, match.teams().get(winnerTeam).getFirst(), reason);
+        } else {
+            display.teamResult(match, winnerTeam);
         }
         offerRematch(match);
-        logResult(match, winner, loser, reason);
+        logResult(match, winnerTeam, reason);
         match.secondsLeft(settings.get().endDelaySeconds());
         if (match.secondsLeft() <= 0) {
             finish(match);
         }
     }
 
+    /** Stats, rating, rewards and the result of a duel {@code winner} won. */
+    private void endDuel(Match match, Player winner, EndReason reason) {
+        Player loser = match.opponentOf(winner);
+        // Forfeits and quits move the rating too, so leaving a losing ranked duel does not save it.
+        int eloChange = match.isRanked() ? PlayerStats.eloChange(stats.elo(winner.getUniqueId()),
+                stats.elo(loser.getUniqueId()), settings.get().ranked().kFactor()) : 0;
+        stats.recordResult(winner, loser, eloChange);
+        // Only a real fight pays out, so two accounts cannot farm rewards by forfeiting to each other.
+        if (reason == EndReason.ELIMINATED) {
+            rewards.give(winner, loser, match);
+        }
+        display.result(match, winner, loser, reason);
+        if (match.isRanked()) {
+            display.eloChange(match, winner, loser, eloChange,
+                    stats.elo(winner.getUniqueId()), stats.elo(loser.getUniqueId()));
+        }
+        if (match.isParticipant(loser) && !loser.isDead()) {
+            loser.setGameMode(GameMode.SPECTATOR);
+        }
+    }
+
     private void offerRematch(Match match) {
+        if (!match.isDuel()) {
+            return;
+        }
         Player first = match.first();
         Player second = match.second();
         if (!match.isParticipant(first) || !match.isParticipant(second)) {
@@ -540,17 +603,25 @@ public final class MatchManager {
         }
     }
 
-    private void logResult(Match match, Player winner, Player loser, EndReason reason) {
+    private void logResult(Match match, Integer winnerTeam, EndReason reason) {
         if (!settings.get().logResults()) {
             return;
         }
         String details = " (" + match.kit().name() + ", " + match.arena().name() + ", "
                 + Durations.format(Duration.ofSeconds(match.fightSeconds())) + ")";
-        if (winner == null) {
-            logger.info("Duel " + match.first().getName() + " vs " + match.second().getName() + " was a draw" + details);
+        String how = " by " + reason.name().toLowerCase(Locale.ROOT) + details;
+        if (winnerTeam == null) {
+            logger.info((match.isDuel() ? "Duel " : "Party fight ") + names(match.fighters(), " vs ") + " was a draw" + details);
         } else {
-            logger.info(winner.getName() + " beat " + loser.getName() + " by " + reason.name().toLowerCase(Locale.ROOT) + details);
+            Player winner = match.teams().get(winnerTeam).getFirst();
+            logger.info(match.isDuel() ? winner.getName() + " beat " + match.opponentOf(winner).getName() + how
+                    : names(match.teams().get(winnerTeam), ", ") + " won a party fight against "
+                    + match.opponentNames(winner.getUniqueId()) + how);
         }
+    }
+
+    private static String names(List<Player> players, String separator) {
+        return String.join(separator, players.stream().map(Player::getName).toList());
     }
 
     /** Sends everyone a message and puts them back, without a result. */

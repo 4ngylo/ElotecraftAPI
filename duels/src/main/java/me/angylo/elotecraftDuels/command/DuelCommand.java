@@ -20,6 +20,8 @@ import org.bukkit.entity.Player;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.Locale;
+import java.util.stream.Stream;
 import java.util.Optional;
 import java.util.logging.Level;
 
@@ -61,6 +63,9 @@ public final class DuelCommand {
                 .playerSub("ranked", "duels.queue.ranked", (player, args) -> queue(player, args, true),
                         (sender, args) -> Args.filter(usableKits(sender), args))
                 .playerSub("leave", null, this::leave)
+                .playerSub("editkit", "duels.kit.edit", this::editKit, (sender, args) -> args.length == 1
+                        ? Args.filter(Stream.concat(Stream.of("save", "cancel", "reset"), usableKits(sender).stream()).toList(), args)
+                        : args.length == 2 && args[0].equalsIgnoreCase("reset") ? Args.filter(usableKits(sender), args) : List.of())
                 .playerSub("spectate", "duels.spectate", this::spectate, (sender, args) -> Args.players(args))
                 .sub("stats", "duels.stats", (sender, args) -> limited(sender, () -> stats(sender, args)),
                         (sender, args) -> Args.players(args))
@@ -173,6 +178,30 @@ public final class DuelCommand {
             return;
         }
         duels.queues().toggle(player, kit.get(), ranked);
+    }
+
+    /** {@code /duel editkit [kit] | save | cancel | reset <kit>}; the kit menu opens without a kit. */
+    private void editKit(Player player, String[] args) {
+        String first = Args.get(args, 0).toLowerCase(Locale.ROOT);
+        switch (first) {
+            case "" -> kitMenu.open(player, KitMenu.Mode.EDIT, kit -> duels.editor().start(player, kit));
+            case "save" -> duels.editor().save(player);
+            case "cancel" -> duels.editor().cancel(player);
+            case "reset" -> usableKit(player, Args.get(args, 1)).ifPresent(kit -> duels.editor().reset(player, kit));
+            default -> usableKit(player, first).ifPresent(kit -> duels.editor().start(player, kit));
+        }
+    }
+
+    /** The kit called {@code name} if {@code player} may use it; explains otherwise. */
+    private Optional<Kit> usableKit(Player player, String name) {
+        Optional<Kit> kit = duels.kits().get(name).filter(found -> !found.isEmpty());
+        if (kit.isEmpty()) {
+            messages.send(player, "general.kit-not-found", Placeholder.unparsed("kit", name));
+        } else if (!kit.get().canUse(player)) {
+            messages.send(player, "general.kit-locked", Placeholder.component("kit", Text.mm(kit.get().displayName())));
+            return Optional.empty();
+        }
+        return kit;
     }
 
     private void leave(Player player, String[] args) {

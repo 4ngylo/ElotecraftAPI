@@ -13,8 +13,10 @@ import me.angylo.elotecraftDuels.arena.ArenaTemplate;
 import me.angylo.elotecraftDuels.hook.WorldEditHook;
 import me.angylo.elotecraftDuels.kit.Kit;
 import me.angylo.elotecraftDuels.kit.KitRegistry;
+import me.angylo.elotecraftDuels.kit.KitRule;
+import me.angylo.elotecraftDuels.menu.ArenaAdminMenu;
+import me.angylo.elotecraftDuels.menu.KitAdminMenu;
 import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.JoinConfiguration;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver;
 import org.bukkit.Bukkit;
@@ -54,6 +56,7 @@ public final class AdminCommand {
     private static final String NONE = "none";
     private static final String ANY = "any";
     private static final String CLEAR = "clear";
+    private static final String DEFAULT = "default";
     /** Schematic files /duels arena import reads from plugins/ElotecraftDuels/schematics; no paths. */
     private static final Pattern SCHEMATIC = Pattern.compile("[a-z0-9_-]{1,64}\\.schem");
     /** Height the lowest layer of an imported schematic is pasted at. */
@@ -64,14 +67,18 @@ public final class AdminCommand {
     private final Messages messages;
     private final ArenaRegistry arenas;
     private final KitRegistry kits;
+    private final ArenaAdminMenu arenaMenu;
+    private final KitAdminMenu kitMenu;
     /** Arenas whose snapshot is being written, so two cannot write the same file at once. */
     private final Set<String> snapshotting = new HashSet<>();
 
-    public AdminCommand(Duels duels) {
+    public AdminCommand(Duels duels, ArenaAdminMenu arenaMenu, KitAdminMenu kitMenu) {
         this.duels = duels;
         this.messages = duels.messages();
         this.arenas = duels.arenas();
         this.kits = duels.kits();
+        this.arenaMenu = arenaMenu;
+        this.kitMenu = kitMenu;
     }
 
     public void register() {
@@ -87,7 +94,9 @@ public final class AdminCommand {
                         sender -> messages.get(sender, "command.player-only"))
                 .executes((sender, args) -> messages.send(sender, "command.admin-help"))
                 .sub(CommandBuilder.create("arena").permission("duels.admin.arena")
-                        .executes((sender, args) -> messages.send(sender, "command.arena-help"))
+                        .executes(menu(messages, "command.arena-help", arenaMenu::openList,
+                                (player, args) -> withArena(player, args, (arena, rest) -> arenaMenu.openSettings(player, arena.name()))), arenaNames)
+                        .sub("help", null, (sender, args) -> messages.send(sender, "command.arena-help"))
                         .playerSub("create", null, this::createArena)
                         .sub("delete", null, (sender, args) -> withEditableArena(sender, args, this::deleteArena), arenaNames)
                         .playerSub("setspawn", null, (player, args) -> setPoint(player, args, true), arenaNumber)
@@ -98,6 +107,10 @@ public final class AdminCommand {
                         .playerSub("setbox", null, (player, args) -> withEditableArena(player, args, (arena, rest) ->
                                 inWorld(player, arena, () -> setBox(player, arena))), arenaNames)
                         .sub("import", null, this::importSchematic)
+                        .playerSub("addspawn", null, (player, args) -> withEditableArena(player, args, (arena, rest) ->
+                                inWorld(player, arena, () -> addSpawn(player, arena))), arenaNames)
+                        .sub("clearspawns", null, (sender, args) -> withEditableArena(sender, args, (arena, rest) ->
+                                save(sender, arenas.update(arena.withExtraSpawns(List.of())), "admin.arena.spawns-cleared", arenaTags(arena))), arenaNames)
                         .playerSub("setcenter", null, (player, args) -> withEditableArena(player, args, (arena, rest) ->
                                 inWorld(player, arena, () -> setCenter(player, arena))), arenaNames)
                         .playerSub("seticon", null, (player, args) -> withEditableArena(player, args, (arena, rest) ->
@@ -127,7 +140,9 @@ public final class AdminCommand {
                         .sub("snapshot", null, (sender, args) -> withEditableArena(sender, args, (arena, rest) -> snapshot(sender, arena)), arenaNames)
                         .sub("reset", null, (sender, args) -> withArena(sender, args, (arena, rest) -> reset(sender, arena)), arenaNames))
                 .sub(CommandBuilder.create("kit").permission("duels.admin.kit")
-                        .executes((sender, args) -> messages.send(sender, "command.kit-help"))
+                        .executes(menu(messages, "command.kit-help", kitMenu::openList,
+                                (player, args) -> withKit(player, args, (kit, rest) -> kitMenu.openSettings(player, kit.name()))), kitNames)
+                        .sub("help", null, (sender, args) -> messages.send(sender, "command.kit-help"))
                         .playerSub("create", null, this::createKit)
                         .playerSub("save", null, (player, args) -> withKit(player, args, (kit, rest) -> {
                             if (isEmpty(player.getInventory())) {
@@ -159,6 +174,17 @@ public final class AdminCommand {
                             Kit changed = kit.withBuild(!kit.build());
                             save(sender, kits.update(changed), changed.build() ? "admin.kit.build-on" : "admin.kit.build-off", kitTags(kit));
                         }), kitNames)
+                        .sub("damage", null, (sender, args) -> withKit(sender, args, (kit, rest) -> {
+                            Kit changed = kit.withDamage(!kit.damage());
+                            save(sender, kits.update(changed), changed.damage() ? "admin.kit.damage-on" : "admin.kit.damage-off", kitTags(kit));
+                        }), kitNames)
+                        .sub("rule", null, (sender, args) -> withKit(sender, args, (kit, rest) -> kitRule(sender, kit, rest)),
+                                (sender, args) -> args.length == 1 ? Args.filter(kits.names(), args)
+                                        : args.length == 2 ? Args.filter(KitRule.keys(), args)
+                                        : args.length == 3 ? Args.filter(KitRule.byKey(args[1]).map(AdminCommand::ruleValues).orElse(List.of()), args)
+                                        : List.of())
+                        .sub("defaults", null, (sender, args) -> messages.send(sender, "admin.kit.defaults-added",
+                                Placeholder.unparsed("count", String.valueOf(kits.installDefaults()))))
                         .sub("arenas", null, (sender, args) -> withKit(sender, args, (kit, rest) -> kitArenas(sender, kit, rest)),
                                 (sender, args) -> args.length == 1 ? Args.filter(kits.names(), args)
                                         : Args.filter(args.length == 2 ? withAny(categories()) : categories(), args))
@@ -220,6 +246,7 @@ public final class AdminCommand {
                 Placeholder.unparsed("world", arena.world()),
                 Placeholder.unparsed("categories", arena.categories().isEmpty() ? NONE : String.join(", ", new TreeSet<>(arena.categories()))),
                 Placeholder.unparsed("build-limit", arena.buildLimit() == null ? NONE : String.valueOf(arena.buildLimit())),
+                Placeholder.unparsed("extra-spawns", String.valueOf(arena.extraSpawns().size())),
                 Placeholder.component("copy", arena.copy() == null ? Component.empty()
                         : messages.get(sender, "admin.arena.copy-of", Placeholder.unparsed("source", arena.copy().source()))),
                 Placeholder.unparsed("enabled", String.valueOf(arena.enabled())),
@@ -381,6 +408,18 @@ public final class AdminCommand {
         messages.send(sender, "admin.arena.import-failed", tags);
     }
 
+    /** One more spawn for fights with more than two sides; it must be inside the arena's corners. */
+    private void addSpawn(Player player, Arena arena) {
+        if (!arena.inBox(player.getLocation())) {
+            messages.send(player, "admin.arena.extra-spawn-outside", arenaTags(arena));
+            return;
+        }
+        List<Arena.Position> spawns = new ArrayList<>(arena.extraSpawns());
+        spawns.add(Arena.Position.of(player.getLocation()));
+        save(player, arenas.update(arena.withExtraSpawns(spawns)), "admin.arena.extra-spawn-added",
+                with(arenaTags(arena), Placeholder.unparsed("count", String.valueOf(spawns.size()))));
+    }
+
     /** The center must be inside the arena's corners. */
     private void setCenter(Player player, Arena arena) {
         if (!arena.inBox(player.getLocation())) {
@@ -530,6 +569,49 @@ public final class AdminCommand {
                 with(kitTags(kit), Placeholder.unparsed("categories", String.join(", ", categories))));
     }
 
+    /** {@code rule <kit> [rule] [value|default]}: lists the kit's game rules, or sets one. */
+    private void kitRule(CommandSender sender, Kit kit, String[] rest) {
+        if (rest.length == 0) {
+            messages.send(sender, "admin.kit.rules-header", kitTags(kit));
+            for (KitRule rule : KitRule.values()) {
+                messages.send(sender, kit.rules().containsKey(rule) ? "admin.kit.rule-entry" : "admin.kit.rule-entry-default",
+                        Placeholder.unparsed("rule", rule.key()), Placeholder.component("value", ruleValue(sender, kit, rule)));
+            }
+            return;
+        }
+        Optional<KitRule> rule = KitRule.byKey(rest[0]);
+        if (rule.isEmpty() || rest.length != 2) {
+            messages.send(sender, "admin.kit.rule-usage", Placeholder.unparsed("rules", String.join(", ", KitRule.keys())));
+            return;
+        }
+        Object value = null;
+        if (!rest[1].equalsIgnoreCase(DEFAULT)) {
+            try {
+                value = rule.get().parse(rest[1]);
+            } catch (IllegalArgumentException e) {
+                messages.send(sender, rule.get().isFlag() ? "admin.kit.rule-flag-usage" : "admin.kit.rule-seconds-usage",
+                        Placeholder.unparsed("rule", rule.get().key()), Placeholder.unparsed("max", String.valueOf(KitRule.MAX_SECONDS)));
+                return;
+            }
+        }
+        Kit changed = kit.withRule(rule.get(), value);
+        save(sender, kits.update(changed), "admin.kit.rule-set", with(kitTags(kit), Placeholder.unparsed("rule", rule.get().key()),
+                Placeholder.component("value", ruleValue(sender, changed, rule.get()))));
+    }
+
+    /** true or false, a number of seconds, or vanilla for an unset cooldown. */
+    private Component ruleValue(CommandSender viewer, Kit kit, KitRule rule) {
+        if (rule.isFlag()) {
+            return Component.text(kit.flag(rule, duels.settings()));
+        }
+        OptionalInt seconds = kit.seconds(rule);
+        return seconds.isPresent() ? Component.text(seconds.getAsInt() + "s") : messages.get(viewer, "admin.kit.rule-vanilla");
+    }
+
+    private static List<String> ruleValues(KitRule rule) {
+        return rule.isFlag() ? List.of("true", "false", DEFAULT) : List.of("0", "15", DEFAULT);
+    }
+
     /** Every category some arena has, sorted; for tab completion. */
     private List<String> categories() {
         return arenas.all().stream().flatMap(arena -> arena.categories().stream()).distinct().sorted().toList();
@@ -547,6 +629,20 @@ public final class AdminCommand {
             cause = cause.getCause();
         }
         return cause;
+    }
+
+    /** {@code arena|kit [name]}: the list or one entry's settings menu for players, the help for the console. */
+    private static BiConsumer<CommandSender, String[]> menu(Messages messages, String helpKey, Consumer<Player> list,
+                                                            BiConsumer<Player, String[]> one) {
+        return (sender, args) -> {
+            if (!(sender instanceof Player player)) {
+                messages.send(sender, helpKey);
+            } else if (args.length == 0) {
+                list.accept(player);
+            } else {
+                one.accept(player, args);
+            }
+        };
     }
 
     private void createKit(Player player, String[] args) {
@@ -689,14 +785,8 @@ public final class AdminCommand {
         }));
     }
 
-    /** "ready", or the arena's problems joined with commas. */
     private Component status(CommandSender viewer, Arena arena) {
-        List<Arena.Problem> problems = arena.problems();
-        if (problems.isEmpty()) {
-            return messages.get(viewer, "admin.arena.ready");
-        }
-        return Component.join(JoinConfiguration.commas(true),
-                problems.stream().map(problem -> messages.get(viewer, problem.messageKey())).toList());
+        return ArenaAdminMenu.status(messages, viewer, arena);
     }
 
     private static boolean isEmpty(PlayerInventory inventory) {

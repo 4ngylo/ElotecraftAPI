@@ -21,6 +21,9 @@ permissions:
       duels.spectate: true
       duels.stats: true
       duels.top: true
+      duels.party: true
+      duels.party.fight: true
+      duels.kit.edit: true
   duels.duel:
     description: Send, accept and deny duel requests and rematches.
     default: true
@@ -32,6 +35,15 @@ permissions:
     default: true
   duels.queue.ranked:
     description: Join ranked matchmaking queues, which move the Elo rating.
+    default: true
+  duels.kit.edit:
+    description: Arrange your own layout of each kit with /duel editkit.
+    default: true
+  duels.party:
+    description: Create, join and manage parties.
+    default: true
+  duels.party.fight:
+    description: Start party splits, party FFAs and party vs party fights (as leader).
     default: true
   duels.spectate:
     description: Spectate other players' duels.

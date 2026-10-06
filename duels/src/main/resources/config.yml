@@ -26,6 +26,8 @@ requests:
   rematch-window: 30s     # how long after a duel /duel rematch works
 
 rules:
+  # hunger, natural-regeneration, void-eliminates and parties.friendly-fire are defaults: a kit can set its
+  # own with /duels kit rule <kit> <rule> <value>, along with fall damage, pearl cooldown and more.
   hunger: false                # false keeps food full while dueling
   natural-regeneration: true   # false: only potions, golden apples and the like heal
   # Commands fighters and spectators may use besides /duel (their aliases too), without the slash.
@@ -56,6 +58,14 @@ ranked:
   range: 100              # 0 to 5000; how far apart two queued players' ratings may be at first
   range-growth: 10        # 0 to 1000; added to the range for every second a player waits
   range-max: 1000         # 0 to 5000; the range never grows past this
+
+parties:
+  max-size: 8             # 2 to 100 players, the leader included
+  invite-expiry: 60s      # how long a party invite can be accepted
+  friendly-fire: false    # whether teammates can hurt each other in party splits and party vs party
+
+kit-editor:
+  timeout: 5m             # /duel editkit ends without saving after this
 
 rewards:
   # Money needs Vault and an economy plugin. Commands run from the console and may use

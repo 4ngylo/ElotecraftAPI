@@ -50,7 +50,7 @@ class DuelsExpansionTest {
     @Test
     void answersFromCachedStatsAndQueues() {
         PlayerMock alex = server.addPlayer("Alex");
-        Kit kit = new Kit("sword", "Sword", Material.DIAMOND_SWORD, null, List.of(ItemStack.of(Material.DIAMOND_SWORD)), false, Set.of());
+        Kit kit = new Kit("sword", "Sword", Material.DIAMOND_SWORD, null, List.of(ItemStack.of(Material.DIAMOND_SWORD)), false, Set.of(), true);
         duels.kits().update(kit);
         readyArena();
         duels.queues().toggle(alex, kit, true);
@@ -65,9 +65,11 @@ class DuelsExpansionTest {
         assertEquals("", expansion.onRequest(alex, "opponent"));
         assertEquals("sword", expansion.onRequest(alex, "queue"));
         assertEquals("ranked", expansion.onRequest(alex, "queue_type"));
+        assertEquals("0", expansion.onRequest(alex, "party_size"));
+        assertEquals("", expansion.onRequest(alex, "party_leader"));
         assertEquals("", expansion.onRequest(null, "wins"));
         assertNull(expansion.onRequest(alex, "unknown"));
-        assertEquals(13, expansion.getPlaceholders().size());
+        assertEquals(15, expansion.getPlaceholders().size());
     }
 
     /** Queues need a ready arena for the kit. */

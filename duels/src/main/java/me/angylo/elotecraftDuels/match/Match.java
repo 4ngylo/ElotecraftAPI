@@ -20,8 +20,10 @@ import java.util.Set;
 import java.util.UUID;
 
 /**
- * One duel between two players, with its spectators. Holds the state; {@link MatchManager} moves it
- * forward. Main thread only, except the final fields, which placeholders may read from any thread.
+ * One fight between teams of players, with its spectators: a duel is two teams of one. Fighters who are
+ * knocked out stay in the arena as spectators until it ends; the last team with a fighter left wins.
+ * Holds the state; {@link MatchManager} moves it forward. Main thread only, except the final fields,
+ * which placeholders may read from any thread.
  */
 public final class Match {
 
@@ -41,12 +43,20 @@ public final class Match {
         ELIMINATED, QUIT, FORFEIT, TIMEOUT
     }
 
+    /** What kind of fight: only duels count in the stats, pay rewards and offer rematches. */
+    public enum Type {
+        DUEL, PARTY
+    }
+
     private final ArenaInstance instance;
     private final Kit kit;
-    private final Player first;
-    private final Player second;
+    /** Fighters by team, in spawn order. */
+    private final List<List<Player>> teams;
+    private final Type type;
     /** Whether the result moves the fighters' Elo ratings: duels from the queue. */
     private final boolean ranked;
+    /** Fighters knocked out of the fight. */
+    private final Set<UUID> knockedOut = new HashSet<>();
     /** Everyone still to be restored, fighters and spectators, with their pre-duel state. */
     private final Map<UUID, PlayerSnapshot> snapshots = new HashMap<>();
     private final Map<UUID, Player> spectators = new LinkedHashMap<>();
@@ -62,12 +72,60 @@ public final class Match {
     private BukkitTask task;
     private boolean over;
 
-    Match(ArenaInstance instance, Kit kit, Player first, Player second, boolean ranked) {
+    Match(ArenaInstance instance, Kit kit, List<List<Player>> teams, Type type, boolean ranked) {
         this.instance = instance;
         this.kit = kit;
-        this.first = first;
-        this.second = second;
+        this.teams = teams.stream().map(List::copyOf).toList();
+        this.type = type;
         this.ranked = ranked;
+    }
+
+    public Type type() {
+        return type;
+    }
+
+    public boolean isDuel() {
+        return type == Type.DUEL;
+    }
+
+    /** The fighters of each team, in spawn order. */
+    public List<List<Player>> teams() {
+        return teams;
+    }
+
+    /** Every fighter, team by team. */
+    public List<Player> fighters() {
+        return teams.stream().flatMap(List::stream).toList();
+    }
+
+    /** The team {@code player} fights in, or -1; safe from any thread. */
+    public int teamOf(UUID player) {
+        for (int team = 0; team < teams.size(); team++) {
+            for (Player fighter : teams.get(team)) {
+                if (fighter.getUniqueId().equals(player)) {
+                    return team;
+                }
+            }
+        }
+        return -1;
+    }
+
+    /** Whether two fighters are on the same team. */
+    public boolean sameTeam(Player one, Player other) {
+        int team = teamOf(one.getUniqueId());
+        return team >= 0 && team == teamOf(other.getUniqueId());
+    }
+
+    /** The names of everyone fighting against {@code player}, joined with commas; safe from any thread. */
+    public String opponentNames(UUID player) {
+        int team = teamOf(player);
+        List<String> names = new ArrayList<>();
+        for (int other = 0; other < teams.size(); other++) {
+            if (other != team) {
+                teams.get(other).forEach(fighter -> names.add(fighter.getName()));
+            }
+        }
+        return String.join(", ", names);
     }
 
     public boolean isRanked() {
@@ -96,12 +154,14 @@ public final class Match {
         return kit;
     }
 
+    /** The first fighter of the first team: in a duel, one of the two. */
     public Player first() {
-        return first;
+        return teams.getFirst().getFirst();
     }
 
+    /** The first fighter of the second team: in a duel, the other one. */
     public Player second() {
-        return second;
+        return teams.get(1).getFirst();
     }
 
     public State state() {
@@ -109,7 +169,23 @@ public final class Match {
     }
 
     public boolean isFighter(Player player) {
-        return first.getUniqueId().equals(player.getUniqueId()) || second.getUniqueId().equals(player.getUniqueId());
+        return teamOf(player.getUniqueId()) >= 0;
+    }
+
+    /** A fighter still in the fight: not knocked out, not gone. */
+    public boolean isAlive(Player player) {
+        return isFighter(player) && !knockedOut.contains(player.getUniqueId()) && snapshots.containsKey(player.getUniqueId());
+    }
+
+    /** The teams with a fighter still in the fight. */
+    public List<Integer> teamsLeft() {
+        List<Integer> left = new ArrayList<>();
+        for (int team = 0; team < teams.size(); team++) {
+            if (teams.get(team).stream().anyMatch(this::isAlive)) {
+                left.add(team);
+            }
+        }
+        return left;
     }
 
     public boolean isSpectator(Player player) {
@@ -118,7 +194,7 @@ public final class Match {
 
     /** A fighter who may hit and be hit right now. */
     public boolean isFighting(Player player) {
-        return state == State.FIGHTING && isFighter(player) && snapshots.containsKey(player.getUniqueId());
+        return state == State.FIGHTING && isAlive(player);
     }
 
     /** Whether {@code player} may change blocks at {@code location} now: fighting in a build duel, inside its arena. */
@@ -126,14 +202,14 @@ public final class Match {
         return isFighting(player) && instance.isBuild() && !instance.isClosing() && instance.contains(location);
     }
 
-    /** The other fighter. */
+    /** In a duel, the other fighter. */
     public Player opponentOf(Player fighter) {
-        return first.getUniqueId().equals(fighter.getUniqueId()) ? second : first;
+        return first().getUniqueId().equals(fighter.getUniqueId()) ? second() : first();
     }
 
-    /** Where fighter 1 or 2 starts. */
+    /** Where {@code fighter} starts: see {@link ArenaInstance#spawnFor}. */
     public Location spawnOf(Player fighter) {
-        return instance.spawn(first.getUniqueId().equals(fighter.getUniqueId()) ? 1 : 2);
+        return instance.spawnFor(Math.max(0, teamOf(fighter.getUniqueId())), teams.size());
     }
 
     /** Whether the arena's bounds and freeze apply to {@code player} yet. */
@@ -143,8 +219,8 @@ public final class Match {
 
     /** Fighters and spectators who are still part of this match. */
     public List<Player> participants() {
-        List<Player> players = new ArrayList<>(2 + spectators.size());
-        for (Player fighter : List.of(first, second)) {
+        List<Player> players = new ArrayList<>();
+        for (Player fighter : fighters()) {
             if (snapshots.containsKey(fighter.getUniqueId())) {
                 players.add(fighter);
             }
@@ -217,6 +293,10 @@ public final class Match {
     void addSpectator(Player spectator, PlayerSnapshot snapshot) {
         spectators.put(spectator.getUniqueId(), spectator);
         addSnapshot(spectator, snapshot);
+    }
+
+    void knockOut(Player player) {
+        knockedOut.add(player.getUniqueId());
     }
 
     void arrive(Player player) {

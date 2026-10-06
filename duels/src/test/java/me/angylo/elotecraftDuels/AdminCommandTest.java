@@ -1,9 +1,11 @@
 package me.angylo.elotecraftDuels;
 
 import me.angylo.elotecraftDuels.arena.Arena;
+import me.angylo.elotecraftDuels.kit.KitRule;
 import me.angylo.elotecraftDuels.match.Match;
 import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.command.Command;
 import org.bukkit.inventory.ItemStack;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -66,6 +68,22 @@ class AdminCommandTest extends DuelsTestBase {
     }
 
     @Test
+    void kitRulesAreSetListedAndReset() {
+        assertTrue(said("duels kit rule sword pearl-cooldown 15", "pearl-cooldown of Sword is now 15s"));
+        assertEquals(15, duels.kits().get("sword").orElseThrow().seconds(KitRule.PEARL_COOLDOWN).orElseThrow());
+        assertTrue(said("duels kit rule sword natural-regeneration false", "is now false"));
+        assertTrue(said("duels kit rule sword", "natural-regeneration: false"));
+
+        assertTrue(said("duels kit rule sword pearl-cooldown soon", "number of seconds from 0 to 60"));
+        assertTrue(said("duels kit rule sword flying true", "Rules:"));
+        assertTrue(said("duels kit rule sword pearl-cooldown default", "is now vanilla"));
+        assertTrue(duels.kits().get("sword").orElseThrow().seconds(KitRule.PEARL_COOLDOWN).isEmpty());
+        Command duelsCommand = server.getCommandMap().getCommand("duels");
+        assertEquals(List.of("hunger", "hit-delay"), duelsCommand.tabComplete(admin, "duels", new String[]{"kit", "rule", "sword", "h"}));
+        assertEquals(List.of("0", "15", "default"), duelsCommand.tabComplete(admin, "duels", new String[]{"kit", "rule", "sword", "pearl-cooldown", ""}));
+    }
+
+    @Test
     void buildKitsAndArenaSnapshots() {
         assertTrue(said("duels kit build sword", "can now place blocks"));
         assertTrue(duels.kits().get("sword").orElseThrow().build());
@@ -83,8 +101,8 @@ class AdminCommandTest extends DuelsTestBase {
     @Test
     void helpPagesAndValidation() {
         assertTrue(said("duels", "Duels admin"));
-        assertTrue(said("duels arena", "Arena setup"));
-        assertTrue(said("duels kit", "Kit setup"));
+        assertTrue(said("duels arena help", "Arena setup"));
+        assertTrue(said("duels kit help", "Kit setup"));
         assertTrue(said("duels arena create Bad.Name", "Names use 1 to 32"));
         assertTrue(said("duels arena create pit", "already exists"));
         assertTrue(said("duels arena info nope", "There is no arena called 'nope'"));
@@ -160,7 +178,7 @@ class AdminCommandTest extends DuelsTestBase {
         assertTrue(said("duels kit setpermission sea none", "Everyone can use"));
         assertTrue(said("duels kit list", "Kits (2):"));
         assertTrue(said("duels kit delete sea", "Deleted kit sea"));
-        assertTrue(said("duels kit info sea", "Kit setup"));
+        assertTrue(said("duels kit sea", "There is no kit called 'sea'"));
     }
 
     @Test

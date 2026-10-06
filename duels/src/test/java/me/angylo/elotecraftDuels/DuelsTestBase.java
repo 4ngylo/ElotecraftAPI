@@ -52,6 +52,9 @@ abstract class DuelsTestBase {
         server.getPluginManager().registerEvents(new CleanupListener(), MockBukkit.createMockPlugin("ElotecraftAPI"));
         plugin = MockBukkit.createMockPlugin("ElotecraftDuels");
         deleteRecursively(plugin.getDataFolder().toPath());
+        // Not a first start: the default kits would change what tests see in kit lists and menus.
+        Files.createDirectories(plugin.getDataFolder().toPath());
+        Files.writeString(plugin.getDataFolder().toPath().resolve("kits.yml"), "kits: {}\n");
         registerPermissions();
         world = server.addSimpleWorld("world");
         arenaWorld = server.addSimpleWorld("arena");
@@ -92,14 +95,14 @@ abstract class DuelsTestBase {
 
     /** A kit of one diamond sword. */
     protected Kit swordKit() {
-        Kit kit = new Kit("sword", "<aqua>Sword", Material.DIAMOND_SWORD, null, List.of(ItemStack.of(Material.DIAMOND_SWORD)), false, Set.of());
+        Kit kit = new Kit("sword", "<aqua>Sword", Material.DIAMOND_SWORD, null, List.of(ItemStack.of(Material.DIAMOND_SWORD)), false, Set.of(), true);
         await(duels.kits().update(kit));
         return kit;
     }
 
     /** A build kit of a stack of planks. */
     protected Kit buildKit() {
-        Kit kit = new Kit("bridge", "<gold>Bridge", Material.OAK_PLANKS, null, List.of(ItemStack.of(Material.OAK_PLANKS, 64)), true, Set.of());
+        Kit kit = new Kit("bridge", "<gold>Bridge", Material.OAK_PLANKS, null, List.of(ItemStack.of(Material.OAK_PLANKS, 64)), true, Set.of(), true);
         await(duels.kits().update(kit));
         return kit;
     }

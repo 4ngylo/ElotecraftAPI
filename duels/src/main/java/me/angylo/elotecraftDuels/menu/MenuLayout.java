@@ -1,9 +1,11 @@
 package me.angylo.elotecraftDuels.menu;
 
+import me.angylo.elotecraftAPI.input.ChatInput;
 import me.angylo.elotecraftAPI.menu.Button;
 import me.angylo.elotecraftAPI.menu.MenuConfig;
 import me.angylo.elotecraftAPI.menu.PaginatedMenu;
 import me.angylo.elotecraftAPI.util.ItemBuilder;
+import me.angylo.elotecraftAPI.util.Messages;
 import me.angylo.elotecraftAPI.util.Tasks;
 import me.angylo.elotecraftAPI.util.Text;
 import me.angylo.elotecraftDuels.Effects;
@@ -17,24 +19,28 @@ import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.Plugin;
 
+import java.time.Duration;
+import java.util.Arrays;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.logging.Level;
 
-/** Builds the menus.yml parts both menus share: page frame, bottom-row buttons and entry icons. */
+/** Builds the menus.yml parts the menus share: page frame, bottom-row buttons and entry icons. */
 final class MenuLayout {
 
     private static final int MIN_ROWS = 2;
     private static final int MAX_ROWS = 6;
+    private static final Duration ANSWER_TIME = Duration.ofSeconds(60);
 
     private MenuLayout() {
     }
 
     /**
-     * A paginated menu with the section's title, rows and page arrows.
+     * A paginated menu with the section's title, rows and page arrows. Tags in the title are filled from {@code tags}.
      *
      * @throws IllegalArgumentException if the section is missing or invalid
      */
-    static PaginatedMenu frame(Plugin plugin, ConfigurationSection section) {
+    static PaginatedMenu frame(Plugin plugin, ConfigurationSection section, TagResolver... tags) {
         if (section == null) {
             throw new IllegalArgumentException("Missing menu section in menus.yml");
         }
@@ -42,7 +48,7 @@ final class MenuLayout {
         if (rows < MIN_ROWS || rows > MAX_ROWS) {
             throw new IllegalArgumentException(section.getCurrentPath() + ".rows must be " + MIN_ROWS + " to " + MAX_ROWS);
         }
-        PaginatedMenu menu = new PaginatedMenu(plugin, rows, section.getString("title", ""));
+        PaginatedMenu menu = new PaginatedMenu(plugin, rows, Text.mm(section.getString("title", ""), tags));
         if (section.isConfigurationSection("previous")) {
             menu.previousButton(MenuConfig.item(section.getConfigurationSection("previous")));
         }
@@ -52,8 +58,12 @@ final class MenuLayout {
         return menu;
     }
 
-    /** Places the button {@code key} in the bottom row at its {@code slot} (1 to 7), if it is configured. */
-    static void place(PaginatedMenu menu, ConfigurationSection section, String key, BiConsumer<Player, ClickType> action) {
+    /**
+     * Places the button {@code key} in the bottom row at its {@code slot} (1 to 7), if it is configured.
+     * Tags in its name and lore are filled from {@code tags}.
+     */
+    static void place(PaginatedMenu menu, ConfigurationSection section, String key, BiConsumer<Player, ClickType> action,
+                      TagResolver... tags) {
         ConfigurationSection button = section.getConfigurationSection(key);
         if (button == null) {
             return;
@@ -62,7 +72,7 @@ final class MenuLayout {
         if (slot < 1 || slot > 7) {
             throw new IllegalArgumentException(button.getCurrentPath() + ".slot must be 1 to 7");
         }
-        menu.set(menu.getInventory().getSize() - 9 + slot, Button.of(MenuConfig.item(button), action));
+        menu.set(menu.getInventory().getSize() - 9 + slot, Button.of(MenuConfig.item(button, tags), action));
     }
 
     /** Fills empty slots with the {@code filler} item, if configured. Call last. */
@@ -97,5 +107,35 @@ final class MenuLayout {
                 action.accept(player);
             });
         };
+    }
+
+    /**
+     * Asks {@code player} in chat, for the admin menus; {@code onAnswer} runs on the main thread, never after
+     * cancel, timeout or quit.
+     */
+    static void ask(Plugin plugin, Messages messages, Player player, String promptKey, TagResolver[] tags, Consumer<String> onAnswer) {
+        ChatInput.ask(plugin, player, messages.get(player, promptKey, tags), ANSWER_TIME)
+                .thenAccept(answer -> answer.filter(text -> player.isOnline()).ifPresent(onAnswer))
+                .exceptionally(error -> {
+                    plugin.getLogger().log(Level.WARNING, "Menu chat answer failed", error);
+                    return null;
+                });
+    }
+
+    /** Logs a broken menus.yml section and tells the viewer. */
+    static void menuError(Plugin plugin, Messages messages, Player viewer, String key, IllegalArgumentException e) {
+        plugin.getLogger().log(Level.WARNING, "Invalid " + key + " menu in menus.yml: " + e.getMessage());
+        messages.send(viewer, "general.menu-error");
+    }
+
+    /** A text from the section's {@code values}, in MiniMessage. */
+    static Component value(ConfigurationSection section, String key) {
+        return Text.mm(section.getString("values." + key, key));
+    }
+
+    static TagResolver[] with(TagResolver[] tags, TagResolver... more) {
+        TagResolver[] all = Arrays.copyOf(tags, tags.length + more.length);
+        System.arraycopy(more, 0, all, tags.length, more.length);
+        return all;
     }
 }

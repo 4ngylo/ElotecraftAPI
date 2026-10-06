@@ -8,6 +8,7 @@ import org.bukkit.configuration.ConfigurationSection;
 import java.time.Duration;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.Set;
 import java.util.logging.Logger;
 import java.util.regex.Pattern;
@@ -22,7 +23,7 @@ public record Settings(int countdownSeconds, Duration maxDuration, int endDelayS
                 Duration rematchWindow, boolean hunger, boolean naturalRegeneration, Set<String> allowedCommands,
                 Reward winReward, Reward lossReward, Title.Times titleTimes, Effects effects,
                 boolean breakArenaBlocks, int regenBlocksPerTick, boolean voidEliminates, String arenasWorld,
-                int pregenSpacing, int maxCopies, Ranked ranked) {
+                int pregenSpacing, int maxCopies, int partyMaxSize, Duration partyInviteExpiry, boolean partyFriendlyFire, Duration kitEditorTimeout, Ranked ranked) {
 
     private static final long MILLIS_PER_TICK = 50;
     private static final int MAX_TITLE_TICKS = 200;
@@ -77,6 +78,10 @@ public record Settings(int countdownSeconds, Duration maxDuration, int endDelayS
                 worldName(config, logger),
                 integer(config, logger, "arenas.pregen-spacing", 64, 16, 1024),
                 integer(config, logger, "arenas.max-copies", 32, 1, 256),
+                integer(config, logger, "parties.max-size", 8, 2, 100),
+                duration(config, logger, "parties.invite-expiry", Duration.ofSeconds(60), Duration.ofSeconds(5)),
+                config.getBoolean("parties.friendly-fire", false),
+                duration(config, logger, "kit-editor.timeout", Duration.ofMinutes(5), Duration.ofSeconds(30)),
                 new Ranked(
                         integer(config, logger, "ranked.k-factor", 32, 1, 100),
                         integer(config, logger, "ranked.range", 100, 0, MAX_ELO_RANGE),
@@ -104,7 +109,8 @@ public record Settings(int countdownSeconds, Duration maxDuration, int endDelayS
     }
 
     private static Duration duration(ConfigurationSection config, Logger logger, String path, Duration fallback, Duration min) {
-        String raw = config.getString(path, "");
+        // Without a default argument, so a key missing from an older config.yml falls back to the bundled one.
+        String raw = Objects.requireNonNullElse(config.getString(path), "");
         try {
             Duration value = Durations.parse(raw);
             if (value.compareTo(min) >= 0) {

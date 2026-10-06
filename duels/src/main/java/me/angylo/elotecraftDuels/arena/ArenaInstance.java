@@ -1,7 +1,11 @@
 package me.angylo.elotecraftDuels.arena;
 
 import org.bukkit.Location;
+import org.bukkit.Material;
 import org.bukkit.World;
+import org.bukkit.block.Block;
+import org.bukkit.block.BlockFace;
+import org.bukkit.util.Vector;
 
 /**
  * Where one duel runs: an arena in its world. Borrowed from {@link ArenaInstances} for the length of the
@@ -53,6 +57,41 @@ public final class ArenaInstance {
     /** @param number 1 or 2 */
     public Location spawn(int number) {
         return arena.spawn(number, world);
+    }
+
+    /**
+     * Where side {@code index} of {@code sides} starts. Two sides use spawns 1 and 2. More use the arena's
+     * extra spawns if there is one for each; otherwise points spread evenly from spawn 1 to spawn 2, facing
+     * the middle, and spawn 1 or 2 in turn where such a point has no floor or is blocked.
+     */
+    public Location spawnFor(int index, int sides) {
+        Location fallback = spawn(index % 2 + 1);
+        if (sides <= 2) {
+            return fallback;
+        }
+        if (arena.extraSpawns().size() >= sides) {
+            return arena.extraSpawns().get(index).in(world);
+        }
+        Location from = spawn(1);
+        Vector line = spawn(2).toVector().subtract(from.toVector());
+        Location point = from.clone().add(line.clone().multiply((double) index / (sides - 1)));
+        Vector toMiddle = from.toVector().add(line.clone().multiply(0.5)).subtract(point.toVector()).setY(0);
+        if (toMiddle.lengthSquared() > 0) {
+            point.setDirection(toMiddle);
+        }
+        point.setPitch(0);
+        return standable(point) ? point : fallback;
+    }
+
+    /** Inside the arena, with a solid block below and room for a player: no solid block or lava. */
+    private boolean standable(Location location) {
+        Block feet = location.getBlock();
+        return contains(location) && free(feet) && free(feet.getRelative(BlockFace.UP))
+                && feet.getRelative(BlockFace.DOWN).getType().isSolid();
+    }
+
+    private static boolean free(Block block) {
+        return !block.getType().isSolid() && block.getType() != Material.LAVA;
     }
 
     public Location spectatorSpawn() {

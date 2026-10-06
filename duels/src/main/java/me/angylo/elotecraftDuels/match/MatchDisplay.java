@@ -38,13 +38,13 @@ final class MatchDisplay {
     }
 
     void starting(Match match) {
-        for (Player fighter : List.of(match.first(), match.second())) {
+        for (Player fighter : match.fighters()) {
             messages.send(fighter, "match.starting", with(setup(match), opponent(match, fighter)));
         }
     }
 
     void countdown(Match match, int seconds) {
-        for (Player fighter : List.of(match.first(), match.second())) {
+        for (Player fighter : match.fighters()) {
             title(fighter, "match.countdown-title", "match.countdown-subtitle",
                     Placeholder.unparsed("seconds", String.valueOf(seconds)), opponent(match, fighter));
             settings.get().effects().play(fighter, "countdown");
@@ -52,7 +52,7 @@ final class MatchDisplay {
     }
 
     void fightStarted(Match match) {
-        for (Player fighter : List.of(match.first(), match.second())) {
+        for (Player fighter : match.fighters()) {
             title(fighter, "match.fight-title", "match.fight-subtitle", opponent(match, fighter));
             settings.get().effects().play(fighter, "fight-start");
         }
@@ -117,17 +117,47 @@ final class MatchDisplay {
         }
     }
 
+    /** In a team fight, {@code <first>} is the first team and {@code <second>} everyone else. */
     void draw(Match match) {
         TagResolver[] tags = with(setup(match),
-                Placeholder.unparsed("first", match.first().getName()),
-                Placeholder.unparsed("second", match.second().getName()));
+                Placeholder.unparsed("first", names(match.teams().getFirst())),
+                Placeholder.unparsed("second", match.opponentNames(match.first().getUniqueId())));
         for (Player participant : match.participants()) {
-            messages.send(participant, "match.result-draw", tags);
+            messages.send(participant, match.isDuel() ? "match.result-draw" : "match.result-draw-team", tags);
         }
-        for (Player fighter : List.of(match.first(), match.second())) {
+        for (Player fighter : match.fighters()) {
             if (match.isParticipant(fighter)) {
                 title(fighter, "match.draw-title", "match.draw-subtitle");
                 settings.get().effects().play(fighter, "draw");
+            }
+        }
+    }
+
+    /** Tells everyone in a team fight that {@code fighter} is out. */
+    void knockedOut(Match match, Player fighter) {
+        for (Player participant : match.participants()) {
+            messages.send(participant, "match.knocked-out", Placeholder.unparsed("player", fighter.getName()));
+        }
+    }
+
+    /** Titles and a summary for a team fight that team {@code winnerTeam} won. */
+    void teamResult(Match match, int winnerTeam) {
+        List<Player> winners = match.teams().get(winnerTeam);
+        TagResolver[] tags = with(setup(match), Placeholder.unparsed("winners", names(winners)),
+                Placeholder.unparsed("time", Durations.format(Duration.ofSeconds(match.fightSeconds()))));
+        for (Player participant : match.participants()) {
+            messages.send(participant, "match.result-team", tags);
+        }
+        for (Player fighter : match.fighters()) {
+            if (!match.isParticipant(fighter)) {
+                continue;
+            }
+            if (winners.contains(fighter)) {
+                title(fighter, "match.victory-title", "match.victory-subtitle", opponent(match, fighter));
+                settings.get().effects().play(fighter, "victory");
+            } else {
+                title(fighter, "match.defeat-title", "match.team-defeat-subtitle", tags);
+                settings.get().effects().play(fighter, "defeat");
             }
         }
     }
@@ -149,8 +179,13 @@ final class MatchDisplay {
         return messages.get("match.boss-bar", Placeholder.unparsed("time", Durations.format(Duration.ofSeconds(seconds))));
     }
 
+    /** {@code <opponent>}: the other fighter, or everyone fighting against {@code fighter}. */
     private static TagResolver opponent(Match match, Player fighter) {
-        return Placeholder.unparsed("opponent", match.opponentOf(fighter).getName());
+        return Placeholder.unparsed("opponent", match.opponentNames(fighter.getUniqueId()));
+    }
+
+    private static String names(List<Player> players) {
+        return String.join(", ", players.stream().map(Player::getName).toList());
     }
 
     static TagResolver[] with(TagResolver[] tags, TagResolver... more) {

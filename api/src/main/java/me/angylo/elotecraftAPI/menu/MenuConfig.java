@@ -1,6 +1,9 @@
 package me.angylo.elotecraftAPI.menu;
 
 import me.angylo.elotecraftAPI.util.ItemBuilder;
+import me.angylo.elotecraftAPI.util.Text;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.configuration.ConfigurationSection;
@@ -72,20 +75,30 @@ public final class MenuConfig {
         return menu;
     }
 
-    private static Button button(ConfigurationSection item, Map<String, BiConsumer<Player, ClickType>> actions) {
-        String path = item.getCurrentPath();
-        ItemBuilder builder = ItemBuilder.of(material(item.getString("material", ""), path + ".material"))
-                .amount(item.getInt("amount", 1));
-        if (item.isString("name")) {
-            builder.name(item.getString("name"));
+    /**
+     * Builds one item from a section with the keys shown above ({@code material}, optional {@code amount},
+     * {@code name}, {@code lore}, {@code glint}, {@code model}), e.g. for buttons placed in a menu built in code.
+     * Tags such as {@code <kit>} in the name and lore are filled from {@code resolvers}.
+     *
+     * @throws IllegalArgumentException if the section is missing or has an unknown material or invalid model
+     */
+    public static ItemStack item(ConfigurationSection section, TagResolver... resolvers) {
+        if (section == null) {
+            throw new IllegalArgumentException("Missing item config section");
         }
-        if (item.isList("lore")) {
-            builder.lore(item.getStringList("lore"));
+        String path = section.getCurrentPath();
+        ItemBuilder builder = ItemBuilder.of(material(section.getString("material", ""), path + ".material"))
+                .amount(section.getInt("amount", 1));
+        if (section.isString("name")) {
+            builder.name(Text.mm(section.getString("name", ""), resolvers));
         }
-        if (item.isBoolean("glint")) {
-            builder.glint(item.getBoolean("glint"));
+        if (section.isList("lore")) {
+            builder.lore(section.getStringList("lore").stream().map(line -> Text.mm(line, resolvers)).toArray(Component[]::new));
         }
-        String modelName = item.getString("model");
+        if (section.isBoolean("glint")) {
+            builder.glint(section.getBoolean("glint"));
+        }
+        String modelName = section.getString("model");
         if (modelName != null) {
             NamespacedKey model = NamespacedKey.fromString(modelName);
             if (model == null) {
@@ -93,7 +106,12 @@ public final class MenuConfig {
             }
             builder.itemModel(model);
         }
-        ItemStack stack = builder.build();
+        return builder.build();
+    }
+
+    private static Button button(ConfigurationSection item, Map<String, BiConsumer<Player, ClickType>> actions) {
+        String path = item.getCurrentPath();
+        ItemStack stack = item(item);
         String action = item.getString("action");
         if (action == null) {
             return Button.display(stack);

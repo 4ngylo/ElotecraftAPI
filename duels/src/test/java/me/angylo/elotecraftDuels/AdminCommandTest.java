@@ -1,0 +1,158 @@
+package me.angylo.elotecraftDuels;
+
+import me.angylo.elotecraftDuels.arena.Arena;
+import me.angylo.elotecraftDuels.match.Match;
+import org.bukkit.Location;
+import org.bukkit.Material;
+import org.bukkit.inventory.ItemStack;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+/** Every {@code /duels} subcommand, as an operator would run it. */
+class AdminCommandTest extends DuelsTestBase {
+
+    private TestPlayer admin;
+
+    @BeforeEach
+    void setUpAdmin() {
+        admin = join("Admin");
+        admin.setOp(true);
+        readyArena("pit");
+        swordKit();
+    }
+
+    /** Runs the command, waits for file saves and returns the chat it produced. */
+    private List<String> run(String command) {
+        messages(admin);
+        server.dispatchCommand(admin, command);
+        List<String> lines = new ArrayList<>();
+        long deadline = System.currentTimeMillis() + 5000;
+        while (lines.isEmpty() && System.currentTimeMillis() < deadline) {
+            tick();
+            lines.addAll(messages(admin));
+            Thread.onSpinWait();
+        }
+        return lines;
+    }
+
+    private boolean said(String command, String text) {
+        List<String> lines = run(command);
+        return lines.stream().anyMatch(line -> line.contains(text)) ? true : fail(lines, text);
+    }
+
+    private static boolean fail(List<String> lines, String text) {
+        throw new AssertionError("Expected '" + text + "' in " + lines);
+    }
+
+    @Test
+    void helpPagesAndValidation() {
+        assertTrue(said("duels", "Duels admin"));
+        assertTrue(said("duels arena", "Arena setup"));
+        assertTrue(said("duels kit", "Kit setup"));
+        assertTrue(said("duels arena create Bad.Name", "Names use 1 to 32"));
+        assertTrue(said("duels arena create pit", "already exists"));
+        assertTrue(said("duels arena info nope", "There is no arena called 'nope'"));
+        assertTrue(said("duels arena setspawn pit 3", "Use 1 or 2."));
+    }
+
+    @Test
+    void arenaInfoListToggleRenameIconAndTeleport() {
+        assertTrue(said("duels arena info pit", "Status: ready"));
+        assertTrue(said("duels arena list", "Arenas (1):"));
+        assertTrue(said("duels arena toggle pit", "is disabled"));
+        assertFalse(duels.arenas().get("pit").orElseThrow().enabled());
+        assertTrue(said("duels arena toggle pit", "is enabled"));
+        assertTrue(said("duels arena setname pit <gold>The Pit", "now shown as The Pit"));
+        assertTrue(said("duels arena setname pit", "Type the name to show"));
+
+        admin.getInventory().setItemInMainHand(ItemStack.of(Material.NETHERITE_BLOCK));
+        assertTrue(said("duels arena seticon pit", "Set the icon"));
+        assertEquals(Material.NETHERITE_BLOCK, duels.arenas().get("pit").orElseThrow().icon());
+
+        admin.teleport(new Location(arenaWorld, 10, 64, 10));
+        assertTrue(said("duels arena setspectator pit", "spectator spawn"));
+        assertTrue(said("duels arena tp pit", "Teleported to"));
+        assertEquals(arenaWorld, admin.getWorld());
+    }
+
+    @Test
+    void pointsMustBeInTheArenasWorld() {
+        admin.teleport(new Location(world, 0, 64, 0));
+
+        assertTrue(said("duels arena setspawn pit 1", "is in world arena"));
+    }
+
+    @Test
+    void unreadyArenasExplainWhy() {
+        assertTrue(said("duels arena create empty", "Created arena empty"));
+        assertTrue(said("duels arena tp empty", "isn't ready: spawn 1 isn't set"));
+    }
+
+    @Test
+    void busyArenasCannotBeDeleted() {
+        TestPlayer alex = join("Alex");
+        TestPlayer steve = join("Steve");
+        duels.matches().start(alex, steve, duels.kits().get("sword").orElseThrow(), duels.arenas().get("pit").orElseThrow());
+
+        assertTrue(said("duels arena delete pit", "is in use"));
+        assertTrue(said("duels stop Alex", "Stopped Alex's duel."));
+        assertFalse(duels.matches().isBusy(steve));
+        assertTrue(said("duels stop Alex", "isn't in a duel"));
+        assertTrue(said("duels arena delete pit", "Deleted arena pit"));
+        assertTrue(duels.arenas().get("pit").isEmpty());
+    }
+
+    @Test
+    void kitsAreSavedLoadedAndListed() {
+        assertTrue(said("duels kit create empty", "Your inventory is empty"));
+        admin.getInventory().addItem(ItemStack.of(Material.TRIDENT));
+        assertTrue(said("duels kit create sea", "Created kit sea"));
+        assertTrue(said("duels kit create sea", "already exists"));
+
+        admin.getInventory().addItem(ItemStack.of(Material.COOKED_BEEF, 8));
+        assertTrue(said("duels kit save sea", "Saved your inventory"));
+        assertTrue(said("duels kit load sea", "Empty your inventory"));
+        admin.getInventory().clear();
+        assertTrue(said("duels kit load sea", "Loaded kit"));
+        assertTrue(admin.getInventory().contains(Material.COOKED_BEEF, 8));
+
+        admin.getInventory().setItemInMainHand(ItemStack.of(Material.PRISMARINE_SHARD));
+        assertTrue(said("duels kit seticon sea", "Set the icon"));
+        assertTrue(said("duels kit setname sea <aqua>Sea", "now shown as Sea"));
+        assertTrue(said("duels kit setpermission sea duels.kit.sea", "now needs duels.kit.sea"));
+        assertTrue(said("duels kit setpermission sea bad perm", "Permissions use"));
+        assertTrue(said("duels kit setpermission sea none", "Everyone can use"));
+        assertTrue(said("duels kit list", "Kits (2):"));
+        assertTrue(said("duels kit delete sea", "Deleted kit sea"));
+        assertTrue(said("duels kit info sea", "Kit setup"));
+    }
+
+    @Test
+    void reloadReadsTheFilesAgain() {
+        assertTrue(said("duels reload", "Reloaded"));
+        assertTrue(duels.arenas().get("pit").isPresent());
+    }
+
+    @Test
+    void adminStopCancelsWithoutResult() {
+        TestPlayer alex = join("Alex");
+        TestPlayer steve = join("Steve");
+        duels.matches().start(alex, steve, duels.kits().get("sword").orElseThrow(), duels.arenas().get("pit").orElseThrow());
+        Match match = duels.matches().matchOf(alex).orElseThrow();
+        tickUntil(() -> match.state() == Match.State.COUNTDOWN);
+
+        run("duels stop Steve");
+
+        assertEquals(0, duels.stats().cached(alex.getUniqueId()).orElseThrow().wins());
+        assertTrue(messages(alex).stream().anyMatch(line -> line.contains("An admin stopped the duel.")));
+        Arena pit = duels.arenas().get("pit").orElseThrow();
+        assertFalse(duels.matches().isArenaBusy(pit.name()));
+    }
+}

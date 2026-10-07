@@ -1,12 +1,14 @@
 package me.angylo.elotecraftAPI.menu;
 
 import me.angylo.elotecraftAPI.util.Text;
+import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.Material;
 import org.bukkit.configuration.InvalidConfigurationException;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.event.inventory.ClickType;
 import org.bukkit.inventory.Inventory;
+import org.bukkit.inventory.ItemStack;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -85,6 +87,27 @@ class MenuConfigTest {
         menu.handleClick(player.simulateInventoryClick(13));
         menu.handleClick(player.simulateInventoryClick(10));
         assertEquals(List.of("buy"), clicks);
+    }
+
+    @Test
+    void buildsSingleItemWithPlaceholders() throws InvalidConfigurationException {
+        YamlConfiguration config = new YamlConfiguration();
+        config.loadFromString("""
+                button:
+                  material: BOW
+                  amount: 3
+                  name: "<gold><kit>"
+                  lore: ["<gray>Queued: <queued>"]
+                """);
+
+        ItemStack item = MenuConfig.item(config.getConfigurationSection("button"),
+                Placeholder.unparsed("kit", "<red>Archer"), Placeholder.unparsed("queued", "4"));
+
+        assertEquals(Material.BOW, item.getType());
+        assertEquals(3, item.getAmount());
+        assertEquals("<red>Archer", Text.plain(item.getItemMeta().displayName()));
+        assertEquals("Queued: 4", Text.plain(item.getItemMeta().lore().getFirst()));
+        assertThrows(IllegalArgumentException.class, () -> MenuConfig.item(null));
     }
 
     @Test

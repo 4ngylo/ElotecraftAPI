@@ -1,5 +1,7 @@
 package me.angylo.elotecraftAPI.command;
 
+import me.angylo.elotecraftAPI.util.Text;
+import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandMap;
@@ -19,6 +21,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
+import java.util.function.Function;
 
 /**
  * Builds and registers a Bukkit command at runtime; no {@code plugin.yml} entry needed.
@@ -43,8 +46,9 @@ public final class CommandBuilder {
     String permission;
     BiConsumer<CommandSender, String[]> rootHandler;
     BiFunction<CommandSender, String[], List<String>> rootSuggester;
-    String noPermissionMessage = "<red>You do not have permission to do that.";
-    String playerOnlyMessage = "<red>Only players can use this command.";
+    /** {@code null} until {@link #messages} is called: a nested group then uses its parent's. */
+    Function<CommandSender, Component> noPermissionMessage;
+    Function<CommandSender, Component> playerOnlyMessage;
     private List<String> aliases = List.of();
     private String description = "";
 
@@ -74,13 +78,18 @@ public final class CommandBuilder {
     }
 
     /**
-     * Runs for {@code /name} with no arguments, or for every call if no subcommands are added.
-     * Without it, {@code /name} shows usage.
+     * Runs whenever no subcommand matches: for {@code /name} with no arguments, when the first argument
+     * is not a subcommand (e.g. a player in {@code /duel <player>}; subcommand names win), or for every
+     * call if no subcommands are added. It receives all arguments. Without it, those calls show usage.
      */
     public CommandBuilder executes(BiConsumer<CommandSender, String[]> handler) {
         return executes(handler, null);
     }
 
+    /**
+     * Like {@link #executes(BiConsumer)}; {@code suggester} completes the first argument next to the
+     * subcommand names, and later arguments when the first is not a subcommand.
+     */
     public CommandBuilder executes(BiConsumer<CommandSender, String[]> handler,
                                    BiFunction<CommandSender, String[], List<String>> suggester) {
         this.rootHandler = handler;
@@ -116,8 +125,18 @@ public final class CommandBuilder {
         return addSub(group.name, group);
     }
 
-    /** MiniMessage overrides for the built-in error messages. */
+    /** MiniMessage overrides for the built-in error messages; nested groups without their own use these. */
     public CommandBuilder messages(String noPermission, String playerOnly) {
+        Component noPermissionText = Text.mm(noPermission);
+        Component playerOnlyText = Text.mm(playerOnly);
+        return messages(sender -> noPermissionText, sender -> playerOnlyText);
+    }
+
+    /**
+     * Built-in error messages made for each sender when sent, e.g. from a {@code Messages} file so they follow
+     * the player's language and reloads. Nested groups without their own use these.
+     */
+    public CommandBuilder messages(Function<CommandSender, Component> noPermission, Function<CommandSender, Component> playerOnly) {
         this.noPermissionMessage = noPermission;
         this.playerOnlyMessage = playerOnly;
         return this;

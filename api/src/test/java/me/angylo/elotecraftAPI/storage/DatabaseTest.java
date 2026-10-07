@@ -127,6 +127,30 @@ class DatabaseTest {
     }
 
     @Test
+    void runBlockingWorksOffTheMainThreadOnly() throws Exception {
+        UUID steve = UUID.randomUUID();
+        await(db.update(INSERT, steve, "Steve", 7));
+
+        CompletableFuture<Integer> coins = CompletableFuture.supplyAsync(() -> {
+            try {
+                return db.runBlocking(connection -> {
+                    try (PreparedStatement statement = connection.prepareStatement("SELECT coins FROM players WHERE uuid = ?")) {
+                        statement.setString(1, steve.toString());
+                        try (var rows = statement.executeQuery()) {
+                            return rows.next() ? rows.getInt(1) : -1;
+                        }
+                    }
+                });
+            } catch (SQLException e) {
+                throw new CompletionException(e);
+            }
+        });
+
+        assertEquals(7, coins.get());
+        assertThrows(IllegalStateException.class, () -> db.runBlocking(connection -> 1));
+    }
+
+    @Test
     void callbacksRunOnMainThread() {
         AtomicBoolean onMain = new AtomicBoolean();
 

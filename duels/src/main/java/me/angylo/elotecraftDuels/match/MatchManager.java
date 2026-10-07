@@ -73,8 +73,10 @@ public final class MatchManager {
     private final SnapshotStore snapshots;
     private final StatsService stats;
     private final KitLayouts layouts;
-    /** Players busy outside matches, such as in the kit editor. */
+    /** Players busy outside matches under match rules, such as in the kit editor. */
     private Predicate<Player> busyElsewhere = player -> false;
+    /** Players waiting for something else, such as an event: busy, but free to do anything else. */
+    private Predicate<Player> waitingElsewhere = player -> false;
     private final Rewards rewards;
     private final MatchDisplay display;
     /** Fighters and spectators; read by placeholders from other threads. */
@@ -97,14 +99,27 @@ public final class MatchManager {
         this.display = new MatchDisplay(messages, settings);
     }
 
-    /** Whether {@code player} is fighting or spectating. */
+    /** Whether {@code player} is fighting, spectating, editing a kit or waiting for an event. */
     public boolean isBusy(Player player) {
+        return isRestricted(player) || waitingElsewhere.test(player);
+    }
+
+    /**
+     * Whether match rules apply to {@code player}: fighting, spectating or editing a kit. No commands,
+     * other menus, drops or block use.
+     */
+    public boolean isRestricted(Player player) {
         return byPlayer.containsKey(player.getUniqueId()) || busyElsewhere.test(player);
     }
 
-    /** Players {@code busy} names count as busy too: they cannot be queued, challenged or spectate. */
+    /** Players {@code busy} names are busy and restricted too: they cannot be queued, challenged or spectate. */
     public void busyElsewhere(Predicate<Player> busy) {
         this.busyElsewhere = busy;
+    }
+
+    /** Players {@code waiting} names are busy, but not {@link #isRestricted restricted}. */
+    public void waitingElsewhere(Predicate<Player> waiting) {
+        this.waitingElsewhere = waiting;
     }
 
     public Optional<Match> matchOf(Player player) {
@@ -119,6 +134,11 @@ public final class MatchManager {
     /** Safe from any thread. */
     public int activeMatches() {
         return running.size();
+    }
+
+    /** Every match that has not finished yet. */
+    public List<Match> running() {
+        return List.copyOf(running);
     }
 
     /** Players fighting with {@code kit} right now. */
@@ -184,6 +204,11 @@ public final class MatchManager {
      * @return false if anyone is busy or the arena is not ready and free; callers check and explain first
      */
     public boolean start(List<List<Player>> teams, Kit kit, Arena arena, Type type, boolean ranked) {
+        return start(teams, kit, arena, type, ranked, Match.Options.DEFAULT);
+    }
+
+    /** Like {@link #start(List, Kit, Arena, Type, boolean)}, with how the fight ends and who may watch it. */
+    public boolean start(List<List<Player>> teams, Kit kit, Arena arena, Type type, boolean ranked, Match.Options options) {
         List<Player> fighters = teams.stream().flatMap(List::stream).toList();
         if (teams.size() < 2 || teams.stream().anyMatch(List::isEmpty) || Set.copyOf(fighters).size() != fighters.size()
                 || !fighters.stream().allMatch(this::available) || !instances.available(arena)) {
@@ -202,7 +227,7 @@ public final class MatchManager {
             fighters.forEach(fighter -> messages.send(fighter, "match.arena-failed"));
             return true;
         }
-        Match match = new Match(instance, kit, teams, type, ranked && type == Type.DUEL);
+        Match match = new Match(instance, kit, teams, type, ranked && type == Type.DUEL, options);
         for (Player fighter : fighters) {
             match.addSnapshot(fighter, taken.get(fighter.getUniqueId()));
         }
@@ -507,15 +532,23 @@ public final class MatchManager {
                     match.state(State.FIGHTING);
                     match.fightSeconds(0);
                     display.fightStarted(match);
+                    if (match.options().border()) {
+                        FightBorder border = FightBorder.around(match.arena().bounds(), settings.get().events().border());
+                        match.border(border);
+                        match.fighters().stream().filter(match::isFighting).forEach(border::show);
+                    }
                 }
             }
             case FIGHTING -> {
                 match.fightSeconds(match.fightSeconds() + 1);
                 int left = match.maxFightSeconds() - match.fightSeconds();
                 if (left <= 0) {
-                    end(match, null, EndReason.TIMEOUT);
+                    end(match, List.of(), EndReason.TIMEOUT);
                 } else {
                     display.timeLeft(match, left);
+                    if (match.border() != null) {
+                        match.border().tick(match, match.fightSeconds());
+                    }
                 }
             }
             case ENDING -> {
@@ -528,36 +561,41 @@ public final class MatchManager {
         }
     }
 
-    /** Takes {@code fighter} out of the fight; once one team is left, it wins. */
+    /** Takes {@code fighter} out of the fight; once only as many teams as win are left, they win. */
     private void knockOut(Match match, Player fighter, EndReason reason) {
         match.knockOut(fighter);
         if (match.isParticipant(fighter) && !fighter.isDead()) {
             fighter.setGameMode(GameMode.SPECTATOR);
         }
         List<Integer> left = match.teamsLeft();
-        if (left.size() <= 1) {
-            end(match, left.isEmpty() ? null : left.getFirst(), reason);
+        if (left.size() <= match.options().winners()) {
+            end(match, left, reason);
         } else {
             display.knockedOut(match, fighter);
         }
     }
 
-    /** @param winnerTeam null for a draw */
-    private void end(Match match, Integer winnerTeam, EndReason reason) {
+    /** @param winnerTeams empty for a draw */
+    private void end(Match match, List<Integer> winnerTeams, EndReason reason) {
         if (match.isOver() || match.state() == State.ENDING) {
             return;
         }
         match.state(State.ENDING);
         display.removeBossBar(match);
-        if (winnerTeam == null) {
+        if (winnerTeams.isEmpty()) {
             display.draw(match);
         } else if (match.isDuel()) {
-            endDuel(match, match.teams().get(winnerTeam).getFirst(), reason);
+            endDuel(match, match.teams().get(winnerTeams.getFirst()).getFirst(), reason);
         } else {
-            display.teamResult(match, winnerTeam);
+            display.teamResult(match, winnerTeams);
+            // Like duels, only a real fight pays out: not an event the last opponents quit or forfeited.
+            if (match.type() == Type.EVENT && reason == EndReason.ELIMINATED) {
+                winnerTeams.forEach(team -> match.teams().get(team).stream().filter(match::isParticipant)
+                        .forEach(winner -> rewards.giveEvent(winner, match)));
+            }
         }
         offerRematch(match);
-        logResult(match, winnerTeam, reason);
+        logResult(match, winnerTeams, reason);
         match.secondsLeft(settings.get().endDelaySeconds());
         if (match.secondsLeft() <= 0) {
             finish(match);
@@ -603,20 +641,28 @@ public final class MatchManager {
         }
     }
 
-    private void logResult(Match match, Integer winnerTeam, EndReason reason) {
+    private void logResult(Match match, List<Integer> winnerTeams, EndReason reason) {
         if (!settings.get().logResults()) {
             return;
         }
         String details = " (" + match.kit().name() + ", " + match.arena().name() + ", "
                 + Durations.format(Duration.ofSeconds(match.fightSeconds())) + ")";
         String how = " by " + reason.name().toLowerCase(Locale.ROOT) + details;
-        if (winnerTeam == null) {
-            logger.info((match.isDuel() ? "Duel " : "Party fight ") + names(match.fighters(), " vs ") + " was a draw" + details);
+        String fight = switch (match.type()) {
+            case DUEL -> "Duel";
+            case PARTY -> "Party fight";
+            case EVENT -> match.options().host() + "'s event";
+        };
+        if (winnerTeams.isEmpty()) {
+            logger.info(fight + " " + names(match.fighters(), " vs ") + " was a draw" + details);
+        } else if (match.isDuel()) {
+            Player winner = match.teams().get(winnerTeams.getFirst()).getFirst();
+            logger.info(winner.getName() + " beat " + match.opponentOf(winner).getName() + how);
         } else {
-            Player winner = match.teams().get(winnerTeam).getFirst();
-            logger.info(match.isDuel() ? winner.getName() + " beat " + match.opponentOf(winner).getName() + how
-                    : names(match.teams().get(winnerTeam), ", ") + " won a party fight against "
-                    + match.opponentNames(winner.getUniqueId()) + how);
+            List<Player> winners = winnerTeams.stream().flatMap(team -> match.teams().get(team).stream()).toList();
+            List<Player> losers = match.fighters().stream().filter(fighter -> !winners.contains(fighter)).toList();
+            logger.info(names(winners, ", ") + " won " + (match.type() == Type.EVENT ? fight : "a party fight")
+                    + " against " + names(losers, ", ") + how);
         }
     }
 
@@ -659,6 +705,9 @@ public final class MatchManager {
         byPlayer.remove(player.getUniqueId(), match);
         if (match.bossBar() != null) {
             player.hideBossBar(match.bossBar());
+        }
+        if (match.border() != null && match.isFighter(player)) {
+            FightBorder.hide(player);
         }
         match.release(player).ifPresent(snapshot -> snapshots.restore(player, snapshot, teleportNow));
     }

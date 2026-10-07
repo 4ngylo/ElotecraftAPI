@@ -10,6 +10,14 @@ command:
   duel-description: "Challenge players to 1v1 duels"
   admin-description: "Manage duel arenas and kits"
   party-description: "Play with friends in a party"
+  event-description: "Join, watch and host player events"
+  event-help: |-
+    <gradient:#ff416c:#ff4b2b><bold>⚔ Events</bold></gradient>
+    <yellow>/event</yellow> <dark_gray>-</dark_gray> <gray>events to join or watch (your settings while you host)
+    <yellow>/event join <host></yellow> <dark_gray>·</dark_gray> <yellow>/event leave</yellow> <dark_gray>-</dark_gray> <gray>join or leave an event
+    <yellow>/event host [kit]</yellow> <dark_gray>-</dark_gray> <gray>host one: pick the kit, arena, rules, teams and winners
+    <yellow>/event settings|start|cancel</yellow> <dark_gray>-</dark_gray> <gray>run your event
+    <yellow>/event invite <player></yellow> <dark_gray>-</dark_gray> <gray>let someone into your private event
   party-help: |-
     <gradient:#ff416c:#ff4b2b><bold>⚔ Parties</bold></gradient>
     <yellow>/party <player></yellow> <dark_gray>-</dark_gray> <gray>invite someone (makes a party if you have none)
@@ -76,7 +84,7 @@ general:
   arena-not-found: "<prefix><red>There is no arena called '<arena>'."
   no-kits: "<prefix><red>No kits have been set up yet."
   kit-locked: "<prefix><red>You can't use the <kit> kit."
-  busy-self: "<prefix><red>You're already in a duel, a queue or spectating. <gray>Use <white>/duel leave</white> first."
+  busy-self: "<prefix><red>You're already in a duel, a queue, an event or spectating. <gray>Use <white>/duel leave</white> first."
   busy-other: "<prefix><red><player> is busy right now."
   no-free-arena: "<prefix><red>Every arena is in use; try again in a moment."
   arena-busy: "<prefix><red><arena> is in use; pick another arena or a random one."
@@ -86,7 +94,7 @@ general:
   storage-error: "<prefix><red>Your duel data couldn't be saved, so nothing changed. Try again or tell an admin."
   menu-error: "<prefix><red>That menu is misconfigured; please tell an admin."
   restored: "<prefix><gray>Your items and position were restored from a duel that didn't finish."
-  nothing-to-leave: "<prefix><red>You're not in a queue, a duel or spectating."
+  nothing-to-leave: "<prefix><red>You're not in a queue, an event, a duel or spectating."
   random-arena: "Random arena"
   slow-down: "<prefix><red>Wait <time> before doing that again."
   kit-build: "<green>Building allowed"
@@ -170,6 +178,7 @@ spectate:
   stopped: "<prefix><gray>You stopped spectating."
   ended: "<prefix><gray>The duel you were watching ended."
   failed: "<prefix><red>Couldn't take you to that duel."
+  not-allowed: "<prefix><red>That fight can't be watched."
 
 editor:
   started: "<prefix><gray>Arrange <white><kit></white> in your inventory, then <save><green><bold>[SAVE]</bold></green></save> or <cancel><red><bold>[CANCEL]</bold></red></cancel> <dark_gray>(/duel editkit save|cancel)"
@@ -224,6 +233,47 @@ party:
   duel-gone: "<prefix><red>That party or its kit is gone."
   duel-you-denied: "<prefix><gray>You denied the party challenge."
   duel-denied: "<prefix><white><player></white> <gray>denied your party challenge."
+
+# Player-hosted events. <host> is the host's name; <players>, <min> and <max> count players.
+event:
+  mode-ffa: "Free for all"
+  mode-teams: "Team vs team"
+  hosted: "<prefix><green>You're hosting a <white><kit></white> event. <gray>Change it in the menu or with <white>/event settings</white>; start it with <white>/event start</white>."
+  announce: "<prefix><white><host></white> <gray>is hosting a <white><kit></white> event <dark_gray>(<mode> · <arena> · <players>/<max> · starts in <time>)</dark_gray> <join><green><bold>[JOIN]</bold></green></join>"
+  join-hover: "<green>Click to join"
+  joined: "<prefix><green>You joined <white><host></white>'s event <gray>(<players>/<max>). <dark_gray>Use /event leave to leave."
+  player-joined: "<prefix><white><player></white> <gray>joined the event <dark_gray>(<players>/<max>)"
+  left: "<prefix><gray>You left the event."
+  player-left: "<prefix><white><player></white> <gray>left the event <dark_gray>(<players>/<max>)"
+  already-in: "<prefix><red>You're already in an event. <gray>Use <white>/event leave</white> first."
+  already-joined: "<prefix><red><player> is already in your event."
+  full: "<prefix><red>That event is full."
+  private: "<prefix><red><host>'s event is private; ask them for an invite."
+  not-found: "<prefix><red><player> isn't hosting an event you can join."
+  not-host: "<prefix><red>Only the host can do that."
+  not-hosting: "<prefix><red>You're not hosting an event. <gray>Host one with <white>/event host</white>."
+  not-in-event: "<prefix><red>You're not in an event."
+  cooldown: "<prefix><red>Wait <time> before hosting another event."
+  invited: "<prefix><green>Invited <white><player></white> to your event."
+  invite-received: "<prefix><white><host></white> <gray>invited you to their <white><kit></white> event. <join><green><bold>[JOIN]</bold></green></join>"
+  prompt-invite: "<prefix><gray>Type the name of a player to invite, or <white>cancel</white>."
+  # Why the host's /event start did not work; the event keeps waiting.
+  not-enough: "<prefix><red>At least <min> players are needed to start."
+  no-free-arena: "<prefix><red>Every arena for this kit is in use; try again in a moment."
+  no-arena: "<prefix><red>No arena is ready for this event's kit."
+  kit-gone: "<prefix><red>This event's kit is gone."
+  # Sent to everyone in an event that ends before it starts.
+  cancelled: "<prefix><red><host> cancelled their event."
+  cancelled-host-left: "<prefix><red><host> left, so their event was cancelled."
+  cancelled-not-enough: "<prefix><red>Fewer than <min> players joined <host>'s event, so it was cancelled."
+  cancelled-no-free-arena: "<prefix><red>No arena was free for <host>'s event, so it was cancelled."
+  cancelled-no-arena: "<prefix><red>No arena is ready for the kit of <host>'s event, so it was cancelled."
+  cancelled-kit-gone: "<prefix><red>The kit of <host>'s event is gone, so it was cancelled."
+  start-failed: "<prefix><red><host>'s event couldn't start; try again."
+  starting: "<prefix><gray><white><host></white>'s event begins: <white><players></white> players <dark_gray>·</dark_gray> <white><kit></white> <dark_gray>·</dark_gray> <white><arena>"
+  # When the fight ends; <winners> are the last players or team standing.
+  result: "<prefix><gold><bold>EVENT</bold></gold> <white><winners></white> <gray>won <white><host></white>'s event <dark_gray>(<time> · <kit>)"
+  reward: "<prefix><green>+<amount> <gray>for winning the event."
 
 stats:
   show: |-

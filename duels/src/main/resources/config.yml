@@ -67,6 +67,28 @@ parties:
 kit-editor:
   timeout: 5m             # /duel editkit ends without saving after this
 
+# Player-hosted events (/event): the host picks the kit, arena, rules, teams and winner count while
+# players join, then everyone fights once. Events never change stats or ratings.
+events:
+  min-players: 2          # 2 to 100; an event with fewer when its wait ends is cancelled
+  max-players: 16         # 2 to 100; it starts at once when full
+  wait-time: 2m           # how long players can join before it starts on its own
+  announce-interval: 30s  # how often a public event is announced again while it waits
+  host-cooldown: 5m       # between events hosted by one player; duels.bypass.cooldown skips it
+  broadcast-result: true  # tell the whole server who won; false: only the players in it
+  # Paid to each winner of a fight won by a lethal hit. Money needs Vault and an economy plugin;
+  # commands run from the console and may use <winner>, <host>, <kit> and <arena>. Leave both
+  # empty for no prize: the result is only announced.
+  reward:
+    money: 0
+    commands: []
+  # The border the host can turn on: it starts around the arena and closes in.
+  border:
+    delay: 60s            # fight time before it starts closing in
+    shrink-time: 2m       # how long it takes to reach min-size
+    min-size: 10          # 1 to 1000 blocks across at the end
+    damage: 1.0           # 0 to 20 health a second outside it (2 = one heart)
+
 # A sidebar gives the player their own scoreboard, so it hides other plugins' sidebars and nametag
 # teams for them while it shows. Texts are in messages.yml under sidebar.
 sidebar:

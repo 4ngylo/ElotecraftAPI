@@ -76,7 +76,7 @@ public final class BuildListener implements Listener {
     @EventHandler(priority = EventPriority.LOW, ignoreCancelled = true)
     public void onPlace(BlockPlaceEvent event) {
         Player player = event.getPlayer();
-        if (!matches.isBusy(player)) {
+        if (!matches.isRestricted(player)) {
             return;
         }
         ArenaInstance instance = buildable(player, event.getBlock());
@@ -98,7 +98,7 @@ public final class BuildListener implements Listener {
     public void onInteract(PlayerInteractEvent event) {
         Block clicked = event.getClickedBlock();
         if (event.getAction() != Action.RIGHT_CLICK_BLOCK || clicked == null || event.useInteractedBlock() == Event.Result.DENY
-                || !matches.isBusy(event.getPlayer())) {
+                || !matches.isRestricted(event.getPlayer())) {
             return;
         }
         ArenaInstance instance = buildable(event.getPlayer(), clicked);
@@ -298,7 +298,7 @@ public final class BuildListener implements Listener {
      * its build limit.
      */
     private void addBlock(Player player, Block block, Cancellable event) {
-        if (!matches.isBusy(player)) {
+        if (!matches.isRestricted(player)) {
             return;
         }
         ArenaInstance instance = buildable(player, block);
@@ -316,7 +316,7 @@ public final class BuildListener implements Listener {
      * @return whether it is allowed
      */
     private boolean removeBlock(Player player, Block block, Cancellable event) {
-        if (!matches.isBusy(player)) {
+        if (!matches.isRestricted(player)) {
             return false;
         }
         ArenaInstance instance = buildable(player, block);

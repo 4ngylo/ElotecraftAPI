@@ -154,7 +154,7 @@ public final class ProtectionListener implements Listener {
     @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
     public void onCommand(PlayerCommandPreprocessEvent event) {
         Player player = event.getPlayer();
-        if (matches.isBusy(player) && !allowed(event.getMessage())) {
+        if (matches.isRestricted(player) && !allowed(event.getMessage())) {
             event.setCancelled(true);
             messages.send(player, "match.blocked-command");
         }
@@ -172,7 +172,7 @@ public final class ProtectionListener implements Listener {
     }
 
     private void cancelIfBusy(Player player, Cancellable event) {
-        if (player != null && matches.isBusy(player)) {
+        if (player != null && matches.isRestricted(player)) {
             event.setCancelled(true);
         }
     }

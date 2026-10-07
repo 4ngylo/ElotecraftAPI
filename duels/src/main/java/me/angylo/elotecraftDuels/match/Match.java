@@ -43,9 +43,28 @@ public final class Match {
         ELIMINATED, QUIT, FORFEIT, TIMEOUT
     }
 
-    /** What kind of fight: only duels count in the stats, pay rewards and offer rematches. */
+    /** What kind of fight: only duels count in the stats, pay rewards and offer rematches; events pay their own. */
     public enum Type {
-        DUEL, PARTY
+        DUEL, PARTY, EVENT
+    }
+
+    /**
+     * How a fight ends and who may watch it; duels and party fights use {@link #DEFAULT}.
+     *
+     * @param winners     how many teams win: the fight ends once this many or fewer have a fighter left
+     * @param spectatable whether outsiders may watch
+     * @param border      whether a border closes in on the fighters (config.yml {@code events.border})
+     * @param host        the name of the player hosting an event, or null
+     */
+    public record Options(int winners, boolean spectatable, boolean border, String host) {
+
+        public static final Options DEFAULT = new Options(1, true, false, null);
+
+        public Options {
+            if (winners < 1) {
+                throw new IllegalArgumentException("At least one winner: " + winners);
+            }
+        }
     }
 
     private final ArenaInstance instance;
@@ -55,6 +74,7 @@ public final class Match {
     private final Type type;
     /** Whether the result moves the fighters' Elo ratings: duels from the queue. */
     private final boolean ranked;
+    private final Options options;
     /** Fighters knocked out of the fight. */
     private final Set<UUID> knockedOut = new HashSet<>();
     /** Everyone still to be restored, fighters and spectators, with their pre-duel state. */
@@ -69,19 +89,25 @@ public final class Match {
     private int fightSeconds;
     private int maxFightSeconds;
     private BossBar bossBar;
+    private FightBorder border;
     private BukkitTask task;
     private boolean over;
 
-    Match(ArenaInstance instance, Kit kit, List<List<Player>> teams, Type type, boolean ranked) {
+    Match(ArenaInstance instance, Kit kit, List<List<Player>> teams, Type type, boolean ranked, Options options) {
         this.instance = instance;
         this.kit = kit;
         this.teams = teams.stream().map(List::copyOf).toList();
         this.type = type;
         this.ranked = ranked;
+        this.options = options;
     }
 
     public Type type() {
         return type;
+    }
+
+    public Options options() {
+        return options;
     }
 
     public boolean isDuel() {
@@ -284,6 +310,15 @@ public final class Match {
 
     void bossBar(BossBar bar) {
         bossBar = bar;
+    }
+
+    /** The closing border, once the fight started with one; else null. */
+    FightBorder border() {
+        return border;
+    }
+
+    void border(FightBorder newBorder) {
+        border = newBorder;
     }
 
     BukkitTask task() {

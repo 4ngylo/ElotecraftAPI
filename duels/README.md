@@ -12,6 +12,8 @@ are put back after build duels, even after a crash.
 2. Optional: [Vault](https://www.spigotmc.org/resources/vault.34315/) with an economy plugin for money
    rewards, and [PlaceholderAPI](https://www.spigotmc.org/resources/placeholderapi.6245/) for placeholders.
 3. Start the server once; `plugins/ElotecraftDuels/` gets `config.yml`, `messages.yml` and `menus.yml`.
+   After an update, settings, messages and menu buttons new in that version are added to these files with
+   their comments; your values stay, and the file as it was is kept once as `<file>.bak`.
 
 Statistics go to `duels.db` (SQLite) by default. For MySQL or MariaDB, set `database.type: mysql` and the
 connection keys in `config.yml`, then restart.
@@ -35,9 +37,7 @@ Arenas and kits are made in game with `/duels` (operators by default).
 source) with buttons for a new arena and a schematic import, and `/duels arena desert` opens one arena's
 settings: status, enabled, spawns, corners, WorldEdit box, spectator, center, FFA spawns, icon, name,
 categories, build limit, teleport, snapshot, pregen copies, reset and delete (reset, delete and clearing
-copies or FFA spawns need shift + right-click). Point buttons use the place you stand when you click; names and numbers are typed in chat. `/duels arena help` lists the commands. After updating, delete
-`menus.yml` (or copy in its new `arena-admin`, `arena-settings`, `kit-admin` and `kit-settings` sections)
-so the menus exist.
+copies or FFA spawns need shift + right-click). Point buttons use the place you stand when you click; names and numbers are typed in chat. `/duels arena help` lists the commands.
 
 A fighter who falls out of the bottom of the box loses, as in the void (`rules.void-eliminates`); leaving
 it any other way sends them back to their spawn.
@@ -136,6 +136,7 @@ defaults: set them by hand, e.g. `/duels kit rule uhc natural-regeneration false
 | `hit-delay` | true | false: combo mode, hits land almost every tick instead of twice a second |
 | `arrow-pickup` | true | Shot arrows can be picked back up (tridents always can) |
 | `crafting` | true | The 2x2 crafting grid works |
+| `potions` | true | Potions can be drunk and thrown (splash and lingering) |
 | `pearl-cooldown` | vanilla (1s) | Seconds between ender pearls, 0 to 60 (0: none) |
 
 ## Build kits
@@ -177,14 +178,19 @@ with their arena and limited to 256 x 256 blocks across.
 | `/party leave`, `/party info` | `duels.party` | Leave the party, list its members |
 | `/party split [kit] [arena]`, `/party ffa [kit] [arena]` | `duels.party.fight` | Leader: two teams picked in a menu, or everyone for themselves |
 | `/party duel <leader> [kit] [arena]`, `/party duelaccept\|dueldeny [leader]` | `duels.party.fight` | Leader: challenge another party, or answer a challenge |
+| `/event` | `duels.event` | Events to join or watch; your event's settings while you host one |
+| `/event join <host>`, `/event leave` | `duels.event` | Join or leave an event that has not started (`/duel leave` works too) |
+| `/event host [kit]` | `duels.event.host` | Host an event (kit menu without a kit), then set it up in its menu |
+| `/event settings\|start\|cancel`, `/event invite <player>` | `duels.event.host` | Run your event; invite players to a private one (`duels.event.host.private` makes it private) |
 | `/duels arena ...` | `duels.admin.arena` | menus: no argument or an arena name; `help`, `create`, `delete`, `setspawn`, `setcorner`, `setbox`, `import`, `setspectator`, `setcenter`, `seticon`, `setname`, `category`, `buildlimit`, `toggle`, `info`, `tp`, `list`, `snapshot`, `reset`, `pregen` |
 | `/duels kit ...` | `duels.admin.kit` | menus: no argument or a kit name; `help`, `create`, `save`, `load`, `delete`, `seticon`, `setname`, `setpermission`, `build`, `damage`, `rule`, `arenas`, `defaults`, `list` |
 | `/duels stop <player>` | `duels.admin.stop` | End a duel without a result |
 | `/duels reload` | `duels.admin.reload` | Reload config, messages, menus, arenas and kits |
 
 Choosing the arena needs `duels.select-arena`; without it arenas are random. `duels.player` (everyone by
-default) grants all player permissions; `duels.admin` (operators) grants all admin ones plus
-`duels.bypass.cooldown`. `/duels` itself needs `duels.admin`.
+default) grants all player permissions, hosting events included; `duels.admin` (operators) grants all
+admin ones plus `duels.bypass.cooldown`, which also skips the event host cooldown, and can watch events
+that forbid spectators. `/duels` itself needs `duels.admin`.
 
 ## How a duel runs
 
@@ -211,12 +217,12 @@ cut short by a crash is undone when the player next joins.
 
 - `config.yml`: database, countdown, duration, end delay, boss bar, request expiry and cooldown, rematch
   window, hunger, regeneration and void rules, allowed commands, build kit and arena regen rules, the
-  arenas world and pregen spacing, ranked rating and queue range, party size and invite expiry, the sidebar, rewards, title timings, sounds and
-  particles.
+  arenas world and pregen spacing, ranked rating and queue range, party size and invite expiry, events,
+  the sidebar, rewards, title timings, sounds and particles.
   Invalid values are logged and replaced by defaults.
 - `messages.yml`: every text players see, in [MiniMessage](https://docs.advntr.dev/minimessage/format.html).
   Add `messages_<language>.yml` (e.g. `messages_es.yml`) for players whose client uses that language.
-- `menus.yml`: titles, sizes, filler and button items of the kit, arena, team and admin menus.
+- `menus.yml`: titles, sizes, filler and button items of the kit, arena, team, event and admin menus.
 
 Rewards are paid when a duel ends with a lethal hit (not for forfeits, quits, draws or cancelled duels, so
 accounts cannot farm them): money through Vault and console commands with `<winner>`, `<loser>`, `<kit>`
@@ -243,6 +249,35 @@ Layouts are in `messages.yml` under `sidebar`, one row per line, at most 15.
 A sidebar gives the player their own scoreboard while it shows, so other plugins' sidebars and nametag
 teams (TAB, nametag colours) disappear for them; leave `sidebar.lobby` off if you use such a plugin. A
 sidebar another plugin shows through ElotecraftAPI is never replaced.
+
+## Events
+
+Players host events with `/event host [kit]`. The event is announced to everyone with a clickable
+[JOIN] (again every `events.announce-interval`) and listed in `/event`. While players gather, the host
+sets it up in the Event Settings menu (`/event settings`):
+
+- **Kit** and **arena** (random by default; choosing one needs `duels.select-arena`).
+- **Rules**: the kit's game rules for this event only (potions, hunger, fall damage...); the kit
+  itself is not changed. Changing the kit resets them.
+- **Mode**: free for all, or team vs team. Teams are picked in the team menu when the host starts it,
+  or split at random when it starts on its own.
+- **Winners**: in a free for all, how many of the last players standing win.
+- **Border**: closes in on the fighters (`events.border`): it starts around the arena, waits `delay`
+  into the fight, then shrinks to `min-size` blocks across over `shrink-time`; fighters outside lose
+  `damage` health a second. Each fighter is shown their own border, so the world border is untouched.
+- **Public**: off makes it private, for players invited with `/event invite` only (not announced or listed).
+- **Spectators**: off stops anyone but staff from watching it.
+
+It starts when the host clicks Start (`/event start`), at once when `events.max-players` have joined, or
+when `events.wait-time` runs out; with fewer than `events.min-players` then, or no free arena, it is
+cancelled. The host leaving or quitting cancels it too. Joined players can do anything in the lobby, but
+cannot queue, duel or spectate until it starts or they `/event leave`.
+
+The fight runs like a party fight: knocked-out players watch until it is decided, then everyone is put
+back. The result goes to the whole server (`events.broadcast-result`). With a lethal hit deciding it,
+each winner gets `events.reward`: money through Vault and console commands with `<winner>`, `<host>`,
+`<kit>` and `<arena>`. Leave it empty (the default) for a broadcast only. Events never change stats or
+ratings, and a host waits `events.host-cooldown` between events.
 
 ## Placeholders
 
@@ -285,9 +320,13 @@ The automated tests run on MockBukkit, which cannot click menus. Before a releas
 - [ ] Sidebar: the duel layout during a fight (time counts down, opponent health), the team layout in a
   party fight, the spectator one; with `sidebar.lobby: true` the stats come back after the fight and
   `/duels reload` with it off removes them
+- [ ] Events: `/event host`, [JOIN] in chat and the `/event` list, every Event Settings button, Start in
+  team mode opens the team menu, a free for all with 2 winners, a private event refusing an uninvited
+  player, spectators refused when off, the border closing in and hurting fighters outside it, potions
+  blocked by an event rule, the reward command once per winner, the host quitting cancels
 
 ## Not included
 
-Bets, per-kit ratings and rating seasons, team duels, own-inventory duels, per-kit rules, match history,
-a sidebar and leaderboard holograms. Arenas cannot span worlds, and without WorldEdit copies don't keep
+Bets, per-kit ratings and rating seasons, own-inventory duels, match history, leaderboard holograms,
+bracket tournaments and scheduled or automatic events. Arenas cannot span worlds, and without WorldEdit copies don't keep
 chest contents or sign text.

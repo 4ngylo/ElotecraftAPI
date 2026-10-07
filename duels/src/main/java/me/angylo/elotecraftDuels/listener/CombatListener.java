@@ -20,6 +20,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.entity.Projectile;
 import org.bukkit.entity.TNTPrimed;
 import org.bukkit.entity.Tameable;
+import org.bukkit.entity.ThrownPotion;
 import org.bukkit.entity.Trident;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -111,7 +112,7 @@ public final class CombatListener implements Listener {
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onDeath(PlayerDeathEvent event) {
         Player player = event.getPlayer();
-        if (!matches.isBusy(player)) {
+        if (!matches.isRestricted(player)) {
             return;
         }
         event.setKeepInventory(true);
@@ -182,14 +183,22 @@ public final class CombatListener implements Listener {
 
     @EventHandler(priority = EventPriority.LOW, ignoreCancelled = true)
     public void onConsume(PlayerItemConsumeEvent event) {
-        if (frozenFighter(event.getPlayer())) {
+        if (frozenFighter(event.getPlayer())
+                || (event.getItem().getType() == Material.POTION && !rule(event.getPlayer(), KitRule.POTIONS))) {
+            event.setCancelled(true);
+        }
+    }
+
+    @EventHandler(priority = EventPriority.LOW, ignoreCancelled = true)
+    public void onThrowPotion(PlayerLaunchProjectileEvent event) {
+        if (event.getProjectile() instanceof ThrownPotion && !rule(event.getPlayer(), KitRule.POTIONS)) {
             event.setCancelled(true);
         }
     }
 
     @EventHandler(ignoreCancelled = true)
     public void onFood(FoodLevelChangeEvent event) {
-        if (event.getEntity() instanceof Player player && matches.isBusy(player)
+        if (event.getEntity() instanceof Player player && matches.isRestricted(player)
                 && event.getFoodLevel() < player.getFoodLevel() && !rule(player, KitRule.HUNGER)) {
             event.setCancelled(true);
         }
@@ -199,7 +208,7 @@ public final class CombatListener implements Listener {
     @EventHandler(ignoreCancelled = true)
     public void onRegain(EntityRegainHealthEvent event) {
         EntityRegainHealthEvent.RegainReason reason = event.getRegainReason();
-        if (event.getEntity() instanceof Player player && matches.isBusy(player)
+        if (event.getEntity() instanceof Player player && matches.isRestricted(player)
                 && (reason == EntityRegainHealthEvent.RegainReason.SATIATED || reason == EntityRegainHealthEvent.RegainReason.REGEN)
                 && !rule(player, KitRule.NATURAL_REGENERATION)) {
             event.setCancelled(true);

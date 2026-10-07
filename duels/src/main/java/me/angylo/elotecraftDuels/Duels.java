@@ -11,6 +11,8 @@ import me.angylo.elotecraftDuels.arena.ArenaRegistry;
 import me.angylo.elotecraftDuels.arena.ArenaWorld;
 import me.angylo.elotecraftDuels.command.AdminCommand;
 import me.angylo.elotecraftDuels.command.DuelCommand;
+import me.angylo.elotecraftDuels.command.EventCommand;
+import me.angylo.elotecraftDuels.event.EventManager;
 import me.angylo.elotecraftDuels.command.PartyCommand;
 import me.angylo.elotecraftDuels.hook.PlaceholderHook;
 import me.angylo.elotecraftDuels.hook.WorldEditHook;
@@ -27,6 +29,7 @@ import me.angylo.elotecraftDuels.match.QueueManager;
 import me.angylo.elotecraftDuels.match.RequestManager;
 import me.angylo.elotecraftDuels.menu.ArenaMenu;
 import me.angylo.elotecraftDuels.menu.ArenaAdminMenu;
+import me.angylo.elotecraftDuels.menu.EventMenu;
 import me.angylo.elotecraftDuels.menu.KitAdminMenu;
 import me.angylo.elotecraftDuels.menu.KitMenu;
 import me.angylo.elotecraftDuels.menu.TeamMenu;
@@ -74,6 +77,7 @@ public final class Duels {
     private final QueueManager queues;
     private final PartyManager parties;
     private final PartyFights partyFights;
+    private final EventManager events;
     private final SessionListener sessions;
     private final DuelsSidebar sidebar;
     private final PlaceholderHook placeholders;
@@ -100,21 +104,25 @@ public final class Duels {
         this.pregen = new ArenaPregen(plugin, this::settings, arenas, arenasWorld, worldEdit);
         this.matches = new MatchManager(plugin, messages, this::settings, arenas, instances, snapshots, stats, layouts);
         this.editor = new KitEditor(plugin, messages, this::settings, snapshots, layouts, matches::isBusy);
-        matches.busyElsewhere(editor::isEditing);
         this.requests = new RequestManager(messages, this::settings, kits, arenas, matches);
         this.queues = new QueueManager(messages, this::settings, kits, matches, stats);
+        this.events = new EventManager(messages, this::settings, kits, arenas, matches, queues);
+        matches.busyElsewhere(editor::isEditing);
+        matches.waitingElsewhere(events::isWaiting);
         KitMenu kitMenu = new KitMenu(plugin, messages, menus, this::settings, kits, matches, queues);
         ArenaMenu arenaMenu = new ArenaMenu(plugin, messages, menus, this::settings, arenas, matches);
 
         this.parties = new PartyManager(messages, this::settings);
-        this.partyFights = new PartyFights(messages, this::settings, kits, arenas, matches, queues, parties,
-                new TeamMenu(plugin, messages, menus, this::settings));
+        TeamMenu teamMenu = new TeamMenu(plugin, messages, menus, this::settings);
+        this.partyFights = new PartyFights(messages, this::settings, kits, arenas, matches, queues, parties, teamMenu);
         Command duel = new DuelCommand(this, kitMenu, arenaMenu).register();
         new AdminCommand(this, new ArenaAdminMenu(plugin, messages, menus, this::settings, arenas),
                 new KitAdminMenu(plugin, messages, menus, this::settings, kits)).register();
         new PartyCommand(this, kitMenu).register();
+        new EventCommand(this, new EventMenu(plugin, messages, menus, this::settings, events, kits, arenas, matches,
+                kitMenu, arenaMenu, teamMenu)).register();
         this.sessions = new SessionListener(plugin, messages, stats, snapshots, matches, requests, queues);
-        for (Listener listener : List.of(sessions, parties, layouts, editor,
+        for (Listener listener : List.of(sessions, parties, layouts, editor, events,
                 new CombatListener(plugin, messages, this::settings, matches, snapshots),
                 new ProtectionListener(messages, this::settings, matches, duel),
                 new BuildListener(this::settings, matches, instances, arenas))) {
@@ -212,6 +220,10 @@ public final class Duels {
         return partyFights;
     }
 
+    public EventManager events() {
+        return events;
+    }
+
     public DuelsSidebar sidebar() {
         return sidebar;
     }
@@ -250,6 +262,7 @@ public final class Duels {
         queues.clear();
         parties.clear();
         partyFights.clear();
+        events.clear();
         stats.retryFailed();
         snapshots.retryFailedDeletes();
         arenas.saveNow();
@@ -261,6 +274,7 @@ public final class Duels {
         matches.purgeExpiredRematches();
         requests.tick();
         queues.tick();
+        events.tick();
         sidebar.tick();
         if (++seconds % SECONDS_PER_RETRY == 0) {
             stats.retryFailed();

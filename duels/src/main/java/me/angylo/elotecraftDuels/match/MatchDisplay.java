@@ -12,6 +12,7 @@ import net.kyori.adventure.text.event.HoverEvent;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver;
 import net.kyori.adventure.title.Title;
+import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 
 import java.time.Duration;
@@ -39,7 +40,12 @@ final class MatchDisplay {
 
     void starting(Match match) {
         for (Player fighter : match.fighters()) {
-            messages.send(fighter, "match.starting", with(setup(match), opponent(match, fighter)));
+            if (match.type() == Match.Type.EVENT) {
+                messages.send(fighter, "event.starting", with(setup(match), host(match),
+                        Placeholder.unparsed("players", String.valueOf(match.fighters().size()))));
+            } else {
+                messages.send(fighter, "match.starting", with(setup(match), opponent(match, fighter)));
+            }
         }
     }
 
@@ -140,13 +146,23 @@ final class MatchDisplay {
         }
     }
 
-    /** Titles and a summary for a team fight that team {@code winnerTeam} won. */
-    void teamResult(Match match, int winnerTeam) {
-        List<Player> winners = match.teams().get(winnerTeam);
+    /**
+     * Titles and a summary for a team fight the teams {@code winnerTeams} won. The result of an event goes to
+     * the whole server unless config.yml {@code events.broadcast-result} is off.
+     */
+    void teamResult(Match match, List<Integer> winnerTeams) {
+        List<Player> winners = winnerTeams.stream().flatMap(team -> match.teams().get(team).stream()).toList();
         TagResolver[] tags = with(setup(match), Placeholder.unparsed("winners", names(winners)),
                 Placeholder.unparsed("time", Durations.format(Duration.ofSeconds(match.fightSeconds()))));
-        for (Player participant : match.participants()) {
-            messages.send(participant, "match.result-team", tags);
+        if (match.type() == Match.Type.EVENT) {
+            TagResolver[] eventTags = with(tags, host(match));
+            boolean everyone = settings.get().events().broadcastResult();
+            (everyone ? List.copyOf(Bukkit.getOnlinePlayers()) : match.participants())
+                    .forEach(player -> messages.send(player, "event.result", eventTags));
+        } else {
+            for (Player participant : match.participants()) {
+                messages.send(participant, "match.result-team", tags);
+            }
         }
         for (Player fighter : match.fighters()) {
             if (!match.isParticipant(fighter)) {
@@ -177,6 +193,10 @@ final class MatchDisplay {
 
     private Component timeLeftText(int seconds) {
         return messages.get("match.boss-bar", Placeholder.unparsed("time", Durations.format(Duration.ofSeconds(seconds))));
+    }
+
+    private static TagResolver host(Match match) {
+        return Placeholder.unparsed("host", match.options().host());
     }
 
     /** {@code <opponent>}: the other fighter, or everyone fighting against {@code fighter}. */

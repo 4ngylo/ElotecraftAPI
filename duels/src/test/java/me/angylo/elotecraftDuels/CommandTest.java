@@ -107,7 +107,7 @@ class CommandTest extends DuelsTestBase {
 
         List<String> lines = messages(alex);
         assertTrue(lines.stream().anyMatch(line -> line.contains("You left the Unranked Sword queue.")));
-        assertTrue(lines.stream().anyMatch(line -> line.contains("You're not in a queue, a duel or spectating.")));
+        assertTrue(lines.stream().anyMatch(line -> line.contains("You're not in a queue, an event, a duel or spectating.")));
     }
 
     @Test

@@ -29,7 +29,7 @@ import java.util.logging.Level;
 public final class DuelCommand {
 
     static final String DUEL = "duels.duel";
-    static final String SELECT_ARENA = "duels.select-arena";
+    public static final String SELECT_ARENA = "duels.select-arena";
     private static final int TOP_SIZE = 10;
     private static final String TOP_ELO = "elo";
     /** Between database lookups and spectate attempts by one player, so they cannot be spammed. */
@@ -208,7 +208,7 @@ public final class DuelCommand {
         // The editor counts as busy, and the busy message points to /duel leave.
         if (duels.editor().isEditing(player)) {
             duels.editor().cancel(player);
-        } else if (!duels.queues().leave(player) && !duels.matches().leave(player)) {
+        } else if (!duels.queues().leave(player) && !duels.events().leave(player) && !duels.matches().leave(player)) {
             messages.send(player, "general.nothing-to-leave");
         }
     }
@@ -223,6 +223,10 @@ public final class DuelCommand {
                 .filter(found -> found.isFighter(target.get()) && found.state() != Match.State.ENDING);
         if (match.isEmpty()) {
             messages.send(player, "general.not-dueling", Placeholder.unparsed("player", target.get().getName()));
+            return;
+        }
+        if (!match.get().options().spectatable() && !player.hasPermission("duels.admin")) {
+            messages.send(player, "spectate.not-allowed");
             return;
         }
         if (duels.matches().isBusy(player)) {

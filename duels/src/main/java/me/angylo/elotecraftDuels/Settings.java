@@ -24,11 +24,13 @@ public record Settings(int countdownSeconds, Duration maxDuration, int endDelayS
                 Reward winReward, Reward lossReward, Title.Times titleTimes, Effects effects,
                 boolean breakArenaBlocks, int regenBlocksPerTick, boolean voidEliminates, String arenasWorld,
                 int pregenSpacing, int maxCopies, int partyMaxSize, Duration partyInviteExpiry, boolean partyFriendlyFire, Duration kitEditorTimeout, Ranked ranked,
-                Sidebars sidebars) {
+                Sidebars sidebars, Events events) {
 
     private static final long MILLIS_PER_TICK = 50;
     private static final int MAX_TITLE_TICKS = 200;
     private static final int MAX_ELO_RANGE = 5000;
+    private static final int MAX_EVENT_PLAYERS = 100;
+    private static final double MAX_BORDER_DAMAGE = 20;
     private static final String DEFAULT_ARENAS_WORLD = "duels_arenas";
     private static final Pattern WORLD_NAME = Pattern.compile("[a-z0-9_-]{1,64}");
 
@@ -50,6 +52,22 @@ public record Settings(int countdownSeconds, Duration maxDuration, int endDelayS
         public Sidebars {
             lobbyWorlds = Set.copyOf(lobbyWorlds);
         }
+    }
+
+    /**
+     * Player-hosted events: how many may join, how long they wait, how often the event is announced, the
+     * prize of each winner and the border the host may turn on.
+     */
+    public record Events(int minPlayers, int maxPlayers, Duration waitTime, Duration announceInterval,
+                         Duration hostCooldown, boolean broadcastResult, Reward reward, Border border) {
+    }
+
+    /**
+     * The border of an event: it starts around the arena, waits {@code delay} into the fight, then closes
+     * in to {@code minSize} blocks across over {@code shrinkTime}; outside it fighters lose {@code damage}
+     * health a second.
+     */
+    public record Border(Duration delay, Duration shrinkTime, int minSize, double damage) {
     }
 
     /** Money and console commands for one outcome of a duel. */
@@ -102,7 +120,33 @@ public record Settings(int countdownSeconds, Duration maxDuration, int endDelayS
                 new Sidebars(
                         config.getBoolean("sidebar.match", true),
                         config.getBoolean("sidebar.lobby", false),
-                        Set.copyOf(config.getStringList("sidebar.lobby-worlds"))));
+                        Set.copyOf(config.getStringList("sidebar.lobby-worlds"))),
+                events(config, logger));
+    }
+
+    private static Events events(ConfigurationSection config, Logger logger) {
+        int min = integer(config, logger, "events.min-players", 2, 2, MAX_EVENT_PLAYERS);
+        int max = integer(config, logger, "events.max-players", 16, 2, MAX_EVENT_PLAYERS);
+        if (max < min) {
+            logger.warning("config.yml events.max-players must be at least events.min-players; using " + min);
+            max = min;
+        }
+        double damage = config.getDouble("events.border.damage", 1);
+        if (!Double.isFinite(damage) || damage < 0 || damage > MAX_BORDER_DAMAGE) {
+            logger.warning("config.yml events.border.damage must be from 0 to " + MAX_BORDER_DAMAGE + "; using 1");
+            damage = 1;
+        }
+        return new Events(min, max,
+                duration(config, logger, "events.wait-time", Duration.ofMinutes(2), Duration.ofSeconds(10)),
+                duration(config, logger, "events.announce-interval", Duration.ofSeconds(30), Duration.ofSeconds(5)),
+                duration(config, logger, "events.host-cooldown", Duration.ofMinutes(5), Duration.ZERO),
+                config.getBoolean("events.broadcast-result", true),
+                reward(config, logger, "events.reward"),
+                new Border(
+                        duration(config, logger, "events.border.delay", Duration.ofSeconds(60), Duration.ZERO),
+                        duration(config, logger, "events.border.shrink-time", Duration.ofMinutes(2), Duration.ofSeconds(1)),
+                        integer(config, logger, "events.border.min-size", 10, 1, 1000),
+                        damage));
     }
 
     private static int integer(ConfigurationSection config, Logger logger, String path, int fallback, int min, int max) {

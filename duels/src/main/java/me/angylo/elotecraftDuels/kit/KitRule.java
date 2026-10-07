@@ -27,6 +27,8 @@ public enum KitRule {
     HIT_DELAY("hit-delay", settings -> true),
     ARROW_PICKUP("arrow-pickup", settings -> true),
     CRAFTING("crafting", settings -> true),
+    /** Drinking and throwing potions (splash and lingering). */
+    POTIONS("potions", settings -> true),
     PEARL_COOLDOWN("pearl-cooldown", null);
 
     public static final int MAX_SECONDS = 60;

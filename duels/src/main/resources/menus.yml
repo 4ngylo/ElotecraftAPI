@@ -325,3 +325,132 @@ arena-settings:
   next: {material: ARROW, name: "<yellow>Next page »"}
   back: {slot: 3, material: ARROW, name: "<yellow>« All arenas"}
   close: {slot: 5, material: BARRIER, name: "<red>Close"}
+# /event: public events gathering players, and event fights that may be watched.
+events:
+  title: "<gradient:#ff416c:#ff4b2b><bold>⚑ Events"
+  rows: 4
+  filler: {material: BLACK_STAINED_GLASS_PANE, name: " "}
+  # One host head per event to join. <host>, <kit>, <arena>, <mode>, <winners>, <players>, <max> and
+  # <time> (until it starts) are filled in.
+  event:
+    name: "<gradient:#ff416c:#ff4b2b><bold><host>'s event"
+    lore:
+      - "<dark_gray>▪ <gray>Kit: <white><kit>"
+      - "<dark_gray>▪ <gray>Arena: <white><arena>"
+      - "<dark_gray>▪ <gray>Mode: <white><mode>"
+      - "<dark_gray>▪ <gray>Players: <white><players>/<max>"
+      - "<dark_gray>▪ <gray>Starts in: <white><time>"
+      - ""
+      - "<yellow>▶ Click to join"
+  # One per event fight, shown with the kit's icon. <host>, <kit>, <arena> and <alive> are filled in.
+  running:
+    name: "<aqua><bold><host>'s event"
+    lore:
+      - "<dark_gray>▪ <gray>Kit: <white><kit>"
+      - "<dark_gray>▪ <gray>Arena: <white><arena>"
+      - "<dark_gray>▪ <gray>Still fighting: <white><alive>"
+      - ""
+      - "<yellow>▶ Click to watch"
+  previous: {material: ARROW, name: "<yellow>« Previous page"}
+  next: {material: ARROW, name: "<yellow>Next page »"}
+  host:
+    slot: 3
+    material: NETHER_STAR
+    name: "<green><bold>Host an event"
+    lore: ["<gray>Pick a kit, then the rules", "", "<yellow>▶ Click to host"]
+  close: {slot: 5, material: BARRIER, name: "<red>Close"}
+
+# /event settings: the host's event. Each button sits at its slot (0 to rows x 9 - 1). <kit>, <arena>,
+# <mode>, <winners>, <players>, <min>, <max>, <time> and <rules> (rules changed) work everywhere;
+# switches also get <value>, and show the on or off material.
+event-settings:
+  title: "<gradient:#ff416c:#ff4b2b><bold>Event Settings"
+  rows: 5
+  filler: {material: BLACK_STAINED_GLASS_PANE, name: " "}
+  values:
+    "on": "<green>On"
+    "off": "<red>Off"
+  # Shown with the kit's icon; the material here is not used.
+  kit:
+    slot: 10
+    name: "<gold><bold>Kit"
+    lore: ["<gray>Now: <white><kit>", "", "<yellow>▶ Click to choose"]
+  arena:
+    slot: 12
+    material: COMMAND_BLOCK
+    name: "<aqua><bold>Arena"
+    lore: ["<gray>Now: <white><arena>", "", "<yellow>▶ Click to choose"]
+  rules:
+    slot: 14
+    material: PAPER
+    name: "<yellow><bold>Rules"
+    lore: ["<gray>Changed from the kit: <white><rules>", "<dark_gray>Potions, hunger, fall damage...", "", "<yellow>▶ Click to change"]
+  start:
+    slot: 16
+    material: FIREWORK_ROCKET
+    name: "<green><bold>Start now"
+    lore: ["<gray>Players: <white><players>/<max> <dark_gray>(at least <min>)", "<gray>Starts on its own in <white><time>", "", "<yellow>▶ Click to start"]
+  mode:
+    slot: 20
+    ffa: IRON_SWORD
+    teams: SHIELD
+    name: "<gold><bold>Mode"
+    lore: ["<gray>Now: <white><mode>", "", "<yellow>▶ Click to switch"]
+  winners:
+    slot: 22
+    material: GOLD_INGOT
+    name: "<gold><bold>Winners"
+    lore: ["<gray>Last players standing who win: <white><winners>", "<dark_gray>Free for all only", "", "<yellow>▶ Left-click for more", "<yellow>▶ Right-click for fewer"]
+  border:
+    slot: 24
+    "on": STRUCTURE_VOID
+    "off": GLASS
+    name: "<gold><bold>Border"
+    lore: ["<gray>Closes in during the fight: <value>", "", "<yellow>▶ Click to switch"]
+  public:
+    slot: 28
+    "on": LIME_DYE
+    "off": GRAY_DYE
+    name: "<green><bold>Public"
+    lore: ["<gray>Announced and open to all: <value>", "<dark_gray>Off: invited players only", "", "<yellow>▶ Click to switch"]
+  spectate:
+    slot: 30
+    "on": ENDER_EYE
+    "off": INK_SAC
+    name: "<aqua><bold>Spectators"
+    lore: ["<gray>Others may watch: <value>", "", "<yellow>▶ Click to switch"]
+  invite:
+    slot: 32
+    material: NAME_TAG
+    name: "<light_purple><bold>Invite"
+    lore: ["<gray>Let a player into a private event", "", "<yellow>▶ Click and type a name"]
+  cancel:
+    slot: 34
+    material: BARRIER
+    name: "<red><bold>Cancel event"
+    lore: ["<gray>Sends everyone away", "", "<red>▶ Click to cancel"]
+
+# The rules of the host's event. <rule>, <value> and <state> (the kit's or changed) are filled in.
+event-rules:
+  title: "<gradient:#ff416c:#ff4b2b><bold>Event Rules"
+  rows: 4
+  filler: {material: BLACK_STAINED_GLASS_PANE, name: " "}
+  values:
+    "on": "<green>On"
+    "off": "<red>Off"
+    kit: "<gray>the kit's"
+    set: "<green>set for this event"
+  rule:
+    flag-on: LIME_DYE
+    flag-off: GRAY_DYE
+    name: "<yellow><bold><rule>"
+    lore:
+      - "<dark_gray>▪ <gray>Value: <value>"
+      - "<dark_gray>▪ <state>"
+      - ""
+      - "<yellow>▶ Left-click to switch"
+      - "<yellow>▶ Right-click for the kit's"
+  previous: {material: ARROW, name: "<yellow>« Previous page"}
+  next: {material: ARROW, name: "<yellow>Next page »"}
+  back: {slot: 3, material: ARROW, name: "<yellow>« Settings"}
+  close: {slot: 5, material: BARRIER, name: "<red>Close"}

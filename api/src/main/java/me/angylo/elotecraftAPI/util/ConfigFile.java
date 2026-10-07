@@ -1,5 +1,6 @@
 package me.angylo.elotecraftAPI.util;
 
+import org.bukkit.configuration.Configuration;
 import org.bukkit.configuration.InvalidConfigurationException;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.Plugin;
@@ -13,6 +14,8 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.logging.Level;
@@ -66,7 +69,50 @@ public final class ConfigFile {
         }
         config = fresh;
         writable = true;
+        addMissingKeys();
         return true;
+    }
+
+    /**
+     * Copies keys the bundled copy has but the file lacks (a file from an older version) into the file,
+     * with their comments, and writes it once, keeping the original as {@code <name>.bak}.
+     * Values already in the file are never changed or removed.
+     */
+    private void addMissingKeys() {
+        YamlConfiguration file = config;
+        Configuration bundled = file.getDefaults();
+        if (bundled == null || Files.notExists(path)) {
+            return;
+        }
+        List<String> added = new ArrayList<>();
+        // Parents come before their children, so a new section is created before its keys are copied.
+        for (String key : bundled.getKeys(true)) {
+            if (file.contains(key, true)) {
+                continue;
+            }
+            if (bundled.isConfigurationSection(key)) {
+                file.createSection(key);
+            } else {
+                file.set(key, bundled.get(key));
+                added.add(key);
+            }
+            file.setComments(key, bundled.getComments(key));
+            file.setInlineComments(key, bundled.getInlineComments(key));
+        }
+        if (added.isEmpty()) {
+            return;
+        }
+        try {
+            Path backup = path.resolveSibling(name + ".bak");
+            if (Files.notExists(backup)) {
+                Files.copy(path, backup);
+            }
+            write(snapshots.incrementAndGet(), file.saveToString());
+            plugin.getLogger().info("Added " + added.size() + " new settings to " + name + " (old file kept as " + name + ".bak): "
+                    + String.join(", ", added));
+        } catch (IOException | UncheckedIOException e) {
+            plugin.getLogger().log(Level.WARNING, "Could not add new settings to " + name + "; using the bundled values for them", e);
+        }
     }
 
     /** Live config; edit on the main thread, then {@link #saveLater()} or {@link #save()}. */

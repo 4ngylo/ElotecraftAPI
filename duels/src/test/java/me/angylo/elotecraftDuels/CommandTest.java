@@ -201,12 +201,17 @@ class CommandTest extends DuelsTestBase {
     void statsHandleUnknownPlayersAndTheConsole() {
         server.dispatchCommand(alex, "duel stats Nobody");
         server.dispatchCommand(server.getConsoleSender(), "duel stats");
-        ticks(10);
+        // The offline lookup reads the database, which can take more than a few ticks on slow CI runners.
+        List<String> lines = new ArrayList<>();
+        tickUntil(() -> {
+            lines.addAll(messages(alex));
+            return lines.stream().anyMatch(line -> line.contains("No duel stats"));
+        });
         server.dispatchCommand(alex, "duel Nobody sword");
         server.dispatchCommand(alex, "duel Steve nokit");
         server.dispatchCommand(alex, "duel Steve sword noarena");
 
-        List<String> lines = messages(alex);
+        lines.addAll(messages(alex));
         assertTrue(lines.stream().anyMatch(line -> line.contains("No duel stats for 'Nobody' yet.")));
         assertTrue(lines.stream().anyMatch(line -> line.contains("'Nobody' is not online.")));
         assertTrue(lines.stream().anyMatch(line -> line.contains("There is no kit called 'nokit'.")));

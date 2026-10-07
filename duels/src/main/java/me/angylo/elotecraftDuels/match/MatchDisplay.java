@@ -12,6 +12,7 @@ import net.kyori.adventure.text.event.HoverEvent;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver;
 import net.kyori.adventure.title.Title;
+import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 
 import java.time.Duration;
@@ -38,13 +39,18 @@ final class MatchDisplay {
     }
 
     void starting(Match match) {
-        for (Player fighter : List.of(match.first(), match.second())) {
-            messages.send(fighter, "match.starting", with(setup(match), opponent(match, fighter)));
+        for (Player fighter : match.fighters()) {
+            if (match.type() == Match.Type.EVENT) {
+                messages.send(fighter, "event.starting", with(setup(match), host(match),
+                        Placeholder.unparsed("players", String.valueOf(match.fighters().size()))));
+            } else {
+                messages.send(fighter, "match.starting", with(setup(match), opponent(match, fighter)));
+            }
         }
     }
 
     void countdown(Match match, int seconds) {
-        for (Player fighter : List.of(match.first(), match.second())) {
+        for (Player fighter : match.fighters()) {
             title(fighter, "match.countdown-title", "match.countdown-subtitle",
                     Placeholder.unparsed("seconds", String.valueOf(seconds)), opponent(match, fighter));
             settings.get().effects().play(fighter, "countdown");
@@ -52,7 +58,7 @@ final class MatchDisplay {
     }
 
     void fightStarted(Match match) {
-        for (Player fighter : List.of(match.first(), match.second())) {
+        for (Player fighter : match.fighters()) {
             title(fighter, "match.fight-title", "match.fight-subtitle", opponent(match, fighter));
             settings.get().effects().play(fighter, "fight-start");
         }
@@ -105,17 +111,69 @@ final class MatchDisplay {
         }
     }
 
+    /** Tells both fighters, if still there, how a ranked result moved their rating. */
+    void eloChange(Match match, Player winner, Player loser, int change, int winnerElo, int loserElo) {
+        if (match.isParticipant(winner)) {
+            messages.send(winner, "match.elo-gained", Placeholder.unparsed("change", String.valueOf(change)),
+                    Placeholder.unparsed("elo", String.valueOf(winnerElo)));
+        }
+        if (match.isParticipant(loser)) {
+            messages.send(loser, "match.elo-lost", Placeholder.unparsed("change", String.valueOf(change)),
+                    Placeholder.unparsed("elo", String.valueOf(loserElo)));
+        }
+    }
+
+    /** In a team fight, {@code <first>} is the first team and {@code <second>} everyone else. */
     void draw(Match match) {
         TagResolver[] tags = with(setup(match),
-                Placeholder.unparsed("first", match.first().getName()),
-                Placeholder.unparsed("second", match.second().getName()));
+                Placeholder.unparsed("first", names(match.teams().getFirst())),
+                Placeholder.unparsed("second", match.opponentNames(match.first().getUniqueId())));
         for (Player participant : match.participants()) {
-            messages.send(participant, "match.result-draw", tags);
+            messages.send(participant, match.isDuel() ? "match.result-draw" : "match.result-draw-team", tags);
         }
-        for (Player fighter : List.of(match.first(), match.second())) {
+        for (Player fighter : match.fighters()) {
             if (match.isParticipant(fighter)) {
                 title(fighter, "match.draw-title", "match.draw-subtitle");
                 settings.get().effects().play(fighter, "draw");
+            }
+        }
+    }
+
+    /** Tells everyone in a team fight that {@code fighter} is out. */
+    void knockedOut(Match match, Player fighter) {
+        for (Player participant : match.participants()) {
+            messages.send(participant, "match.knocked-out", Placeholder.unparsed("player", fighter.getName()));
+        }
+    }
+
+    /**
+     * Titles and a summary for a team fight the teams {@code winnerTeams} won. The result of an event goes to
+     * the whole server unless config.yml {@code events.broadcast-result} is off.
+     */
+    void teamResult(Match match, List<Integer> winnerTeams) {
+        List<Player> winners = winnerTeams.stream().flatMap(team -> match.teams().get(team).stream()).toList();
+        TagResolver[] tags = with(setup(match), Placeholder.unparsed("winners", names(winners)),
+                Placeholder.unparsed("time", Durations.format(Duration.ofSeconds(match.fightSeconds()))));
+        if (match.type() == Match.Type.EVENT) {
+            TagResolver[] eventTags = with(tags, host(match));
+            boolean everyone = settings.get().events().broadcastResult();
+            (everyone ? List.copyOf(Bukkit.getOnlinePlayers()) : match.participants())
+                    .forEach(player -> messages.send(player, "event.result", eventTags));
+        } else {
+            for (Player participant : match.participants()) {
+                messages.send(participant, "match.result-team", tags);
+            }
+        }
+        for (Player fighter : match.fighters()) {
+            if (!match.isParticipant(fighter)) {
+                continue;
+            }
+            if (winners.contains(fighter)) {
+                title(fighter, "match.victory-title", "match.victory-subtitle", opponent(match, fighter));
+                settings.get().effects().play(fighter, "victory");
+            } else {
+                title(fighter, "match.defeat-title", "match.team-defeat-subtitle", tags);
+                settings.get().effects().play(fighter, "defeat");
             }
         }
     }
@@ -137,8 +195,17 @@ final class MatchDisplay {
         return messages.get("match.boss-bar", Placeholder.unparsed("time", Durations.format(Duration.ofSeconds(seconds))));
     }
 
+    private static TagResolver host(Match match) {
+        return Placeholder.unparsed("host", match.options().host());
+    }
+
+    /** {@code <opponent>}: the other fighter, or everyone fighting against {@code fighter}. */
     private static TagResolver opponent(Match match, Player fighter) {
-        return Placeholder.unparsed("opponent", match.opponentOf(fighter).getName());
+        return Placeholder.unparsed("opponent", match.opponentNames(fighter.getUniqueId()));
+    }
+
+    private static String names(List<Player> players) {
+        return String.join(", ", players.stream().map(Player::getName).toList());
     }
 
     static TagResolver[] with(TagResolver[] tags, TagResolver... more) {

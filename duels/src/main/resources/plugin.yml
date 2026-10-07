@@ -6,7 +6,7 @@ description: 1v1 duels with kits, arenas, queues, spectators and stats.
 main: me.angylo.elotecraftDuels.ElotecraftDuels
 api-version: '1.21.11'
 depend: [ElotecraftAPI]
-softdepend: [Vault, PlaceholderAPI]
+softdepend: [Vault, PlaceholderAPI, FastAsyncWorldEdit, WorldEdit]
 
 # Commands (/duel, /duels) are registered at runtime by ElotecraftAPI's CommandBuilder.
 permissions:
@@ -17,9 +17,25 @@ permissions:
       duels.duel: true
       duels.select-arena: true
       duels.queue: true
+      duels.queue.ranked: true
       duels.spectate: true
       duels.stats: true
       duels.top: true
+      duels.party: true
+      duels.party.fight: true
+      duels.kit.edit: true
+      duels.event: true
+      duels.event.host: true
+      duels.event.host.private: true
+  duels.event:
+    description: Join and watch player-hosted events with /event.
+    default: true
+  duels.event.host:
+    description: Host events with /event host.
+    default: true
+  duels.event.host.private:
+    description: Make a hosted event private (invited players only).
+    default: true
   duels.duel:
     description: Send, accept and deny duel requests and rematches.
     default: true
@@ -27,7 +43,19 @@ permissions:
     description: Choose the arena when challenging someone.
     default: true
   duels.queue:
-    description: Join matchmaking queues.
+    description: Join unranked matchmaking queues.
+    default: true
+  duels.queue.ranked:
+    description: Join ranked matchmaking queues, which move the Elo rating.
+    default: true
+  duels.kit.edit:
+    description: Arrange your own layout of each kit with /duel editkit.
+    default: true
+  duels.party:
+    description: Create, join and manage parties.
+    default: true
+  duels.party.fight:
+    description: Start party splits, party FFAs and party vs party fights (as leader).
     default: true
   duels.spectate:
     description: Spectate other players' duels.
@@ -60,5 +88,5 @@ permissions:
     description: Stop another player's duel.
     default: op
   duels.bypass.cooldown:
-    description: Send duel requests without waiting for the cooldown.
+    description: Send duel requests and host events without waiting for the cooldown.
     default: op

@@ -8,8 +8,10 @@ import org.bukkit.configuration.ConfigurationSection;
 import java.time.Duration;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.Set;
 import java.util.logging.Logger;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
@@ -19,10 +21,54 @@ import java.util.stream.Collectors;
 public record Settings(int countdownSeconds, Duration maxDuration, int endDelaySeconds, boolean bossBar,
                 BossBar.Color bossBarColor, boolean logResults, Duration requestExpiry, Duration requestCooldown,
                 Duration rematchWindow, boolean hunger, boolean naturalRegeneration, Set<String> allowedCommands,
-                Reward winReward, Reward lossReward, Title.Times titleTimes, Effects effects) {
+                Reward winReward, Reward lossReward, Title.Times titleTimes, Effects effects,
+                boolean breakArenaBlocks, int regenBlocksPerTick, boolean voidEliminates, String arenasWorld,
+                int pregenSpacing, int maxCopies, int partyMaxSize, Duration partyInviteExpiry, boolean partyFriendlyFire, Duration kitEditorTimeout, Ranked ranked,
+                Sidebars sidebars, Events events) {
 
     private static final long MILLIS_PER_TICK = 50;
     private static final int MAX_TITLE_TICKS = 200;
+    private static final int MAX_ELO_RANGE = 5000;
+    private static final int MAX_EVENT_PLAYERS = 100;
+    private static final double MAX_BORDER_DAMAGE = 20;
+    private static final String DEFAULT_ARENAS_WORLD = "duels_arenas";
+    private static final Pattern WORLD_NAME = Pattern.compile("[a-z0-9_-]{1,64}");
+
+    /** Elo rating of queue duels and how far apart two queued players may be rated. */
+    public record Ranked(int kFactor, int range, int rangeGrowth, int rangeMax) {
+
+        /** The rating gap allowed for a player who has waited {@code seconds}. */
+        public int range(long seconds) {
+            return (int) Math.min(range + rangeGrowth * seconds, rangeMax);
+        }
+    }
+
+    /**
+     * Which sidebars duels shows: one during fights, one with stats elsewhere, in {@code lobbyWorlds}
+     * (empty: every world but the arenas world).
+     */
+    public record Sidebars(boolean match, boolean lobby, Set<String> lobbyWorlds) {
+
+        public Sidebars {
+            lobbyWorlds = Set.copyOf(lobbyWorlds);
+        }
+    }
+
+    /**
+     * Player-hosted events: how many may join, how long they wait, how often the event is announced, the
+     * prize of each winner and the border the host may turn on.
+     */
+    public record Events(int minPlayers, int maxPlayers, Duration waitTime, Duration announceInterval,
+                         Duration hostCooldown, boolean broadcastResult, Reward reward, Border border) {
+    }
+
+    /**
+     * The border of an event: it starts around the arena, waits {@code delay} into the fight, then closes
+     * in to {@code minSize} blocks across over {@code shrinkTime}; outside it fighters lose {@code damage}
+     * health a second.
+     */
+    public record Border(Duration delay, Duration shrinkTime, int minSize, double damage) {
+    }
 
     /** Money and console commands for one outcome of a duel. */
     public record Reward(double money, List<String> commands) {
@@ -55,7 +101,52 @@ public record Settings(int countdownSeconds, Duration maxDuration, int endDelayS
                         ticks(integer(config, logger, "titles.fade-in", 5, 0, MAX_TITLE_TICKS)),
                         ticks(integer(config, logger, "titles.stay", 30, 0, MAX_TITLE_TICKS)),
                         ticks(integer(config, logger, "titles.fade-out", 10, 0, MAX_TITLE_TICKS))),
-                Effects.load(config.getConfigurationSection("effects"), logger));
+                Effects.load(config.getConfigurationSection("effects"), logger),
+                config.getBoolean("build.break-arena-blocks", false),
+                integer(config, logger, "regen.blocks-per-tick", 2000, 1, 100_000),
+                config.getBoolean("rules.void-eliminates", true),
+                worldName(config, logger),
+                integer(config, logger, "arenas.pregen-spacing", 64, 16, 1024),
+                integer(config, logger, "arenas.max-copies", 32, 1, 256),
+                integer(config, logger, "parties.max-size", 8, 2, 100),
+                duration(config, logger, "parties.invite-expiry", Duration.ofSeconds(60), Duration.ofSeconds(5)),
+                config.getBoolean("parties.friendly-fire", false),
+                duration(config, logger, "kit-editor.timeout", Duration.ofMinutes(5), Duration.ofSeconds(30)),
+                new Ranked(
+                        integer(config, logger, "ranked.k-factor", 32, 1, 100),
+                        integer(config, logger, "ranked.range", 100, 0, MAX_ELO_RANGE),
+                        integer(config, logger, "ranked.range-growth", 10, 0, 1000),
+                        integer(config, logger, "ranked.range-max", 1000, 0, MAX_ELO_RANGE)),
+                new Sidebars(
+                        config.getBoolean("sidebar.match", true),
+                        config.getBoolean("sidebar.lobby", false),
+                        Set.copyOf(config.getStringList("sidebar.lobby-worlds"))),
+                events(config, logger));
+    }
+
+    private static Events events(ConfigurationSection config, Logger logger) {
+        int min = integer(config, logger, "events.min-players", 2, 2, MAX_EVENT_PLAYERS);
+        int max = integer(config, logger, "events.max-players", 16, 2, MAX_EVENT_PLAYERS);
+        if (max < min) {
+            logger.warning("config.yml events.max-players must be at least events.min-players; using " + min);
+            max = min;
+        }
+        double damage = config.getDouble("events.border.damage", 1);
+        if (!Double.isFinite(damage) || damage < 0 || damage > MAX_BORDER_DAMAGE) {
+            logger.warning("config.yml events.border.damage must be from 0 to " + MAX_BORDER_DAMAGE + "; using 1");
+            damage = 1;
+        }
+        return new Events(min, max,
+                duration(config, logger, "events.wait-time", Duration.ofMinutes(2), Duration.ofSeconds(10)),
+                duration(config, logger, "events.announce-interval", Duration.ofSeconds(30), Duration.ofSeconds(5)),
+                duration(config, logger, "events.host-cooldown", Duration.ofMinutes(5), Duration.ZERO),
+                config.getBoolean("events.broadcast-result", true),
+                reward(config, logger, "events.reward"),
+                new Border(
+                        duration(config, logger, "events.border.delay", Duration.ofSeconds(60), Duration.ZERO),
+                        duration(config, logger, "events.border.shrink-time", Duration.ofMinutes(2), Duration.ofSeconds(1)),
+                        integer(config, logger, "events.border.min-size", 10, 1, 1000),
+                        damage));
     }
 
     private static int integer(ConfigurationSection config, Logger logger, String path, int fallback, int min, int max) {
@@ -67,8 +158,19 @@ public record Settings(int countdownSeconds, Duration maxDuration, int endDelayS
         return value;
     }
 
+    private static String worldName(ConfigurationSection config, Logger logger) {
+        String raw = config.getString("arenas.world", DEFAULT_ARENAS_WORLD).strip();
+        if (!WORLD_NAME.matcher(raw).matches()) {
+            logger.warning("config.yml arenas.world '" + raw + "' must be 1 to 64 lowercase letters, digits, - or _; using "
+                    + DEFAULT_ARENAS_WORLD);
+            return DEFAULT_ARENAS_WORLD;
+        }
+        return raw;
+    }
+
     private static Duration duration(ConfigurationSection config, Logger logger, String path, Duration fallback, Duration min) {
-        String raw = config.getString(path, "");
+        // Without a default argument, so a key missing from an older config.yml falls back to the bundled one.
+        String raw = Objects.requireNonNullElse(config.getString(path), "");
         try {
             Duration value = Durations.parse(raw);
             if (value.compareTo(min) >= 0) {

@@ -7,6 +7,7 @@ import me.angylo.elotecraftDuels.Settings;
 import me.angylo.elotecraftDuels.arena.Arena;
 import me.angylo.elotecraftDuels.kit.Kit;
 import me.angylo.elotecraftDuels.kit.KitRegistry;
+import me.angylo.elotecraftDuels.stats.StatsService;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver;
 import org.bukkit.Bukkit;
@@ -14,8 +15,8 @@ import org.bukkit.entity.Player;
 
 import java.time.Duration;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -24,33 +25,44 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 
 /**
- * Matchmaking: one queue per kit, first come first served, paired as soon as two players wait and an
- * arena is free. Main thread only, except {@link #queuedKit}.
+ * Matchmaking: an unranked and a ranked queue per kit, paired as soon as an arena is free. Unranked
+ * queues pair first come first served; ranked ones pair players whose Elo ratings are in range, longest
+ * waiting first, and the range widens the longer they wait. Main thread only, except {@link #queued}.
  */
 public final class QueueManager {
+
+    private static final long TICKS_PER_SECOND = 20;
+    private static final long MILLIS_PER_TICK = 50;
+
+    /** One queue: a kit, unranked or ranked. */
+    public record QueueId(String kit, boolean ranked) {
+    }
 
     private final Messages messages;
     private final Supplier<Settings> settings;
     private final KitRegistry kits;
     private final MatchManager matches;
-    /** Kit name, then waiting players with the time they joined, oldest first. */
-    private final Map<String, LinkedHashMap<UUID, Long>> queues = new LinkedHashMap<>();
-    /** Player to kit name; read by placeholders from other threads. */
-    private final Map<UUID, String> queuedKits = new ConcurrentHashMap<>();
+    private final StatsService stats;
+    /** Each queue's waiting players with the server tick they joined on, oldest first. */
+    private final Map<QueueId, LinkedHashMap<UUID, Long>> queues = new LinkedHashMap<>();
+    /** Player to the queue they are in; read by placeholders from other threads. */
+    private final Map<UUID, QueueId> queued = new ConcurrentHashMap<>();
     /** Players told they are waiting for an arena, so they are told once. */
     private final Set<UUID> toldWaiting = new HashSet<>();
 
-    public QueueManager(Messages messages, Supplier<Settings> settings, KitRegistry kits, MatchManager matches) {
+    public QueueManager(Messages messages, Supplier<Settings> settings, KitRegistry kits, MatchManager matches,
+                        StatsService stats) {
         this.messages = messages;
         this.settings = settings;
         this.kits = kits;
         this.matches = matches;
+        this.stats = stats;
     }
 
-    /** Joins {@code kit}'s queue, leaving any other; joining the same queue again leaves it. */
-    public void toggle(Player player, Kit kit) {
-        String current = queuedKits.get(player.getUniqueId());
-        if (kit.name().equals(current)) {
+    /** Joins {@code kit}'s unranked or ranked queue, leaving any other; joining the same queue again leaves it. */
+    public void toggle(Player player, Kit kit, boolean ranked) {
+        QueueId id = new QueueId(kit.name(), ranked);
+        if (id.equals(queued.get(player.getUniqueId()))) {
             leave(player);
             return;
         }
@@ -62,21 +74,26 @@ public final class QueueManager {
             messages.send(player, "general.kit-locked", kitTag(kit));
             return;
         }
+        if (!matches.hasArenaFor(kit)) {
+            messages.send(player, "general.no-arena-for-kit", kitTag(kit));
+            return;
+        }
         remove(player.getUniqueId());
-        queues.computeIfAbsent(kit.name(), name -> new LinkedHashMap<>()).put(player.getUniqueId(), System.nanoTime());
-        queuedKits.put(player.getUniqueId(), kit.name());
-        messages.send(player, "queue.joined", kitTag(kit), Placeholder.unparsed("queued", String.valueOf(size(kit.name()))));
+        queues.computeIfAbsent(id, key -> new LinkedHashMap<>()).put(player.getUniqueId(), (long) Bukkit.getCurrentTick());
+        queued.put(player.getUniqueId(), id);
+        messages.send(player, "queue.joined", kitTag(kit), typeTag(player, ranked),
+                Placeholder.unparsed("queued", String.valueOf(size(kit.name(), ranked))));
         settings.get().effects().play(player, "queue-join");
-        match(kit.name());
+        match(id);
     }
 
     /** @return false if {@code player} was not queued */
     public boolean leave(Player player) {
-        String kit = remove(player.getUniqueId());
-        if (kit == null) {
+        QueueId id = remove(player.getUniqueId());
+        if (id == null) {
             return false;
         }
-        messages.send(player, "queue.left", kits.get(kit).map(QueueManager::kitTag).orElse(Placeholder.unparsed("kit", kit)));
+        messages.send(player, "queue.left", kitTag(id.kit()), typeTag(player, id.ranked()));
         return true;
     }
 
@@ -85,72 +102,106 @@ public final class QueueManager {
         remove(player.getUniqueId());
     }
 
-    /** The kit {@code player} is queued for; safe from any thread. */
-    public Optional<String> queuedKit(UUID player) {
-        return Optional.ofNullable(queuedKits.get(player));
+    /** The queue {@code player} is in; safe from any thread. */
+    public Optional<QueueId> queued(UUID player) {
+        return Optional.ofNullable(queued.get(player));
     }
 
-    public int size(String kit) {
-        LinkedHashMap<UUID, Long> queue = queues.get(kit);
+    public int size(String kit, boolean ranked) {
+        LinkedHashMap<UUID, Long> queue = queues.get(new QueueId(kit, ranked));
         return queue == null ? 0 : queue.size();
     }
 
-    /** Pairs waiting players and shows each their waiting time; call every second. */
+    /** Pairs waiting players and shows each their waiting time, and their rating range if ranked; call every second. */
     public void tick() {
-        for (String kit : Set.copyOf(queues.keySet())) {
-            match(kit);
+        for (QueueId id : Set.copyOf(queues.keySet())) {
+            match(id);
         }
-        long now = System.nanoTime();
-        queues.forEach((kit, queue) -> queue.forEach((uuid, joined) -> {
+        long now = Bukkit.getCurrentTick();
+        Settings.Ranked ranked = settings.get().ranked();
+        queues.forEach((id, queue) -> queue.forEach((uuid, joined) -> {
             Player player = Bukkit.getPlayer(uuid);
             if (player != null) {
-                player.sendActionBar(messages.get(player, "queue.action-bar",
-                        kits.get(kit).map(QueueManager::kitTag).orElse(Placeholder.unparsed("kit", kit)),
-                        Placeholder.unparsed("time", Durations.format(Duration.ofNanos(now - joined)))));
+                player.sendActionBar(messages.get(player, id.ranked() ? "queue.action-bar-ranked" : "queue.action-bar",
+                        kitTag(id.kit()), typeTag(player, id.ranked()),
+                        Placeholder.unparsed("time", Durations.format(Duration.ofMillis((now - joined) * MILLIS_PER_TICK))),
+                        Placeholder.unparsed("elo", String.valueOf(stats.elo(uuid))),
+                        Placeholder.unparsed("range", String.valueOf(ranked.range((now - joined) / TICKS_PER_SECOND)))));
             }
         }));
     }
 
     public void clear() {
         queues.clear();
-        queuedKits.clear();
+        queued.clear();
         toldWaiting.clear();
     }
 
-    private void match(String kitName) {
-        LinkedHashMap<UUID, Long> queue = queues.get(kitName);
+    private void match(QueueId id) {
+        LinkedHashMap<UUID, Long> queue = queues.get(id);
         if (queue == null) {
             return;
         }
-        Optional<Kit> kit = kits.get(kitName);
+        Optional<Kit> kit = kits.get(id.kit());
         if (kit.isEmpty()) {
             for (UUID uuid : Set.copyOf(queue.keySet())) {
                 remove(uuid);
                 Player player = Bukkit.getPlayer(uuid);
                 if (player != null) {
-                    messages.send(player, "queue.kit-removed", Placeholder.unparsed("kit", kitName));
+                    messages.send(player, "queue.kit-removed", Placeholder.unparsed("kit", id.kit()));
                 }
             }
             return;
         }
         dropUnavailable(queue);
-        while (queue.size() >= 2) {
-            Optional<Arena> arena = matches.randomFreeArena();
-            Iterator<UUID> waiting = queue.keySet().iterator();
-            Player first = Bukkit.getPlayer(waiting.next());
-            Player second = Bukkit.getPlayer(waiting.next());
+        Optional<List<Player>> pair;
+        while ((pair = id.ranked() ? findRankedPair(queue) : firstTwo(queue)).isPresent()) {
+            Optional<Arena> arena = matches.randomFreeArena(kit.get());
             if (arena.isEmpty()) {
-                for (Player player : new Player[]{first, second}) {
+                for (Player player : pair.get()) {
                     if (toldWaiting.add(player.getUniqueId())) {
                         messages.send(player, "queue.waiting-arena");
                     }
                 }
                 return;
             }
+            Player first = pair.get().get(0);
+            Player second = pair.get().get(1);
             remove(first.getUniqueId());
             remove(second.getUniqueId());
-            matches.start(first, second, kit.get(), arena.get());
+            matches.start(first, second, kit.get(), arena.get(), id.ranked());
         }
+    }
+
+    /** The two longest-waiting players, if two wait. */
+    private static Optional<List<Player>> firstTwo(LinkedHashMap<UUID, Long> queue) {
+        if (queue.size() < 2) {
+            return Optional.empty();
+        }
+        List<UUID> waiting = List.copyOf(queue.keySet());
+        return Optional.of(List.of(Bukkit.getPlayer(waiting.get(0)), Bukkit.getPlayer(waiting.get(1))));
+    }
+
+    /**
+     * The longest-waiting player with an opponent in rating range, and the longest-waiting such opponent.
+     * The range is the earlier player's, the wider of the two, so waiting long enough finds anyone.
+     */
+    // ponytail: O(n²) per kit every second; sort by rating if a queue ever holds hundreds of players
+    private Optional<List<Player>> findRankedPair(LinkedHashMap<UUID, Long> queue) {
+        Settings.Ranked ranked = settings.get().ranked();
+        long now = Bukkit.getCurrentTick();
+        List<UUID> waiting = List.copyOf(queue.keySet());
+        for (int i = 0; i < waiting.size(); i++) {
+            UUID first = waiting.get(i);
+            int elo = stats.elo(first);
+            int range = ranked.range((now - queue.get(first)) / TICKS_PER_SECOND);
+            for (UUID second : waiting.subList(i + 1, waiting.size())) {
+                if (Math.abs(elo - stats.elo(second)) <= range) {
+                    return Optional.of(List.of(Bukkit.getPlayer(first), Bukkit.getPlayer(second)));
+                }
+            }
+        }
+        return Optional.empty();
     }
 
     /** Players who went offline or got busy (accepted a duel, started spectating) lose their place. */
@@ -163,20 +214,29 @@ public final class QueueManager {
         }
     }
 
-    /** @return the kit {@code player} was queued for, or null */
-    private String remove(UUID player) {
-        String kit = queuedKits.remove(player);
+    /** @return the queue {@code player} was in, or null */
+    private QueueId remove(UUID player) {
+        QueueId id = queued.remove(player);
         toldWaiting.remove(player);
-        if (kit != null) {
-            LinkedHashMap<UUID, Long> queue = queues.get(kit);
+        if (id != null) {
+            LinkedHashMap<UUID, Long> queue = queues.get(id);
             if (queue != null) {
                 queue.remove(player);
                 if (queue.isEmpty()) {
-                    queues.remove(kit);
+                    queues.remove(id);
                 }
             }
         }
-        return kit;
+        return id;
+    }
+
+    /** {@code <type>}: ranked or unranked, in the player's language. */
+    private TagResolver typeTag(Player player, boolean ranked) {
+        return Placeholder.component("type", messages.get(player, ranked ? "queue.type-ranked" : "queue.type-unranked"));
+    }
+
+    private TagResolver kitTag(String name) {
+        return kits.get(name).map(QueueManager::kitTag).orElse(Placeholder.unparsed("kit", name));
     }
 
     private static TagResolver kitTag(Kit kit) {

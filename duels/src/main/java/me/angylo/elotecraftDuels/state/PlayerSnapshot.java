@@ -3,6 +3,7 @@ package me.angylo.elotecraftDuels.state;
 import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
+import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeInstance;
@@ -33,6 +34,7 @@ public record PlayerSnapshot(UUID id, String world, double x, double y, double z
 
     private static final int MAX_FOOD = 20;
     private static final float DEFAULT_SATURATION = 5;
+    private static final int DEFAULT_NO_DAMAGE_TICKS = 20;
 
     public PlayerSnapshot {
         inventory = inventory.stream().map(item -> item == null ? ItemStack.empty() : item.clone()).toList();
@@ -91,6 +93,13 @@ public record PlayerSnapshot(UUID id, String world, double x, double y, double z
         player.setFallDistance(0);
         player.setRemainingAir(player.getMaximumAir());
         player.setFreezeTicks(0);
+        clearKitRules(player);
+    }
+
+    /** Undoes what kit rules change on a player: the combo hit delay and the pearl cooldown. Neither is saved by the server. */
+    private static void clearKitRules(Player player) {
+        player.setMaximumNoDamageTicks(DEFAULT_NO_DAMAGE_TICKS);
+        player.setCooldown(Material.ENDER_PEARL, 0);
     }
 
     /** Puts everything back except the position; see {@link #location()}. */
@@ -118,6 +127,7 @@ public record PlayerSnapshot(UUID id, String world, double x, double y, double z
         player.setFallDistance(fallDistance);
         player.setRemainingAir(remainingAir);
         player.setFreezeTicks(freezeTicks);
+        clearKitRules(player);
     }
 
     /** Stored form; read back with {@link #fromText(String)}. */

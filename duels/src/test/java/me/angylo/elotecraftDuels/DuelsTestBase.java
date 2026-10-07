@@ -8,6 +8,7 @@ import me.angylo.elotecraftDuels.kit.Kit;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.InvalidDescriptionException;
 import org.bukkit.plugin.PluginDescriptionFile;
@@ -18,13 +19,16 @@ import org.mockbukkit.mockbukkit.ServerMock;
 import org.mockbukkit.mockbukkit.plugin.PluginMock;
 import org.mockbukkit.mockbukkit.world.WorldMock;
 
+import java.io.File;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.BooleanSupplier;
 import java.util.stream.Stream;
@@ -48,11 +52,16 @@ abstract class DuelsTestBase {
         server.getPluginManager().registerEvents(new CleanupListener(), MockBukkit.createMockPlugin("ElotecraftAPI"));
         plugin = MockBukkit.createMockPlugin("ElotecraftDuels");
         deleteRecursively(plugin.getDataFolder().toPath());
+        // Not a first start: the default kits would change what tests see in kit lists and menus.
+        Files.createDirectories(plugin.getDataFolder().toPath());
+        Files.writeString(plugin.getDataFolder().toPath().resolve("kits.yml"), "kits: {}\n");
         registerPermissions();
         world = server.addSimpleWorld("world");
         arenaWorld = server.addSimpleWorld("arena");
         duels = Duels.start(plugin);
         await(duels.ready());
+        // MockBukkit cannot show sidebars (ObjectiveMock.numberFormat); SidebarTest checks their layouts.
+        setConfig("sidebar.match", false);
     }
 
     @AfterEach
@@ -88,9 +97,29 @@ abstract class DuelsTestBase {
 
     /** A kit of one diamond sword. */
     protected Kit swordKit() {
-        Kit kit = new Kit("sword", "<aqua>Sword", Material.DIAMOND_SWORD, null, List.of(ItemStack.of(Material.DIAMOND_SWORD)));
+        Kit kit = new Kit("sword", "<aqua>Sword", Material.DIAMOND_SWORD, null, List.of(ItemStack.of(Material.DIAMOND_SWORD)), false, Set.of(), true);
         await(duels.kits().update(kit));
         return kit;
+    }
+
+    /** A build kit of a stack of planks. */
+    protected Kit buildKit() {
+        Kit kit = new Kit("bridge", "<gold>Bridge", Material.OAK_PLANKS, null, List.of(ItemStack.of(Material.OAK_PLANKS, 64)), true, Set.of(), true);
+        await(duels.kits().update(kit));
+        return kit;
+    }
+
+    /** Changes one value in config.yml and reloads. */
+    protected void setConfig(String path, Object value) {
+        File file = new File(plugin.getDataFolder(), "config.yml");
+        YamlConfiguration yaml = YamlConfiguration.loadConfiguration(file);
+        yaml.set(path, value);
+        try {
+            yaml.save(file);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        duels.reload();
     }
 
     protected void tick() {
@@ -114,6 +143,22 @@ abstract class DuelsTestBase {
                 fail("Condition not met in time");
             }
             tick();
+            Thread.onSpinWait();
+        }
+    }
+
+    /** Runs {@code command} as {@code player} and ticks until a chat line holds {@code text}, for answers after file saves. */
+    protected void assertSays(TestPlayer player, String command, String text) {
+        messages(player);
+        server.dispatchCommand(player, command);
+        List<String> lines = new ArrayList<>();
+        long deadline = System.currentTimeMillis() + TIMEOUT_MILLIS;
+        while (lines.stream().noneMatch(line -> line.contains(text))) {
+            if (System.currentTimeMillis() > deadline) {
+                fail("Expected '" + text + "' after /" + command + " in " + lines);
+            }
+            tick();
+            lines.addAll(messages(player));
             Thread.onSpinWait();
         }
     }

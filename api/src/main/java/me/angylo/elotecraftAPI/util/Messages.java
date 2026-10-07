@@ -4,6 +4,7 @@ import net.kyori.adventure.audience.Audience;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver;
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.Plugin;
 
@@ -13,6 +14,7 @@ import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -75,6 +77,20 @@ public final class Messages {
         return get(key, resolvers);
     }
 
+    /**
+     * A message of several lines, one component each, in {@code viewer}'s language: a YAML list or a
+     * string with line breaks. Each line is parsed on its own with the same placeholders, e.g. for sidebars.
+     */
+    public List<Component> lines(Audience viewer, String key, TagResolver... resolvers) {
+        Player player = viewer instanceof Player found ? found : null;
+        String language = player == null ? DEFAULT : languageOf(player);
+        List<String> raw = rawLines(language, key);
+        if (raw == null) {
+            return List.of(missing(key));
+        }
+        return raw.stream().map(line -> parse(player, language, line, resolvers)).toList();
+    }
+
     public void send(Audience audience, String key, TagResolver... resolvers) {
         audience.sendMessage(get(audience, key, resolvers));
     }
@@ -98,25 +114,48 @@ public final class Messages {
         }
         String raw = raw(language, key);
         if (raw == null) {
-            if (warnedKeys.add(key)) {
-                plugin.getLogger().warning("Missing message '" + key + "' in " + FILE);
-            }
-            return Component.text(key);
+            return missing(key);
         }
+        Component message = parse(player, language, raw, resolvers);
+        if (resolvers.length == 0 && !usesPlaceholders(player, raw)) {
+            parsed.put(cacheKey, message);
+        }
+        return message;
+    }
+
+    private Component parse(Player player, String language, String raw, TagResolver[] resolvers) {
         TagResolver.Builder tags = TagResolver.builder().resolvers(resolvers);
         String prefix = raw(language, "prefix");
         if (prefix != null) {
             tags.resolver(Placeholder.parsed("prefix", prefix));
         }
-        boolean placeholders = player != null && PlaceholderHook.TOKEN.matcher(raw).find() && PlaceholderHook.enabled();
-        if (placeholders) {
-            raw = PlaceholderHook.apply(player, raw, tags);
+        String text = usesPlaceholders(player, raw) ? PlaceholderHook.apply(player, raw, tags) : raw;
+        return Text.mm(text, tags.build());
+    }
+
+    private static boolean usesPlaceholders(Player player, String raw) {
+        return player != null && PlaceholderHook.TOKEN.matcher(raw).find() && PlaceholderHook.enabled();
+    }
+
+    private Component missing(String key) {
+        if (warnedKeys.add(key)) {
+            plugin.getLogger().warning("Missing message '" + key + "' in " + FILE);
         }
-        Component message = Text.mm(raw, tags.build());
-        if (resolvers.length == 0 && !placeholders) {
-            parsed.put(cacheKey, message);
+        return Component.text(key);
+    }
+
+    private List<String> rawLines(String language, String key) {
+        ConfigFile translated = files.get(language);
+        List<String> value = translated == null ? null : linesOf(translated.get(), key);
+        return value != null ? value : linesOf(files.get(DEFAULT).get(), key);
+    }
+
+    private static List<String> linesOf(YamlConfiguration config, String key) {
+        if (config.isList(key)) {
+            return config.getStringList(key);
         }
-        return message;
+        String value = config.getString(key);
+        return value == null ? null : List.of(value.split("\n", -1));
     }
 
     private String raw(String language, String key) {

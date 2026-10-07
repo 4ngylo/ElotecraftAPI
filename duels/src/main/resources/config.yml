@@ -26,10 +26,75 @@ requests:
   rematch-window: 30s     # how long after a duel /duel rematch works
 
 rules:
+  # hunger, natural-regeneration, void-eliminates and parties.friendly-fire are defaults: a kit can set its
+  # own with /duels kit rule <kit> <rule> <value>, along with fall damage, pearl cooldown and more.
   hunger: false                # false keeps food full while dueling
   natural-regeneration: true   # false: only potions, golden apples and the like heal
   # Commands fighters and spectators may use besides /duel (their aliases too), without the slash.
   allowed-commands: [msg, tell, w, r, reply]
+  # true: a fighter who falls out of the bottom of the arena's box loses, as in the void. Leaving any other
+  # way sends them back to their spawn.
+  void-eliminates: true
+
+build:
+  # Build kits (/duels kit build) let fighters place blocks in the arena and break the ones placed during
+  # the duel. true also lets them break the arena itself. Everything is put back after the duel.
+  break-arena-blocks: false
+
+regen:
+  blocks-per-tick: 2000   # 1 to 100000 blocks put back per tick after a build duel or pregen paste; the arena takes no duel until done
+
+arenas:
+  # An empty void world for arena copies made with /duels arena pregen, away from the lobby. Created at
+  # start if missing; restart to apply a new name.
+  world: duels_arenas
+  pregen-spacing: 64      # 16 to 1024 empty blocks between pregen copies
+  max-copies: 32          # 1 to 256 copies one pregen can make
+
+ranked:
+  # /duel ranked duels move Elo rating: the winner takes it from the loser (forfeits and quits count as
+  # losses, draws change nothing). /duel queue, challenges and rematches are unranked. Everyone starts at 1000.
+  k-factor: 32            # 1 to 100; the most rating one duel can move
+  range: 100              # 0 to 5000; how far apart two queued players' ratings may be at first
+  range-growth: 10        # 0 to 1000; added to the range for every second a player waits
+  range-max: 1000         # 0 to 5000; the range never grows past this
+
+parties:
+  max-size: 8             # 2 to 100 players, the leader included
+  invite-expiry: 60s      # how long a party invite can be accepted
+  friendly-fire: false    # whether teammates can hurt each other in party splits and party vs party
+
+kit-editor:
+  timeout: 5m             # /duel editkit ends without saving after this
+
+# Player-hosted events (/event): the host picks the kit, arena, rules, teams and winner count while
+# players join, then everyone fights once. Events never change stats or ratings.
+events:
+  min-players: 2          # 2 to 100; an event with fewer when its wait ends is cancelled
+  max-players: 16         # 2 to 100; it starts at once when full
+  wait-time: 2m           # how long players can join before it starts on its own
+  announce-interval: 30s  # how often a public event is announced again while it waits
+  host-cooldown: 5m       # between events hosted by one player; duels.bypass.cooldown skips it
+  broadcast-result: true  # tell the whole server who won; false: only the players in it
+  # Paid to each winner of a fight won by a lethal hit. Money needs Vault and an economy plugin;
+  # commands run from the console and may use <winner>, <host>, <kit> and <arena>. Leave both
+  # empty for no prize: the result is only announced.
+  reward:
+    money: 0
+    commands: []
+  # The border the host can turn on: it starts around the arena and closes in.
+  border:
+    delay: 60s            # fight time before it starts closing in
+    shrink-time: 2m       # how long it takes to reach min-size
+    min-size: 10          # 1 to 1000 blocks across at the end
+    damage: 1.0           # 0 to 20 health a second outside it (2 = one heart)
+
+# A sidebar gives the player their own scoreboard, so it hides other plugins' sidebars and nametag
+# teams for them while it shows. Texts are in messages.yml under sidebar.
+sidebar:
+  match: true             # fighters and spectators see the fight: kit, arena, time, opponents
+  lobby: false            # everyone else sees their stats, rank, queue and party
+  lobby-worlds: []        # worlds with the lobby sidebar; empty: every world except arenas.world
 
 rewards:
   # Money needs Vault and an economy plugin. Commands run from the console and may use

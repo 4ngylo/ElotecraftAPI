@@ -9,14 +9,19 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
 import org.bukkit.plugin.Plugin;
 
+import java.io.File;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.EnumMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.regex.Pattern;
 
@@ -36,8 +41,35 @@ public final class KitRegistry {
 
     public KitRegistry(Plugin plugin) {
         this.logger = plugin.getLogger();
+        boolean firstStart = !new File(plugin.getDataFolder(), "kits.yml").exists();
         this.file = new ConfigFile(plugin, "kits.yml");
         load();
+        if (firstStart) {
+            logger.info("Added " + installDefaults() + " default kits to kits.yml");
+        }
+    }
+
+    /**
+     * Adds the default kits that are missing; kits with their names are kept as they are.
+     *
+     * @return the number added
+     */
+    public int installDefaults() {
+        int added = 0;
+        for (Kit kit : DefaultKits.all()) {
+            if (!kits.containsKey(kit.name())) {
+                kits.put(kit.name(), kit);
+                write(kit);
+                added++;
+            }
+        }
+        if (added > 0) {
+            file.save().exceptionally(error -> {
+                logger.log(Level.WARNING, "Could not save kits.yml", error);
+                return null;
+            });
+        }
+        return added;
     }
 
     /** Lowercase letters, digits, dots, - and _. */
@@ -113,7 +145,8 @@ public final class KitRegistry {
             try {
                 ItemStack[] items = ItemStack.deserializeItemsFromBytes(Base64.getDecoder().decode(section.getString("items", "")));
                 kits.put(name, new Kit(name, section.getString("display-name", name), icon(section),
-                        permission(section), Arrays.asList(items)));
+                        permission(section), Arrays.asList(items), section.getBoolean("build", false), arenaCategories(section),
+                        section.getBoolean("damage", true), rules(section)));
             } catch (RuntimeException e) {
                 logger.warning("Skipping kit '" + name + "' in kits.yml: its items could not be read (" + e.getMessage() + ")");
             }
@@ -128,6 +161,37 @@ public final class KitRegistry {
             return Kit.DEFAULT_ICON;
         }
         return icon;
+    }
+
+    private Set<String> arenaCategories(ConfigurationSection section) {
+        Set<String> categories = new HashSet<>();
+        for (String raw : section.getStringList("arena-categories")) {
+            String category = raw.strip().toLowerCase(Locale.ROOT);
+            if (ArenaRegistry.validName(category)) {
+                categories.add(category);
+            } else {
+                logger.warning("Kit '" + section.getName() + "' has an invalid arena category '" + raw + "'; skipping it");
+            }
+        }
+        return categories;
+    }
+
+    private Map<KitRule, Object> rules(ConfigurationSection section) {
+        Map<KitRule, Object> rules = new EnumMap<>(KitRule.class);
+        ConfigurationSection raw = section.getConfigurationSection("rules");
+        if (raw == null) {
+            return rules;
+        }
+        for (String key : raw.getKeys(false)) {
+            Optional<KitRule> rule = KitRule.byKey(key);
+            Object value = raw.get(key);
+            if (rule.isEmpty() || !rule.get().accepts(value)) {
+                logger.warning("Kit '" + section.getName() + "' has an invalid rule '" + key + ": " + value + "'; skipping it");
+                continue;
+            }
+            rules.put(rule.get(), value);
+        }
+        return rules;
     }
 
     private String permission(ConfigurationSection section) {
@@ -149,6 +213,15 @@ public final class KitRegistry {
         yaml.set(path + ".display-name", kit.displayName());
         yaml.set(path + ".icon", kit.icon().name());
         yaml.set(path + ".permission", kit.permission() == null ? "" : kit.permission());
+        yaml.set(path + ".build", kit.build());
+        yaml.set(path + ".damage", kit.damage());
+        yaml.set(path + ".arena-categories", kit.arenaCategories().stream().sorted().toList());
+        for (KitRule rule : KitRule.values()) {
+            Object value = kit.rules().get(rule);
+            if (value != null) {
+                yaml.set(path + ".rules." + rule.key(), value);
+            }
+        }
         yaml.set(path + ".items", Base64.getEncoder().encodeToString(ItemStack.serializeItemsAsBytes(kit.items())));
     }
 }

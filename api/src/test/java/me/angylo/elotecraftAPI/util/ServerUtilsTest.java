@@ -193,6 +193,40 @@ class ServerUtilsTest {
     }
 
     @Test
+    void anOlderFileGainsTheNewBundledKeysAndKeepsItsValues() throws IOException {
+        Path path = freshFile("update.yml");
+        String old = "coins: 9\nshop:\n  rows: 6\ncustom: kept\n";
+        Files.deleteIfExists(path.resolveSibling("update.yml.bak"));
+        Files.createDirectories(path.getParent());
+        Files.writeString(path, old);
+
+        ConfigFile file = new ConfigFile(plugin, "update.yml");
+
+        String updated = Files.readString(path);
+        assertTrue(updated.contains("coins: 9"), updated);
+        assertTrue(updated.contains("rows: 6"), updated);
+        assertTrue(updated.contains("custom: kept"), updated);
+        assertTrue(updated.contains("title: Shop # shown on top"), updated);
+        assertTrue(updated.contains("bank:\n  rate: 2"), updated);
+        assertEquals(old, Files.readString(path.resolveSibling("update.yml.bak")));
+        assertEquals("Shop", file.get().getConfigurationSection("shop").getString("title", "fallback"));
+        assertTrue(file.get().isSet("bank"));
+    }
+
+    @Test
+    void anUpToDateFileIsNotRewritten() throws IOException {
+        Path path = freshFile("update.yml");
+        Files.deleteIfExists(path.resolveSibling("update.yml.bak"));
+        new ConfigFile(plugin, "update.yml");
+        String written = Files.readString(path);
+
+        new ConfigFile(plugin, "update.yml").reload();
+
+        assertEquals(written, Files.readString(path));
+        assertFalse(Files.exists(path.resolveSibling("update.yml.bak")));
+    }
+
+    @Test
     void saveLaterFoldsChangesIntoOneDelayedWrite() throws IOException {
         Path path = freshFile("later.yml");
         ConfigFile file = new ConfigFile(plugin, "later.yml");

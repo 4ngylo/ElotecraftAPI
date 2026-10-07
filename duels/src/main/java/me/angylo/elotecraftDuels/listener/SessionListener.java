@@ -105,7 +105,7 @@ public final class SessionListener implements Listener {
             return null;
         });
         snapshots.find(player.getUniqueId()).thenAccept(snapshot -> snapshot.ifPresent(text -> {
-            if (player.isOnline() && !matches.isBusy(player)) {
+            if (player.isOnline() && !matches.isRestricted(player)) {
                 recover(player, text);
             }
         })).exceptionally(error -> {

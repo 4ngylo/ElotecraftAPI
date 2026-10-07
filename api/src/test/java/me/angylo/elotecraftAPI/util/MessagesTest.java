@@ -1,6 +1,7 @@
 package me.angylo.elotecraftAPI.util;
 
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver;
 import net.kyori.adventure.text.serializer.gson.GsonComponentSerializer;
 import org.junit.jupiter.api.AfterEach;
@@ -15,6 +16,7 @@ import java.io.IOException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
@@ -45,9 +47,17 @@ class MessagesTest {
                 hello: "<prefix>Hello"
                 bye: "Bye"
                 papi: "Hi %player_name%"
+                board: |-
+                  <prefix>Wins: <wins>
+                  Losses: <losses>
+                listed:
+                  - "First <wins>"
+                  - ""
                 """);
         Files.writeString(folder.resolve("messages_es.yml"), """
                 hello: "<prefix>Hola"
+                listed:
+                  - "Primero <wins>"
                 """);
         player = server.addPlayer();
     }
@@ -55,6 +65,20 @@ class MessagesTest {
     @AfterEach
     void tearDown() {
         MockBukkit.unmock();
+    }
+
+    @Test
+    void linesSplitAMultiLineMessageOrReadAList() {
+        Messages messages = new Messages(plugin);
+        TagResolver wins = Placeholder.unparsed("wins", "3");
+
+        assertEquals(List.of("[Shop] Wins: 3", "Losses: 1"),
+                messages.lines(player, "board", wins, Placeholder.unparsed("losses", "1")).stream().map(Text::plain).toList());
+        assertEquals(List.of("First 3", ""), messages.lines(player, "listed", wins).stream().map(Text::plain).toList());
+
+        player.setLocale(Locale.forLanguageTag("es-ES"));
+        assertEquals(List.of("Primero 3"), messages.lines(player, "listed", wins).stream().map(Text::plain).toList());
+        assertEquals(List.of("missing"), messages.lines(player, "missing").stream().map(Text::plain).toList());
     }
 
     @Test

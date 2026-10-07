@@ -4,6 +4,7 @@ import me.angylo.elotecraftDuels.arena.Arena;
 import me.angylo.elotecraftDuels.arena.ArenaRegistry;
 import me.angylo.elotecraftDuels.kit.Kit;
 import me.angylo.elotecraftDuels.kit.KitRegistry;
+import me.angylo.elotecraftDuels.kit.KitRule;
 import me.angylo.elotecraftDuels.state.PlayerSnapshot;
 import me.angylo.elotecraftDuels.stats.PlayerStats;
 import net.kyori.adventure.bossbar.BossBar;
@@ -17,8 +18,11 @@ import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.junit.jupiter.api.Test;
 
+import java.io.File;
+import java.io.IOException;
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.logging.Logger;
 
@@ -29,6 +33,39 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** Settings, arenas, kits, snapshots and stats on their own. */
 class DataTest extends DuelsTestBase {
+
+    /** An older config.yml lacks newer keys: the bundled defaults fill in, without a warning. */
+    @Test
+    void keysMissingFromAnOlderConfigUseTheBundledDefaults() throws InvalidConfigurationException {
+        YamlConfiguration bundled = new YamlConfiguration();
+        bundled.loadFromString("kit-editor: {timeout: 2m}\nparties: {invite-expiry: 45s}\n");
+        YamlConfiguration old = new YamlConfiguration();
+        old.loadFromString("match: {countdown-seconds: 3}\n");
+        old.setDefaults(bundled);
+        List<String> warnings = new java.util.ArrayList<>();
+        Logger logger = Logger.getAnonymousLogger();
+        logger.setUseParentHandlers(false);
+        logger.addHandler(new java.util.logging.Handler() {
+            @Override
+            public void publish(java.util.logging.LogRecord record) {
+                warnings.add(record.getMessage());
+            }
+
+            @Override
+            public void flush() {
+            }
+
+            @Override
+            public void close() {
+            }
+        });
+
+        Settings settings = Settings.load(old, logger);
+
+        assertEquals(Duration.ofMinutes(2), settings.kitEditorTimeout());
+        assertEquals(Duration.ofSeconds(45), settings.partyInviteExpiry());
+        assertTrue(warnings.stream().noneMatch(line -> line.contains("kit-editor") || line.contains("invite-expiry")), warnings.toString());
+    }
 
     @Test
     void bundledConfigLoadsAndBadValuesFallBack() throws InvalidConfigurationException {
@@ -41,6 +78,7 @@ class DataTest extends DuelsTestBase {
                 match: {countdown-seconds: 99, max-duration: soon, boss-bar-color: CHARTREUSE}
                 rules: {allowed-commands: ["/MSG"]}
                 rewards: {win: {money: -5}}
+                ranked: {k-factor: 0, range-max: 9999}
                 effects:
                   broken: {sound: "Not A Key", particle: DUST}
                   good: {sound: ui.button.click}
@@ -52,6 +90,10 @@ class DataTest extends DuelsTestBase {
         assertEquals(BossBar.Color.RED, settings.bossBarColor());
         assertEquals(Set.of("msg"), settings.allowedCommands());
         assertEquals(0, settings.winReward().money());
+        assertEquals(32, settings.ranked().kFactor());
+        assertEquals(1000, settings.ranked().rangeMax());
+        assertEquals(500, settings.ranked().range(40));
+        assertEquals(1000, settings.ranked().range(500));
     }
 
     @Test
@@ -79,7 +121,7 @@ class DataTest extends DuelsTestBase {
     @Test
     void kitItemsSurviveAReload() {
         Kit kit = new Kit("tank", "<gray>Tank", Material.SHIELD, "duels.kit.tank",
-                List.of(ItemStack.of(Material.IRON_SWORD), ItemStack.empty(), ItemStack.of(Material.GOLDEN_APPLE, 3)));
+                List.of(ItemStack.of(Material.IRON_SWORD), ItemStack.empty(), ItemStack.of(Material.GOLDEN_APPLE, 3)), true, Set.of("bridge"), true);
         await(duels.kits().update(kit));
         server.getScheduler().waitAsyncTasksFinished();
 
@@ -88,8 +130,27 @@ class DataTest extends DuelsTestBase {
         assertEquals(Material.GOLDEN_APPLE, loaded.items().get(2).getType());
         assertEquals(3, loaded.items().get(2).getAmount());
         assertEquals("duels.kit.tank", loaded.permission());
+        assertTrue(loaded.build());
+        assertEquals(Set.of("bridge"), loaded.arenaCategories());
         assertTrue(KitRegistry.validPermission("duels.kit.tank"));
         assertFalse(KitRegistry.validPermission("bad permission"));
+    }
+
+    @Test
+    void kitRulesSurviveAReloadAndBadOnesAreSkipped() throws IOException {
+        Kit kit = new Kit("uhc", "UHC", Material.WATER_BUCKET, null, List.of(ItemStack.of(Material.IRON_SWORD)), false, Set.of(), true)
+                .withRule(KitRule.NATURAL_REGENERATION, false).withRule(KitRule.PEARL_COOLDOWN, 15);
+        await(duels.kits().update(kit));
+        server.getScheduler().waitAsyncTasksFinished();
+        File file = new File(plugin.getDataFolder(), "kits.yml");
+        YamlConfiguration yaml = YamlConfiguration.loadConfiguration(file);
+        yaml.set("kits.uhc.rules.hunger", "yes");
+        yaml.set("kits.uhc.rules.no-such-rule", true);
+        yaml.save(file);
+
+        assertTrue(duels.kits().reload());
+        Kit loaded = duels.kits().get("uhc").orElseThrow();
+        assertEquals(Map.of(KitRule.NATURAL_REGENERATION, false, KitRule.PEARL_COOLDOWN, 15), loaded.rules());
     }
 
     @Test

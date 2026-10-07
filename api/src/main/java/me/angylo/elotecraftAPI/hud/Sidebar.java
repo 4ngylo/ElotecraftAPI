@@ -39,13 +39,16 @@ public final class Sidebar {
     private final Player player;
     private final Scoreboard scoreboard;
     private final Objective objective;
-    private int lineCount;
+    private Component title;
+    /** The lines on screen, so unchanged ones are not sent again. */
+    private List<Component> shown = List.of();
 
     private Sidebar(Plugin plugin, Player player, Component title) {
         this.plugin = plugin;
         this.player = player;
         this.scoreboard = Bukkit.getScoreboardManager().getNewScoreboard();
         this.objective = scoreboard.registerNewObjective("sidebar", Criteria.DUMMY, title);
+        this.title = title;
         objective.setDisplaySlot(DisplaySlot.SIDEBAR);
         objective.numberFormat(NumberFormat.blank());
     }
@@ -67,7 +70,15 @@ public final class Sidebar {
 
     /** @param title MiniMessage */
     public Sidebar title(String title) {
-        objective.displayName(Text.mm(title));
+        return title(Text.mm(title));
+    }
+
+    /** Sets the title; sends nothing if it is unchanged. */
+    public Sidebar title(Component title) {
+        if (!title.equals(this.title)) {
+            objective.displayName(title);
+            this.title = title;
+        }
         return this;
     }
 
@@ -77,7 +88,8 @@ public final class Sidebar {
     }
 
     /**
-     * Replaces all lines, top to bottom.
+     * Replaces all lines, top to bottom. Lines equal to the ones shown are not sent again, so calling
+     * this every second with mostly the same lines is cheap.
      *
      * @throws IllegalArgumentException if there are more than {@value #MAX_LINES} lines
      */
@@ -85,15 +97,20 @@ public final class Sidebar {
         if (lines.size() > MAX_LINES) {
             throw new IllegalArgumentException("A sidebar shows at most " + MAX_LINES + " lines, got " + lines.size());
         }
+        // Scores order the lines, so they all change when the number of lines does.
+        boolean sameCount = lines.size() == shown.size();
         for (int i = 0; i < lines.size(); i++) {
+            if (sameCount && lines.get(i).equals(shown.get(i))) {
+                continue;
+            }
             Score score = objective.getScore(entry(i));
             score.setScore(lines.size() - i);
             score.customName(lines.get(i));
         }
-        for (int i = lines.size(); i < lineCount; i++) {
+        for (int i = lines.size(); i < shown.size(); i++) {
             scoreboard.resetScores(entry(i));
         }
-        lineCount = lines.size();
+        shown = List.copyOf(lines);
         return this;
     }
 

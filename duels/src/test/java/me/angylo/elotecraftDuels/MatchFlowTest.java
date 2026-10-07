@@ -80,7 +80,7 @@ class MatchFlowTest extends DuelsTestBase {
         assertFalse(alex.getInventory().contains(Material.DIAMOND_SWORD));
         assertTrue(steve.getInventory().contains(Material.COBBLESTONE, 7));
         assertEquals(GameMode.SURVIVAL, steve.getGameMode());
-        assertFalse(duels.matches().isArenaBusy("pit"));
+        assertFalse(duels.matches().isArenaInUse("pit"));
 
         tickUntil(() -> await(duels.snapshots().find(alex.getUniqueId())).isEmpty());
         List<PlayerStats> top = await(duels.stats().top(10));

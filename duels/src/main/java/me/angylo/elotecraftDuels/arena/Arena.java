@@ -9,19 +9,28 @@ import org.bukkit.util.BoundingBox;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 /**
- * A place for one duel at a time. Every position is in {@link #world()}; the corners are opposite blocks
- * of a box around the whole arena. Immutable: the {@code with...} methods return a changed copy.
+ * A place for duels. Every position is in {@link #world()}; the corners are opposite blocks of a box around
+ * the whole arena. Duels run in that world, one at a time (see {@link ArenaInstances}). Immutable: the
+ * {@code with...} methods return a changed copy.
  *
  * @param displayName MiniMessage, set by admins
+ * @param categories  arena pools kits pick from; empty means only kits that accept any arena use it
+ * @param center      optional middle of the arena; where spectators appear when no spectator point is set
+ * @param buildLimit  highest block Y fighters may place blocks at, or null for the whole box
+ * @param copy        where this arena was pasted from by pregen, or null for an arena built by hand
+ * @param extraSpawns spawns for fights with more than two sides, e.g. a party FFA; used when there are enough
  */
 public record Arena(String name, String displayName, Material icon, String world, boolean enabled,
-                    Position spawn1, Position spawn2, Position spectator, Position corner1, Position corner2) {
+                    Position spawn1, Position spawn2, Position spectator, Position corner1, Position corner2,
+                    Set<String> categories, Position center, Integer buildLimit, Copy copy, List<Position> extraSpawns) {
 
     /** Why an arena cannot host a duel; see {@link #problems()}. */
     public enum Problem {
-        WORLD_NOT_LOADED, MISSING_SPAWN_1, MISSING_SPAWN_2, MISSING_CORNERS, SPAWN_OUTSIDE, SPECTATOR_OUTSIDE, DISABLED;
+        WORLD_NOT_LOADED, MISSING_SPAWN_1, MISSING_SPAWN_2, MISSING_CORNERS, SPAWN_OUTSIDE, SPECTATOR_OUTSIDE,
+        CENTER_OUTSIDE, DISABLED;
 
         /** Key under {@code admin.arena.problems} in messages.yml. */
         public String messageKey() {
@@ -39,42 +48,83 @@ public record Arena(String name, String displayName, Material icon, String world
         public Location in(World world) {
             return new Location(world, x, y, z, yaw, pitch);
         }
+
+        Position offset(int dx, int dy, int dz) {
+            return new Position(x + dx, y + dy, z + dz, yaw, pitch);
+        }
+    }
+
+    /** A pregen copy: pasted from arena {@code source}'s snapshot, moved by the offset. */
+    public record Copy(String source, int dx, int dy, int dz) {
     }
 
     public static final Material DEFAULT_ICON = Material.GRASS_BLOCK;
 
+    public Arena {
+        categories = Set.copyOf(categories);
+        extraSpawns = List.copyOf(extraSpawns);
+    }
+
     static Arena create(String name, String world) {
-        return new Arena(name, name, DEFAULT_ICON, world, true, null, null, null, null, null);
+        return new Arena(name, name, DEFAULT_ICON, world, true, null, null, null, null, null, Set.of(), null, null, null, List.of());
     }
 
     /** @param number 1 or 2 */
     public Arena withSpawn(int number, Position position) {
         return number == 1
-                ? new Arena(name, displayName, icon, world, enabled, position, spawn2, spectator, corner1, corner2)
-                : new Arena(name, displayName, icon, world, enabled, spawn1, position, spectator, corner1, corner2);
+                ? new Arena(name, displayName, icon, world, enabled, position, spawn2, spectator, corner1, corner2, categories, center, buildLimit, copy, extraSpawns)
+                : new Arena(name, displayName, icon, world, enabled, spawn1, position, spectator, corner1, corner2, categories, center, buildLimit, copy, extraSpawns);
     }
 
     /** @param number 1 or 2 */
     public Arena withCorner(int number, Position position) {
         return number == 1
-                ? new Arena(name, displayName, icon, world, enabled, spawn1, spawn2, spectator, position, corner2)
-                : new Arena(name, displayName, icon, world, enabled, spawn1, spawn2, spectator, corner1, position);
+                ? new Arena(name, displayName, icon, world, enabled, spawn1, spawn2, spectator, position, corner2, categories, center, buildLimit, copy, extraSpawns)
+                : new Arena(name, displayName, icon, world, enabled, spawn1, spawn2, spectator, corner1, position, categories, center, buildLimit, copy, extraSpawns);
     }
 
     public Arena withSpectator(Position position) {
-        return new Arena(name, displayName, icon, world, enabled, spawn1, spawn2, position, corner1, corner2);
+        return new Arena(name, displayName, icon, world, enabled, spawn1, spawn2, position, corner1, corner2, categories, center, buildLimit, copy, extraSpawns);
     }
 
     public Arena withIcon(Material newIcon) {
-        return new Arena(name, displayName, newIcon, world, enabled, spawn1, spawn2, spectator, corner1, corner2);
+        return new Arena(name, displayName, newIcon, world, enabled, spawn1, spawn2, spectator, corner1, corner2, categories, center, buildLimit, copy, extraSpawns);
     }
 
     public Arena withDisplayName(String newDisplayName) {
-        return new Arena(name, newDisplayName, icon, world, enabled, spawn1, spawn2, spectator, corner1, corner2);
+        return new Arena(name, newDisplayName, icon, world, enabled, spawn1, spawn2, spectator, corner1, corner2, categories, center, buildLimit, copy, extraSpawns);
     }
 
     public Arena withEnabled(boolean newEnabled) {
-        return new Arena(name, displayName, icon, world, newEnabled, spawn1, spawn2, spectator, corner1, corner2);
+        return new Arena(name, displayName, icon, world, newEnabled, spawn1, spawn2, spectator, corner1, corner2, categories, center, buildLimit, copy, extraSpawns);
+    }
+
+    public Arena withCategories(Set<String> newCategories) {
+        return new Arena(name, displayName, icon, world, enabled, spawn1, spawn2, spectator, corner1, corner2, newCategories, center, buildLimit, copy, extraSpawns);
+    }
+
+    public Arena withCenter(Position position) {
+        return new Arena(name, displayName, icon, world, enabled, spawn1, spawn2, spectator, corner1, corner2, categories, position, buildLimit, copy, extraSpawns);
+    }
+
+    public Arena withExtraSpawns(List<Position> newSpawns) {
+        return new Arena(name, displayName, icon, world, enabled, spawn1, spawn2, spectator, corner1, corner2, categories, center, buildLimit, copy, newSpawns);
+    }
+
+    /** @param newBuildLimit null for no limit */
+    public Arena withBuildLimit(Integer newBuildLimit) {
+        return new Arena(name, displayName, icon, world, enabled, spawn1, spawn2, spectator, corner1, corner2, categories, center, newBuildLimit, copy, extraSpawns);
+    }
+
+    /**
+     * A pregen copy of this arena named {@code copyName} in {@code copyWorld}, every point moved by the
+     * offset. Only for a {@link #isReady() ready} arena.
+     */
+    public Arena copyAt(String copyName, String copyWorld, int dx, int dy, int dz) {
+        return new Arena(copyName, displayName, icon, copyWorld, true, spawn1.offset(dx, dy, dz), spawn2.offset(dx, dy, dz),
+                offset(spectator, dx, dy, dz), corner1.offset(dx, dy, dz), corner2.offset(dx, dy, dz), categories,
+                offset(center, dx, dy, dz), buildLimit == null ? null : buildLimit + dy, new Copy(name, dx, dy, dz),
+                extraSpawns.stream().map(spawn -> spawn.offset(dx, dy, dz)).toList());
     }
 
     /** Everything stopping a duel here; empty means ready. */
@@ -99,6 +149,12 @@ public record Arena(String name, String displayName, Material icon, String world
             if (outside(bounds, spectator)) {
                 problems.add(Problem.SPECTATOR_OUTSIDE);
             }
+            if (extraSpawns.stream().anyMatch(spawn -> outside(bounds, spawn))) {
+                problems.add(Problem.SPAWN_OUTSIDE);
+            }
+            if (outside(bounds, center)) {
+                problems.add(Problem.CENTER_OUTSIDE);
+            }
         }
         if (!enabled) {
             problems.add(Problem.DISABLED);
@@ -110,31 +166,48 @@ public record Arena(String name, String displayName, Material icon, String world
         return problems().isEmpty();
     }
 
-    /** Whether {@code location} is inside the corners; false while they are not both set. */
+    /** Whether fighters may place a block at height {@code y}; the box limits them anyway. */
+    public boolean allowsBuildingAt(int y) {
+        return buildLimit == null || y <= buildLimit;
+    }
+
+    /** Whether {@code location} is inside the corners in the arena's world; false while they are not both set. */
     public boolean contains(Location location) {
-        return corner1 != null && corner2 != null && location.getWorld() != null
-                && location.getWorld().getName().equals(world)
-                && bounds().contains(location.getX(), location.getY(), location.getZ());
+        return location.getWorld() != null && location.getWorld().getName().equals(world) && inBox(location);
+    }
+
+    /** Whether {@code location} is inside the corners, in whatever world; false while they are not both set. */
+    public boolean inBox(Location location) {
+        return corner1 != null && corner2 != null && bounds().contains(location.getX(), location.getY(), location.getZ());
     }
 
     /**
-     * Where fighter 1 or 2 starts. Only for a {@link #isReady() ready} arena.
+     * Where fighter 1 or 2 starts, in {@code in} (the arena's world). Only for a {@link #isReady() ready}
+     * arena.
      *
      * @param number 1 or 2
      */
-    public Location spawn(int number) {
-        return (number == 1 ? spawn1 : spawn2).in(Bukkit.getWorld(world));
+    public Location spawn(int number, World in) {
+        return (number == 1 ? spawn1 : spawn2).in(in);
     }
 
-    /** The spectator spawn, or halfway between the fighter spawns if none is set. Only for a ready arena. */
+    /** The spectator spawn in the arena's world. Only for a ready arena. */
     public Location spectatorSpawn() {
-        Position position = spectator != null ? spectator : new Position((spawn1.x() + spawn2.x()) / 2,
-                (spawn1.y() + spawn2.y()) / 2, (spawn1.z() + spawn2.z()) / 2, spawn1.yaw(), 0);
-        return position.in(Bukkit.getWorld(world));
+        return spectatorSpawn(Bukkit.getWorld(world));
     }
 
-    /** The box covering both corner blocks fully. */
-    private BoundingBox bounds() {
+    /**
+     * The spectator spawn in {@code in}: the spectator point, else the center, else halfway between the
+     * fighter spawns. Only for a ready arena.
+     */
+    public Location spectatorSpawn(World in) {
+        Position position = spectator != null ? spectator : center != null ? center : new Position((spawn1.x() + spawn2.x()) / 2,
+                (spawn1.y() + spawn2.y()) / 2, (spawn1.z() + spawn2.z()) / 2, spawn1.yaw(), 0);
+        return position.in(in);
+    }
+
+    /** The box covering both corner blocks fully. Only while both corners are set. */
+    public BoundingBox bounds() {
         return new BoundingBox(
                 Math.min(Math.floor(corner1.x()), Math.floor(corner2.x())),
                 Math.min(Math.floor(corner1.y()), Math.floor(corner2.y())),
@@ -146,5 +219,9 @@ public record Arena(String name, String displayName, Material icon, String world
 
     private static boolean outside(BoundingBox bounds, Position position) {
         return position != null && !bounds.contains(position.x(), position.y(), position.z());
+    }
+
+    private static Position offset(Position position, int dx, int dy, int dz) {
+        return position == null ? null : position.offset(dx, dy, dz);
     }
 }

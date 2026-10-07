@@ -1,0 +1,8 @@
+# Bundled copy for ConfigFile update tests.
+coins: 5
+shop:
+  # Rows of the shop menu
+  rows: 3
+  title: Shop # shown on top
+bank:
+  rate: 2

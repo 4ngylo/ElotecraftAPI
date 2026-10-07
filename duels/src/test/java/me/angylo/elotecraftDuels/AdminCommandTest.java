@@ -1,9 +1,11 @@
 package me.angylo.elotecraftDuels;
 
 import me.angylo.elotecraftDuels.arena.Arena;
+import me.angylo.elotecraftDuels.kit.KitRule;
 import me.angylo.elotecraftDuels.match.Match;
 import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.command.Command;
 import org.bukkit.inventory.ItemStack;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -42,6 +44,20 @@ class AdminCommandTest extends DuelsTestBase {
         return lines;
     }
 
+    /** Runs the command and ticks until a line with {@code text} arrives, for commands that answer twice. */
+    private boolean saidEventually(String command, String text) {
+        messages(admin);
+        server.dispatchCommand(admin, command);
+        List<String> lines = new ArrayList<>();
+        long deadline = System.currentTimeMillis() + 5000;
+        while (lines.stream().noneMatch(line -> line.contains(text)) && System.currentTimeMillis() < deadline) {
+            tick();
+            lines.addAll(messages(admin));
+            Thread.onSpinWait();
+        }
+        return lines.stream().anyMatch(line -> line.contains(text)) ? true : fail(lines, text);
+    }
+
     private boolean said(String command, String text) {
         List<String> lines = run(command);
         return lines.stream().anyMatch(line -> line.contains(text)) ? true : fail(lines, text);
@@ -52,10 +68,54 @@ class AdminCommandTest extends DuelsTestBase {
     }
 
     @Test
+    void kitRulesAreSetListedAndReset() {
+        assertTrue(said("duels kit rule sword pearl-cooldown 15", "pearl-cooldown of Sword is now 15s"));
+        assertEquals(15, duels.kits().get("sword").orElseThrow().seconds(KitRule.PEARL_COOLDOWN).orElseThrow());
+        assertTrue(said("duels kit rule sword natural-regeneration false", "is now false"));
+        assertTrue(said("duels kit rule sword", "natural-regeneration: false"));
+
+        assertTrue(said("duels kit rule sword pearl-cooldown soon", "number of seconds from 0 to 60"));
+        assertTrue(said("duels kit rule sword flying true", "Rules:"));
+        assertTrue(said("duels kit rule sword pearl-cooldown default", "is now vanilla"));
+        assertTrue(duels.kits().get("sword").orElseThrow().seconds(KitRule.PEARL_COOLDOWN).isEmpty());
+        Command duelsCommand = server.getCommandMap().getCommand("duels");
+        assertEquals(List.of("hunger", "hit-delay"), duelsCommand.tabComplete(admin, "duels", new String[]{"kit", "rule", "sword", "h"}));
+        assertEquals(List.of("0", "15", "default"), duelsCommand.tabComplete(admin, "duels", new String[]{"kit", "rule", "sword", "pearl-cooldown", ""}));
+    }
+
+    @Test
+    void kitSubcommandsTabComplete() {
+        duels.arenas().update(duels.arenas().get("pit").orElseThrow().withCategories(java.util.Set.of("sumo"))).join();
+        Command duelsCommand = server.getCommandMap().getCommand("duels");
+
+        assertEquals(List.of("help", "create", "save", "load", "delete", "seticon", "setname", "setpermission", "build", "damage",
+                "rule", "defaults", "arenas", "list", "sword"), duelsCommand.tabComplete(admin, "duels", new String[]{"kit", ""}));
+        assertEquals(List.of("none", "duels.kit.sword"), duelsCommand.tabComplete(admin, "duels", new String[]{"kit", "setpermission", "sword", ""}));
+        assertEquals(List.of("sumo", "any"), duelsCommand.tabComplete(admin, "duels", new String[]{"kit", "arenas", "sword", ""}));
+        assertEquals(List.of("sumo"), duelsCommand.tabComplete(admin, "duels", new String[]{"kit", "arenas", "sword", "sumo", ""}));
+        assertEquals(List.of("sword"), duelsCommand.tabComplete(admin, "duels", new String[]{"kit", "build", ""}));
+    }
+
+    @Test
+    void buildKitsAndArenaSnapshots() {
+        assertTrue(said("duels kit build sword", "can now place blocks"));
+        assertTrue(duels.kits().get("sword").orElseThrow().build());
+        assertTrue(said("duels kit build sword", "can no longer place blocks"));
+
+        assertTrue(saidEventually("duels arena reset pit", "has no snapshot"));
+        assertTrue(said("duels arena snapshot pit", "Saved the blocks of pit"));
+        arenaWorld.getBlockAt(5, 60, 5).setType(Material.GOLD_BLOCK);
+        assertTrue(saidEventually("duels arena reset pit", "is back as in its snapshot"));
+        assertEquals(Material.AIR, arenaWorld.getBlockAt(5, 60, 5).getType());
+        assertTrue(said("duels arena create half", "Created arena"));
+        assertTrue(said("duels arena snapshot half", "isn't ready"));
+    }
+
+    @Test
     void helpPagesAndValidation() {
         assertTrue(said("duels", "Duels admin"));
-        assertTrue(said("duels arena", "Arena setup"));
-        assertTrue(said("duels kit", "Kit setup"));
+        assertTrue(said("duels arena help", "Arena setup"));
+        assertTrue(said("duels kit help", "Kit setup"));
         assertTrue(said("duels arena create Bad.Name", "Names use 1 to 32"));
         assertTrue(said("duels arena create pit", "already exists"));
         assertTrue(said("duels arena info nope", "There is no arena called 'nope'"));
@@ -131,7 +191,7 @@ class AdminCommandTest extends DuelsTestBase {
         assertTrue(said("duels kit setpermission sea none", "Everyone can use"));
         assertTrue(said("duels kit list", "Kits (2):"));
         assertTrue(said("duels kit delete sea", "Deleted kit sea"));
-        assertTrue(said("duels kit info sea", "Kit setup"));
+        assertTrue(said("duels kit sea", "There is no kit called 'sea'"));
     }
 
     @Test
@@ -153,6 +213,6 @@ class AdminCommandTest extends DuelsTestBase {
         assertEquals(0, duels.stats().cached(alex.getUniqueId()).orElseThrow().wins());
         assertTrue(messages(alex).stream().anyMatch(line -> line.contains("An admin stopped the duel.")));
         Arena pit = duels.arenas().get("pit").orElseThrow();
-        assertFalse(duels.matches().isArenaBusy(pit.name()));
+        assertFalse(duels.matches().isArenaInUse(pit.name()));
     }
 }

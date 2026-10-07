@@ -16,6 +16,7 @@ import org.jetbrains.annotations.NotNull;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.logging.Level;
 
@@ -120,6 +121,11 @@ public class Menu implements InventoryHolder {
 
     public Plugin plugin() {
         return plugin;
+    }
+
+    /** The button at {@code slot}, if any; lets tests click it without a real inventory click. */
+    public Optional<Button> button(int slot) {
+        return Optional.ofNullable(buttons.get(slot));
     }
 
     @Override

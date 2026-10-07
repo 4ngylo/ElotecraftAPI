@@ -6,22 +6,30 @@ kits:
   title: "<gradient:#ff416c:#ff4b2b><bold>⚔ Choose a kit"
   rows: 4
   filler: {material: BLACK_STAINED_GLASS_PANE, name: " "}
-  # One button per kit, shown with the kit's icon. <kit>, <queued> and <dueling> are filled in.
+  # One button per kit, shown with the kit's icon. <kit>, <type>, <queued> and <dueling> are filled in.
   kit:
     name: "<gradient:#f7971e:#ffd200><bold><kit>"
+    # <building> says whether fighters may place blocks with the kit.
     lore:                       # when challenging someone
       - "<dark_gray>▪ <gray>In queue: <white><queued>"
       - "<dark_gray>▪ <gray>Dueling: <white><dueling>"
+      - "<dark_gray>▪ <building>"
       - ""
       - "<yellow>▶ Click to choose"
-    queue-lore:                 # in /duel queue
-      - "<dark_gray>▪ <gray>In queue: <white><queued>"
+    edit-lore:                  # in /duel editkit
+      - "<dark_gray>▪ <building>"
+      - ""
+      - "<yellow>▶ Click to arrange your items"
+    queue-lore:                 # in /duel queue and /duel ranked; <type> says which
+      - "<dark_gray>▪ <gray>In <type> queue: <white><queued>"
       - "<dark_gray>▪ <gray>Dueling: <white><dueling>"
+      - "<dark_gray>▪ <building>"
       - ""
       - "<yellow>▶ Click to join the queue"
-    queued-lore:                # in /duel queue, for the queue you are in
-      - "<dark_gray>▪ <gray>In queue: <white><queued>"
+    queued-lore:                # in /duel queue and /duel ranked, for the queue you are in
+      - "<dark_gray>▪ <gray>In <type> queue: <white><queued>"
       - "<dark_gray>▪ <gray>Dueling: <white><dueling>"
+      - "<dark_gray>▪ <building>"
       - ""
       - "<green>✔ You're in this queue"
       - "<red>▶ Click to leave it"
@@ -51,4 +59,398 @@ arenas:
     material: ENDER_EYE
     name: "<light_purple><bold>Random arena"
     lore: ["<gray>Any free arena", "", "<yellow>▶ Click to choose"]
+  close: {slot: 5, material: BARRIER, name: "<red>Close"}
+
+teams:
+  title: "<gradient:#ff416c:#4facfe><bold>⚔ Pick the teams"
+  rows: 4
+  filler: {material: BLACK_STAINED_GLASS_PANE, name: " "}
+  # One head per party member, shown with the template of their team. <player> is filled in.
+  red:
+    name: "<red><bold><player>"
+    lore:
+      - "<dark_gray>▪ <red>Red team"
+      - ""
+      - "<yellow>▶ Click to move to blue"
+  blue:
+    name: "<blue><bold><player>"
+    lore:
+      - "<dark_gray>▪ <blue>Blue team"
+      - ""
+      - "<yellow>▶ Click to move to red"
+  previous: {material: ARROW, name: "<yellow>« Previous page"}
+  next: {material: ARROW, name: "<yellow>Next page »"}
+  shuffle:
+    slot: 2
+    material: HOPPER
+    name: "<light_purple><bold>Shuffle"
+    lore: ["<gray>Split the party at random", "", "<yellow>▶ Click to shuffle"]
+  # <red_size> and <blue_size> count each team.
+  start:
+    slot: 4
+    material: LIME_CONCRETE
+    name: "<green><bold>Start"
+    lore: ["<red>Red <white><red_size></white> <dark_gray>vs</dark_gray> <blue>Blue <white><blue_size>", "", "<yellow>▶ Click to fight"]
+  close: {slot: 6, material: BARRIER, name: "<red>Close"}
+
+# /duels kit: every kit, for admins. Buttons run the /duels kit commands, so the same checks and
+# messages apply; names and values are typed in chat.
+kit-admin:
+  title: "<gradient:#f7971e:#ffd200><bold>⚙ Kits"
+  rows: 4
+  filler: {material: BLACK_STAINED_GLASS_PANE, name: " "}
+  # One button per kit, shown with the kit's icon. <kit>, <id>, <permission>, <building>, <items>
+  # (filled slots) and <rules> (game rules changed from the default) are filled in.
+  kit:
+    name: "<gradient:#f7971e:#ffd200><bold><kit>"
+    lore:
+      - "<dark_gray>▪ <gray>Id: <white><id>"
+      - "<dark_gray>▪ <gray>Permission: <white><permission>"
+      - "<dark_gray>▪ <gray>Items: <white><items>"
+      - "<dark_gray>▪ <gray>Rules changed: <white><rules>"
+      - "<dark_gray>▪ <building>"
+      - ""
+      - "<yellow>▶ Click to edit"
+  values:
+    everyone: "<gray>everyone"
+  previous: {material: ARROW, name: "<yellow>« Previous page"}
+  next: {material: ARROW, name: "<yellow>Next page »"}
+  create:
+    slot: 2
+    material: EMERALD
+    name: "<green><bold>New kit"
+    lore: ["<gray>Made from your inventory,", "<gray>armor and off hand", "", "<yellow>▶ Click and type its name"]
+  defaults:
+    slot: 4
+    material: CHEST
+    name: "<aqua><bold>Default kits"
+    lore: ["<gray>Add the default kits that are missing", "", "<yellow>▶ Click to add"]
+  close: {slot: 6, material: BARRIER, name: "<red>Close"}
+
+# /duels kit <name>: one kit's settings. <kit> and <id> work everywhere; <value> is the current setting.
+kit-settings:
+  title: "<gradient:#f7971e:#ffd200><bold>⚙ <kit>"
+  rows: 4
+  filler: {material: BLACK_STAINED_GLASS_PANE, name: " "}
+  values:
+    "on": "<green>On"
+    "off": "<red>Off"
+    everyone: "<gray>everyone"
+    any: "<gray>any arena"
+    vanilla: "<gray>vanilla"
+    set: "<green>set for this kit"
+    default: "<gray>default"
+  build:
+    material: BRICKS
+    name: "<gold><bold>Building"
+    lore: ["<gray>Fighters may place blocks: <value>", "", "<yellow>▶ Click to switch"]
+  damage:
+    material: IRON_SWORD
+    name: "<gold><bold>Damage"
+    lore: ["<gray>Hits hurt: <value>", "<dark_gray>Off: knockback only (Sumo)", "", "<yellow>▶ Click to switch"]
+  # Shown with the kit's icon; the material here is not used.
+  icon:
+    name: "<gold><bold>Icon"
+    lore: ["<gray>Shown in the kit menus", "", "<yellow>▶ Click to use the item in your hand"]
+  name:
+    material: NAME_TAG
+    name: "<gold><bold>Display name"
+    lore: ["<gray>Now: <value>", "", "<yellow>▶ Click and type a new one"]
+  permission:
+    material: TRIPWIRE_HOOK
+    name: "<gold><bold>Permission"
+    lore: ["<gray>Who may use it: <white><value>", "", "<yellow>▶ Click and type one, or none"]
+  arenas:
+    material: GRASS_BLOCK
+    name: "<gold><bold>Arena categories"
+    lore: ["<gray>Uses: <white><value>", "", "<yellow>▶ Click and type categories, or any"]
+  save:
+    material: WRITABLE_BOOK
+    name: "<green><bold>Save items"
+    lore: ["<gray>Overwrite the kit with your", "<gray>inventory, armor and off hand", "", "<yellow>▶ Click to save"]
+  load:
+    material: CHEST_MINECART
+    name: "<aqua><bold>Load items"
+    lore: ["<gray>Put the kit in your empty", "<gray>inventory to edit it", "", "<yellow>▶ Click to load"]
+  delete:
+    material: LAVA_BUCKET
+    name: "<red><bold>Delete kit"
+    lore: ["<gray>Removes the kit for good", "", "<red>▶ Shift + right-click to delete"]
+  # One button per game rule. <rule>, <value> and <state> (set or default) are filled in.
+  # The material shows the value: flag-on, flag-off, or seconds for a number of seconds.
+  rule:
+    flag-on: LIME_DYE
+    flag-off: GRAY_DYE
+    seconds: CLOCK
+    name: "<yellow><bold><rule>"
+    flag-lore:
+      - "<dark_gray>▪ <gray>Value: <value>"
+      - "<dark_gray>▪ <state>"
+      - ""
+      - "<yellow>▶ Left-click to switch"
+      - "<yellow>▶ Right-click for the default"
+    seconds-lore:
+      - "<dark_gray>▪ <gray>Value: <white><value>"
+      - "<dark_gray>▪ <state>"
+      - ""
+      - "<yellow>▶ Left-click and type seconds"
+      - "<yellow>▶ Right-click for the default"
+  previous: {material: ARROW, name: "<yellow>« Previous page"}
+  next: {material: ARROW, name: "<yellow>Next page »"}
+  back: {slot: 3, material: ARROW, name: "<yellow>« All kits"}
+  close: {slot: 5, material: BARRIER, name: "<red>Close"}
+
+# /duels arena: every arena built by hand, for admins (pregen copies are counted on their source).
+# Buttons run the /duels arena commands, so the same checks and messages apply.
+arena-admin:
+  title: "<gradient:#4facfe:#00f2fe><bold>⚙ Arenas"
+  rows: 4
+  filler: {material: BLACK_STAINED_GLASS_PANE, name: " "}
+  # One button per arena, shown with its icon. <arena>, <id>, <world>, <status>, <categories> and
+  # <copies> (pregen copies) are filled in.
+  arena:
+    name: "<aqua><bold><arena>"
+    lore:
+      - "<dark_gray>▪ <gray>Id: <white><id>"
+      - "<dark_gray>▪ <gray>World: <white><world>"
+      - "<dark_gray>▪ <gray>Status: <status>"
+      - "<dark_gray>▪ <gray>Categories: <white><categories>"
+      - "<dark_gray>▪ <gray>Copies: <white><copies>"
+      - ""
+      - "<yellow>▶ Click to edit"
+  values:
+    none: "<gray>none"
+  previous: {material: ARROW, name: "<yellow>« Previous page"}
+  next: {material: ARROW, name: "<yellow>Next page »"}
+  create:
+    slot: 2
+    material: EMERALD
+    name: "<green><bold>New arena"
+    lore: ["<gray>Starts where you stand", "", "<yellow>▶ Click and type its name"]
+  import:
+    slot: 4
+    material: STRUCTURE_BLOCK
+    name: "<aqua><bold>Import schematic"
+    lore: ["<gray>Pasted in the arenas world", "<gray>(needs WorldEdit or FAWE)", "", "<yellow>▶ Click and type a name and file"]
+  close: {slot: 6, material: BARRIER, name: "<red>Close"}
+
+# /duels arena <name>: one arena's settings. <arena> and <id> work everywhere; <value> is the current
+# setting. Point buttons use the place you stand when you click.
+arena-settings:
+  title: "<gradient:#4facfe:#00f2fe><bold>⚙ <arena>"
+  rows: 4
+  filler: {material: BLACK_STAINED_GLASS_PANE, name: " "}
+  values:
+    "on": "<green>On"
+    "off": "<red>Off"
+    none: "<gray>none"
+    not-set: "<red>not set"
+  status:
+    material: BOOK
+    name: "<aqua><bold>Status"
+    lore: ["<value>", "", "<yellow>▶ Click for details in chat"]
+  enabled:
+    material: LEVER
+    name: "<aqua><bold>Enabled"
+    lore: ["<gray>Used for duels: <value>", "", "<yellow>▶ Click to switch"]
+  spawn-1:
+    material: RED_BED
+    name: "<aqua><bold>Spawn 1"
+    lore: ["<gray>At: <white><value>", "", "<yellow>▶ Click to set where you stand"]
+  spawn-2:
+    material: BLUE_BED
+    name: "<aqua><bold>Spawn 2"
+    lore: ["<gray>At: <white><value>", "", "<yellow>▶ Click to set where you stand"]
+  corner-1:
+    material: OAK_FENCE
+    name: "<aqua><bold>Corner 1"
+    lore: ["<gray>At: <white><value>", "", "<yellow>▶ Click to set where you stand"]
+  corner-2:
+    material: OAK_FENCE
+    name: "<aqua><bold>Corner 2"
+    lore: ["<gray>At: <white><value>", "", "<yellow>▶ Click to set where you stand"]
+  box:
+    material: WOODEN_AXE
+    name: "<aqua><bold>Box from selection"
+    lore: ["<gray>Both corners from your", "<gray>WorldEdit selection", "", "<yellow>▶ Click to set"]
+  spectator:
+    material: ENDER_EYE
+    name: "<aqua><bold>Spectator spawn"
+    lore: ["<gray>At: <white><value>", "<dark_gray>Optional", "", "<yellow>▶ Click to set where you stand"]
+  center:
+    material: BEACON
+    name: "<aqua><bold>Center"
+    lore: ["<gray>At: <white><value>", "<dark_gray>Optional", "", "<yellow>▶ Click to set where you stand"]
+  ffa-spawns:
+    material: ARMOR_STAND
+    name: "<aqua><bold>FFA spawns"
+    lore: ["<gray>Spawns: <white><value>", "<dark_gray>One per player in party FFAs", "", "<yellow>▶ Click to add where you stand", "<red>▶ Shift + right-click to clear"]
+  # Shown with the arena's icon; the material here is not used.
+  icon:
+    name: "<aqua><bold>Icon"
+    lore: ["<gray>Shown in the arena menu", "", "<yellow>▶ Click to use the item in your hand"]
+  name:
+    material: NAME_TAG
+    name: "<aqua><bold>Display name"
+    lore: ["<gray>Now: <value>", "", "<yellow>▶ Click and type a new one"]
+  categories:
+    material: BOOKSHELF
+    name: "<aqua><bold>Categories"
+    lore: ["<gray>Pools: <white><value>", "", "<yellow>▶ Left-click and type one to add", "<yellow>▶ Right-click and type one to remove"]
+  build-limit:
+    material: SCAFFOLDING
+    name: "<aqua><bold>Build limit"
+    lore: ["<gray>Highest Y: <white><value>", "", "<yellow>▶ Left-click and type a Y", "<yellow>▶ Right-click for none"]
+  teleport:
+    material: ENDER_PEARL
+    name: "<aqua><bold>Teleport"
+    lore: ["<gray>Go to the spectator spawn", "", "<yellow>▶ Click to teleport"]
+  snapshot:
+    material: WRITABLE_BOOK
+    name: "<green><bold>Save snapshot"
+    lore: ["<gray>Save its blocks, to rebuild", "<gray>it after a crash", "", "<yellow>▶ Click to save"]
+  reset:
+    material: TNT
+    name: "<red><bold>Reset blocks"
+    lore: ["<gray>Put every block back", "<gray>as in the snapshot", "", "<red>▶ Shift + right-click to reset"]
+  pregen:
+    material: STRUCTURE_VOID
+    name: "<aqua><bold>Pregen copies"
+    lore: ["<gray>Copies: <white><value>", "<dark_gray>One duel each, in the arenas world", "", "<yellow>▶ Left-click and type how many", "<red>▶ Shift + right-click to remove them"]
+  delete:
+    material: LAVA_BUCKET
+    name: "<red><bold>Delete arena"
+    lore: ["<gray>Removes the arena for good", "", "<red>▶ Shift + right-click to delete"]
+  previous: {material: ARROW, name: "<yellow>« Previous page"}
+  next: {material: ARROW, name: "<yellow>Next page »"}
+  back: {slot: 3, material: ARROW, name: "<yellow>« All arenas"}
+  close: {slot: 5, material: BARRIER, name: "<red>Close"}
+# /event: public events gathering players, and event fights that may be watched.
+events:
+  title: "<gradient:#ff416c:#ff4b2b><bold>⚑ Events"
+  rows: 4
+  filler: {material: BLACK_STAINED_GLASS_PANE, name: " "}
+  # One host head per event to join. <host>, <kit>, <arena>, <mode>, <winners>, <players>, <max> and
+  # <time> (until it starts) are filled in.
+  event:
+    name: "<gradient:#ff416c:#ff4b2b><bold><host>'s event"
+    lore:
+      - "<dark_gray>▪ <gray>Kit: <white><kit>"
+      - "<dark_gray>▪ <gray>Arena: <white><arena>"
+      - "<dark_gray>▪ <gray>Mode: <white><mode>"
+      - "<dark_gray>▪ <gray>Players: <white><players>/<max>"
+      - "<dark_gray>▪ <gray>Starts in: <white><time>"
+      - ""
+      - "<yellow>▶ Click to join"
+  # One per event fight, shown with the kit's icon. <host>, <kit>, <arena> and <alive> are filled in.
+  running:
+    name: "<aqua><bold><host>'s event"
+    lore:
+      - "<dark_gray>▪ <gray>Kit: <white><kit>"
+      - "<dark_gray>▪ <gray>Arena: <white><arena>"
+      - "<dark_gray>▪ <gray>Still fighting: <white><alive>"
+      - ""
+      - "<yellow>▶ Click to watch"
+  previous: {material: ARROW, name: "<yellow>« Previous page"}
+  next: {material: ARROW, name: "<yellow>Next page »"}
+  host:
+    slot: 3
+    material: NETHER_STAR
+    name: "<green><bold>Host an event"
+    lore: ["<gray>Pick a kit, then the rules", "", "<yellow>▶ Click to host"]
+  close: {slot: 5, material: BARRIER, name: "<red>Close"}
+
+# /event settings: the host's event. Each button sits at its slot (0 to rows x 9 - 1). <kit>, <arena>,
+# <mode>, <winners>, <players>, <min>, <max>, <time> and <rules> (rules changed) work everywhere;
+# switches also get <value>, and show the on or off material.
+event-settings:
+  title: "<gradient:#ff416c:#ff4b2b><bold>Event Settings"
+  rows: 5
+  filler: {material: BLACK_STAINED_GLASS_PANE, name: " "}
+  values:
+    "on": "<green>On"
+    "off": "<red>Off"
+  # Shown with the kit's icon; the material here is not used.
+  kit:
+    slot: 10
+    name: "<gold><bold>Kit"
+    lore: ["<gray>Now: <white><kit>", "", "<yellow>▶ Click to choose"]
+  arena:
+    slot: 12
+    material: COMMAND_BLOCK
+    name: "<aqua><bold>Arena"
+    lore: ["<gray>Now: <white><arena>", "", "<yellow>▶ Click to choose"]
+  rules:
+    slot: 14
+    material: PAPER
+    name: "<yellow><bold>Rules"
+    lore: ["<gray>Changed from the kit: <white><rules>", "<dark_gray>Potions, hunger, fall damage...", "", "<yellow>▶ Click to change"]
+  start:
+    slot: 16
+    material: FIREWORK_ROCKET
+    name: "<green><bold>Start now"
+    lore: ["<gray>Players: <white><players>/<max> <dark_gray>(at least <min>)", "<gray>Starts on its own in <white><time>", "", "<yellow>▶ Click to start"]
+  mode:
+    slot: 20
+    ffa: IRON_SWORD
+    teams: SHIELD
+    name: "<gold><bold>Mode"
+    lore: ["<gray>Now: <white><mode>", "", "<yellow>▶ Click to switch"]
+  winners:
+    slot: 22
+    material: GOLD_INGOT
+    name: "<gold><bold>Winners"
+    lore: ["<gray>Last players standing who win: <white><winners>", "<dark_gray>Free for all only", "", "<yellow>▶ Left-click for more", "<yellow>▶ Right-click for fewer"]
+  border:
+    slot: 24
+    "on": STRUCTURE_VOID
+    "off": GLASS
+    name: "<gold><bold>Border"
+    lore: ["<gray>Closes in during the fight: <value>", "", "<yellow>▶ Click to switch"]
+  public:
+    slot: 28
+    "on": LIME_DYE
+    "off": GRAY_DYE
+    name: "<green><bold>Public"
+    lore: ["<gray>Announced and open to all: <value>", "<dark_gray>Off: invited players only", "", "<yellow>▶ Click to switch"]
+  spectate:
+    slot: 30
+    "on": ENDER_EYE
+    "off": INK_SAC
+    name: "<aqua><bold>Spectators"
+    lore: ["<gray>Others may watch: <value>", "", "<yellow>▶ Click to switch"]
+  invite:
+    slot: 32
+    material: NAME_TAG
+    name: "<light_purple><bold>Invite"
+    lore: ["<gray>Let a player into a private event", "", "<yellow>▶ Click and type a name"]
+  cancel:
+    slot: 34
+    material: BARRIER
+    name: "<red><bold>Cancel event"
+    lore: ["<gray>Sends everyone away", "", "<red>▶ Click to cancel"]
+
+# The rules of the host's event. <rule>, <value> and <state> (the kit's or changed) are filled in.
+event-rules:
+  title: "<gradient:#ff416c:#ff4b2b><bold>Event Rules"
+  rows: 4
+  filler: {material: BLACK_STAINED_GLASS_PANE, name: " "}
+  values:
+    "on": "<green>On"
+    "off": "<red>Off"
+    kit: "<gray>the kit's"
+    set: "<green>set for this event"
+  rule:
+    flag-on: LIME_DYE
+    flag-off: GRAY_DYE
+    name: "<yellow><bold><rule>"
+    lore:
+      - "<dark_gray>▪ <gray>Value: <value>"
+      - "<dark_gray>▪ <state>"
+      - ""
+      - "<yellow>▶ Left-click to switch"
+      - "<yellow>▶ Right-click for the kit's"
+  previous: {material: ARROW, name: "<yellow>« Previous page"}
+  next: {material: ARROW, name: "<yellow>Next page »"}
+  back: {slot: 3, material: ARROW, name: "<yellow>« Settings"}
   close: {slot: 5, material: BARRIER, name: "<red>Close"}

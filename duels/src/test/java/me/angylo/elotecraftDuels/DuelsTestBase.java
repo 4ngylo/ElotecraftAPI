@@ -60,6 +60,8 @@ abstract class DuelsTestBase {
         arenaWorld = server.addSimpleWorld("arena");
         duels = Duels.start(plugin);
         await(duels.ready());
+        // MockBukkit cannot show sidebars (ObjectiveMock.numberFormat); SidebarTest checks their layouts.
+        setConfig("sidebar.match", false);
     }
 
     @AfterEach

@@ -369,3 +369,66 @@ admin:
     prompt-permission: "<prefix><gray>Type the permission <white><kit></white> needs, <white>none</white> for everyone, or <white>cancel</white>."
     prompt-arenas: "<prefix><gray>Type the arena categories for <white><kit></white> separated by spaces, <white>any</white>, or <white>cancel</white>."
     prompt-seconds: "<prefix><gray>Type <white><rule></white> for <white><kit></white> in seconds (0 to <max>), <white>default</white>, or <white>cancel</white>."
+
+# The sidebar (config.yml sidebar), one line per row, at most 15 rows; an empty row is a gap.
+# During fights: <kit>, <arena>, <time> (left, m:ss), <ping>; in duels <opponent>, <opponent_health>,
+# <opponent_ping>, and in ranked ones <elo> and <opponent_elo>; in party fights <team_left> and
+# <enemies_left>; for spectators <fighters>. In the lobby: <wins>, <losses>, <win_rate>, <win_streak>,
+# <best_win_streak>, <elo>, <rank>, <queue>, <party> and <active_matches>.
+sidebar:
+  match-title: "<gradient:#ff416c:#ff4b2b><bold>⚔ DUEL"
+  lobby-title: "<gradient:#ff416c:#ff4b2b><bold>⚔ DUELS"
+  duel: |-
+    <dark_gray><time>
+    <gray>Opponent: <white><opponent>
+    <gray>Health: <red><opponent_health>❤
+    <gray>Ping: <white><opponent_ping>ms
+
+    <gray>Kit: <white><kit>
+    <gray>Arena: <white><arena>
+
+    <gray>Your ping: <white><ping>ms
+  ranked-duel: |-
+    <dark_gray><time>
+    <gray>Opponent: <white><opponent>
+    <gray>Health: <red><opponent_health>❤
+    <gray>Ping: <white><opponent_ping>ms
+
+    <gray>Rating: <aqua><elo> <dark_gray>vs</dark_gray> <aqua><opponent_elo>
+    <gray>Kit: <white><kit>
+    <gray>Arena: <white><arena>
+
+    <gray>Your ping: <white><ping>ms
+  team-fight: |-
+    <dark_gray><time>
+    <gray>Your team: <green><team_left> left
+    <gray>Enemies: <red><enemies_left> left
+
+    <gray>Kit: <white><kit>
+    <gray>Arena: <white><arena>
+
+    <gray>Your ping: <white><ping>ms
+  spectating: |-
+    <dark_gray><time>
+    <gray>Watching: <white><fighters>
+
+    <gray>Kit: <white><kit>
+    <gray>Arena: <white><arena>
+  lobby: |-
+    <gray>Rating: <aqua><elo><dark_gray><rank>
+    <gray>Wins: <green><wins>
+    <gray>Losses: <red><losses>
+    <gray>Win rate: <white><win_rate>%
+    <gray>Streak: <white><win_streak> <dark_gray>(best <best_win_streak>)
+
+    <gray>Queue: <white><queue>
+    <gray>Party: <white><party>
+
+    <gray>Dueling now: <white><active_matches>
+  rank: " #<position>"    # starts with a space: it follows <elo>
+  no-rank: ""
+  queue: "<kit> <dark_gray>(<type>)"
+  queue-none: "<dark_gray>none"
+  party: "<size> players"
+  party-none: "<dark_gray>none"
+  loading: "<dark_gray>..."

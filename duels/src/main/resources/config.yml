@@ -67,6 +67,13 @@ parties:
 kit-editor:
   timeout: 5m             # /duel editkit ends without saving after this
 
+# A sidebar gives the player their own scoreboard, so it hides other plugins' sidebars and nametag
+# teams for them while it shows. Texts are in messages.yml under sidebar.
+sidebar:
+  match: true             # fighters and spectators see the fight: kit, arena, time, opponents
+  lobby: false            # everyone else sees their stats, rank, queue and party
+  lobby-worlds: []        # worlds with the lobby sidebar; empty: every world except arenas.world
+
 rewards:
   # Money needs Vault and an economy plugin. Commands run from the console and may use
   # <winner>, <loser>, <kit> and <arena>, e.g. "give <winner> diamond 1". Only paid for a lethal hit:

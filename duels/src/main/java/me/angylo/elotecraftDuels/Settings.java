@@ -23,7 +23,8 @@ public record Settings(int countdownSeconds, Duration maxDuration, int endDelayS
                 Duration rematchWindow, boolean hunger, boolean naturalRegeneration, Set<String> allowedCommands,
                 Reward winReward, Reward lossReward, Title.Times titleTimes, Effects effects,
                 boolean breakArenaBlocks, int regenBlocksPerTick, boolean voidEliminates, String arenasWorld,
-                int pregenSpacing, int maxCopies, int partyMaxSize, Duration partyInviteExpiry, boolean partyFriendlyFire, Duration kitEditorTimeout, Ranked ranked) {
+                int pregenSpacing, int maxCopies, int partyMaxSize, Duration partyInviteExpiry, boolean partyFriendlyFire, Duration kitEditorTimeout, Ranked ranked,
+                Sidebars sidebars) {
 
     private static final long MILLIS_PER_TICK = 50;
     private static final int MAX_TITLE_TICKS = 200;
@@ -37,6 +38,17 @@ public record Settings(int countdownSeconds, Duration maxDuration, int endDelayS
         /** The rating gap allowed for a player who has waited {@code seconds}. */
         public int range(long seconds) {
             return (int) Math.min(range + rangeGrowth * seconds, rangeMax);
+        }
+    }
+
+    /**
+     * Which sidebars duels shows: one during fights, one with stats elsewhere, in {@code lobbyWorlds}
+     * (empty: every world but the arenas world).
+     */
+    public record Sidebars(boolean match, boolean lobby, Set<String> lobbyWorlds) {
+
+        public Sidebars {
+            lobbyWorlds = Set.copyOf(lobbyWorlds);
         }
     }
 
@@ -86,7 +98,11 @@ public record Settings(int countdownSeconds, Duration maxDuration, int endDelayS
                         integer(config, logger, "ranked.k-factor", 32, 1, 100),
                         integer(config, logger, "ranked.range", 100, 0, MAX_ELO_RANGE),
                         integer(config, logger, "ranked.range-growth", 10, 0, 1000),
-                        integer(config, logger, "ranked.range-max", 1000, 0, MAX_ELO_RANGE)));
+                        integer(config, logger, "ranked.range-max", 1000, 0, MAX_ELO_RANGE)),
+                new Sidebars(
+                        config.getBoolean("sidebar.match", true),
+                        config.getBoolean("sidebar.lobby", false),
+                        Set.copyOf(config.getStringList("sidebar.lobby-worlds"))));
     }
 
     private static int integer(ConfigurationSection config, Logger logger, String path, int fallback, int min, int max) {

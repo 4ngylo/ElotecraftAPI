@@ -211,7 +211,7 @@ cut short by a crash is undone when the player next joins.
 
 - `config.yml`: database, countdown, duration, end delay, boss bar, request expiry and cooldown, rematch
   window, hunger, regeneration and void rules, allowed commands, build kit and arena regen rules, the
-  arenas world and pregen spacing, ranked rating and queue range, party size and invite expiry, rewards, title timings, sounds and
+  arenas world and pregen spacing, ranked rating and queue range, party size and invite expiry, the sidebar, rewards, title timings, sounds and
   particles.
   Invalid values are logged and replaced by defaults.
 - `messages.yml`: every text players see, in [MiniMessage](https://docs.advntr.dev/minimessage/format.html).
@@ -230,6 +230,19 @@ losses; draws, unranked queue duels, challenges and rematches leave ratings alon
 with the first opponent rated within `ranked.range`; the range grows by `ranked.range-growth` every
 second they wait, up to `ranked.range-max`. Updating from an older version adds the rating to the
 existing stats table on startup.
+
+## Sidebar
+
+`sidebar.match` (on by default) shows fighters and spectators the fight: time left, opponent, their
+health and ping, ratings in ranked duels, who is left in party fights, kit and arena. `sidebar.lobby` (off
+by default) shows everyone else their rating and leaderboard position (top 100), wins, losses, win rate,
+streaks, queue and party, in `sidebar.lobby-worlds` (empty: every world except the arenas world). Both
+refresh every second from cached stats, never the database, and only send the lines that changed.
+Layouts are in `messages.yml` under `sidebar`, one row per line, at most 15.
+
+A sidebar gives the player their own scoreboard while it shows, so other plugins' sidebars and nametag
+teams (TAB, nametag colours) disappear for them; leave `sidebar.lobby` off if you use such a plugin. A
+sidebar another plugin shows through ElotecraftAPI is never replaced.
 
 ## Placeholders
 
@@ -269,6 +282,9 @@ The automated tests run on MockBukkit, which cannot click menus. Before a releas
   pearl, `natural-regeneration false` stops healing on a full hunger bar, `crafting false` blocks the 2x2 grid
 - [ ] `/duels arena` and `/duels kit` menus: every button, chat prompts for names and numbers,
   shift + right-click on delete and reset
+- [ ] Sidebar: the duel layout during a fight (time counts down, opponent health), the team layout in a
+  party fight, the spectator one; with `sidebar.lobby: true` the stats come back after the fight and
+  `/duels reload` with it off removes them
 
 ## Not included
 

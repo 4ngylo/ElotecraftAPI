@@ -261,6 +261,15 @@ public final class Match {
         fightSeconds = seconds;
     }
 
+    /** Seconds until the fight ends in a draw; the whole duration before it starts, 0 once it is over. */
+    public int timeLeftSeconds() {
+        return switch (state) {
+            case STARTING, COUNTDOWN -> maxFightSeconds;
+            case FIGHTING -> Math.max(0, maxFightSeconds - fightSeconds);
+            case ENDING -> 0;
+        };
+    }
+
     int maxFightSeconds() {
         return maxFightSeconds;
     }

@@ -14,6 +14,7 @@ import me.angylo.elotecraftDuels.command.DuelCommand;
 import me.angylo.elotecraftDuels.command.PartyCommand;
 import me.angylo.elotecraftDuels.hook.PlaceholderHook;
 import me.angylo.elotecraftDuels.hook.WorldEditHook;
+import me.angylo.elotecraftDuels.hud.DuelsSidebar;
 import me.angylo.elotecraftDuels.kit.KitEditor;
 import me.angylo.elotecraftDuels.kit.KitLayouts;
 import me.angylo.elotecraftDuels.kit.KitRegistry;
@@ -74,6 +75,7 @@ public final class Duels {
     private final PartyManager parties;
     private final PartyFights partyFights;
     private final SessionListener sessions;
+    private final DuelsSidebar sidebar;
     private final PlaceholderHook placeholders;
     private final BukkitTask ticker;
     private volatile Settings settings;
@@ -122,6 +124,7 @@ public final class Duels {
         Bukkit.getOnlinePlayers().forEach(sessions::load);
         layouts.loadOnline();
         this.placeholders = PlaceholderHook.register(this);
+        this.sidebar = new DuelsSidebar(plugin, messages, this::settings, stats, kits, matches, queues, parties);
         this.ticker = Tasks.timer(plugin, this::tick, SECOND_TICKS, SECOND_TICKS);
         plugin.getLogger().info("Loaded " + arenas.all().size() + " arenas (" + arenas.all().stream().filter(Arena::isReady).count()
                 + " ready) and " + kits.all().size() + " kits" + (placeholders.registered() ? "; PlaceholderAPI hooked" : "")
@@ -209,6 +212,10 @@ public final class Duels {
         return partyFights;
     }
 
+    public DuelsSidebar sidebar() {
+        return sidebar;
+    }
+
     /** Completes once the database tables exist. */
     public CompletableFuture<Void> ready() {
         return CompletableFuture.allOf(stats.ready(), snapshots.ready(), layouts.ready());
@@ -234,6 +241,7 @@ public final class Duels {
     public void shutdown() {
         ticker.cancel();
         placeholders.unregister();
+        sidebar.hideAll();
         editor.shutdown();
         matches.shutdown();
         instances.shutdown();
@@ -253,6 +261,7 @@ public final class Duels {
         matches.purgeExpiredRematches();
         requests.tick();
         queues.tick();
+        sidebar.tick();
         if (++seconds % SECONDS_PER_RETRY == 0) {
             stats.retryFailed();
             snapshots.retryFailedDeletes();

@@ -4,12 +4,22 @@ import me.angylo.elotecraftAPI.menu.Menu;
 import me.angylo.elotecraftDuels.arena.Arena;
 import me.angylo.elotecraftDuels.kit.Kit;
 import me.angylo.elotecraftDuels.match.Match;
+import me.angylo.elotecraftDuels.menu.SpectateMenu;
+import org.bukkit.GameMode;
+import org.bukkit.Material;
 import org.bukkit.event.inventory.ClickType;
+import org.bukkit.event.inventory.InventoryAction;
+import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryType;
+import org.bukkit.inventory.ItemStack;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.util.Arrays;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** Ping range in the queues, the spectators option and the spectate menu, and lobby player visibility. */
@@ -96,6 +106,45 @@ class PlayerSettingsTest extends DuelsTestBase {
         click(cid, 0);
 
         tickUntil(() -> match.isSpectator(cid));
+    }
+
+    @Test
+    void whileWatchingTheMenuListsTheFightersAndTakesYouToOne() {
+        Match match = duel();
+        cid.performCommand("duel spectate Alex");
+        tickUntil(() -> match.isSpectator(cid) && cid.getGameMode() == GameMode.SPECTATOR);
+
+        cid.performCommand("duel spectate");
+        tick();
+        assertInstanceOf(SpectateMenu.FighterMenu.class, cid.getOpenInventory().getTopInventory().getHolder());
+        click(cid, 1);
+
+        assertEquals(steve.getLocation(), cid.getLocation());
+        assertTrue(match.isSpectator(cid));
+    }
+
+    @Test
+    void watchersGetAnItemThatOpensTheFighterMenuAndLoseItAfter() {
+        Match match = duel();
+        cid.performCommand("duel spectate Alex");
+        tickUntil(() -> match.isSpectator(cid) && cid.getGameMode() == GameMode.SPECTATOR);
+        ticks(20);
+        ItemStack item = cid.getInventory().getItem(22);
+        assertEquals(Material.COMPASS, item.getType());
+
+        cid.openInventory(cid.getInventory());
+        InventoryClickEvent click = new InventoryClickEvent(cid.getOpenInventory(), InventoryType.SlotType.CONTAINER, 22,
+                ClickType.LEFT, InventoryAction.PICKUP_ALL);
+        server.getPluginManager().callEvent(click);
+        tick();
+
+        assertTrue(click.isCancelled());
+        assertInstanceOf(SpectateMenu.FighterMenu.class, cid.getOpenInventory().getTopInventory().getHolder());
+        cid.closeInventory();
+        assertTrue(duels.matches().stop(alex));
+        tickUntil(() -> duels.matches().matchOf(cid).isEmpty());
+        ticks(20);
+        assertTrue(Arrays.stream(cid.getInventory().getContents()).noneMatch(stack -> stack != null && stack.getType() == Material.COMPASS));
     }
 
     @Test

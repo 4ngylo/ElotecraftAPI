@@ -73,6 +73,8 @@ final class Tournament {
     private final Map<Match, Pair> fights = new HashMap<>();
     /** Fighters of the fights running or being started: they are not waiting. */
     private final Set<UUID> fighting = new HashSet<>();
+    /** This round's fights played again after a draw. */
+    private final Map<Pair, Integer> replays = new HashMap<>();
     private int round;
     private int breakLeft;
     private Match lastFight;
@@ -140,7 +142,10 @@ final class Tournament {
         }
     }
 
-    /** A fight ended: its winner goes on, the other is out. Without a winner, a random one still here goes on. */
+    /**
+     * A fight ended: its winner goes on, the other is out. Without a winner it is played again, up to
+     * {@code events.tournament-replays} times; then a random one still here goes on.
+     */
     void finished(Match match) {
         Pair pair = fights.remove(match);
         if (pair == null) {
@@ -148,6 +153,9 @@ final class Tournament {
         }
         fighting.remove(pair.first());
         fighting.remove(pair.second());
+        if (match.winnerTeams().size() != 1 && replay(pair)) {
+            return;
+        }
         lastFight = match;
         UUID winner = winnerOf(match, pair);
         UUID loser = winner == null ? null : pair.other(winner);
@@ -167,10 +175,22 @@ final class Tournament {
             UUID winner = match.teams().get(match.winnerTeams().getFirst()).getFirst().getUniqueId();
             return alive.contains(winner) ? winner : null;
         }
-        // ponytail: a draw or a cancelled fight is a coin flip; replay it if players mind
         List<UUID> left = new ArrayList<>(List.of(pair.first(), pair.second()));
         left.removeIf(player -> !alive.contains(player) || Bukkit.getPlayer(player) == null);
         return left.isEmpty() ? null : left.get(ThreadLocalRandom.current().nextInt(left.size()));
+    }
+
+    /** Puts a fight without a winner back for both players, if they are still here and it has replays left. */
+    private boolean replay(Pair pair) {
+        boolean bothHere = alive.contains(pair.first()) && alive.contains(pair.second())
+                && Bukkit.getPlayer(pair.first()) != null && Bukkit.getPlayer(pair.second()) != null;
+        if (!bothHere || replays.merge(pair, 1, Integer::sum) > settings.get().events().tournamentReplays()) {
+            return false;
+        }
+        pending.addFirst(pair);
+        send(pair.first(), "event.tournament-replay", Placeholder.unparsed("opponent", names.get(pair.second())));
+        send(pair.second(), "event.tournament-replay", Placeholder.unparsed("opponent", names.get(pair.first())));
+        return true;
     }
 
     private void newRound() {
@@ -180,6 +200,7 @@ final class Tournament {
             return;
         }
         round++;
+        replays.clear();
         Collections.shuffle(players);
         for (int i = 0; i + 1 < players.size(); i += 2) {
             pending.add(new Pair(players.get(i), players.get(i + 1)));

@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -79,6 +80,21 @@ class HologramTest extends DuelsTestBase {
         tickUntil(() -> text(wins).contains("#1 Admin · 1 wins · 0 losses"));
         assertTrue(text(wins).startsWith("⚔ Top duelists"));
         assertTrue(text(elo).startsWith("⚔ Top ranked duelists"));
+    }
+
+    @Test
+    void boardsShowTheConfiguredNumberOfLines() {
+        TestPlayer steve = join("Steve");
+        TestPlayer alex = join("Alex");
+        Board wins = new Board("wins", Type.WINS, null, "nowhere", ORIGIN);
+        duels.stats().recordResult(admin, steve);
+        duels.stats().recordResult(alex, steve);
+        tickUntil(() -> text(wins).contains("#2"));
+
+        setConfig("holograms.lines", 1);
+
+        assertTrue(text(wins).contains("#1"));
+        assertFalse(text(wins).contains("#2"));
     }
 
     @Test

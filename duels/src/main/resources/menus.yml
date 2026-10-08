@@ -307,7 +307,7 @@ kit-admin:
 # /duels kit <name>: one kit's settings. <kit> and <id> work everywhere; <value> is the current setting.
 kit-settings:
   title: "<gradient:#f7971e:#ffd200><bold>⚙ <kit>"
-  rows: 4
+  rows: 5
   filler: {material: BLACK_STAINED_GLASS_PANE, name: " "}
   values:
     "on": "<green>On"
@@ -691,6 +691,29 @@ spectate:
     duel: "Duel"
     party: "Party fight"
     event: "Event"
+  previous: {material: ARROW, name: "<yellow>« Previous page"}
+  next: {material: ARROW, name: "<yellow>Next page »"}
+  close: {slot: 4, material: BARRIER, name: "<red>Close"}
+
+# /duel spectate while watching a fight: a head per fighter still in it; a click takes you to them.
+# <player> and <health> (health points: 20 is full) are filled in.
+spectate-fighters:
+  title: "<gradient:#4facfe:#00f2fe><bold>◉ Go to a fighter"
+  rows: 3
+  # In the inventory of everyone watching (open it with E): a click opens this menu. slot 0 to 35:
+  # 0-8 the hotbar (not shown in spectator mode), 9-35 the inventory, 22 its middle.
+  item:
+    slot: 22
+    material: COMPASS
+    name: "<aqua><bold>Go to a fighter"
+    lore: ["<gray>Click to pick a fighter to watch"]
+  filler: {material: BLACK_STAINED_GLASS_PANE, name: " "}
+  fighter:
+    name: "<aqua><bold><player>"
+    lore:
+      - "<dark_gray>▪ <gray>Health: <white><health>"
+      - ""
+      - "<yellow>▶ Click to go to them"
   previous: {material: ARROW, name: "<yellow>« Previous page"}
   next: {material: ARROW, name: "<yellow>Next page »"}
   close: {slot: 4, material: BARRIER, name: "<red>Close"}

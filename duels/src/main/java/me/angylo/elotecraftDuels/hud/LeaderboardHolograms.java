@@ -39,7 +39,6 @@ import java.util.logging.Level;
  */
 public final class LeaderboardHolograms {
 
-    public static final int LINES = 10;
     private static final int REFRESH_SECONDS = 60;
     private static final String ROOT = "holograms";
 
@@ -124,8 +123,9 @@ public final class LeaderboardHolograms {
 
     /** The board's text as it is in the database now; completes on the main thread. */
     public CompletableFuture<Component> text(Board board) {
+        int count = settings.get().hologramLines();
         if (board.type() == Type.WINS) {
-            return stats.top(LINES).thenApply(top -> {
+            return stats.top(count).thenApply(top -> {
                 List<Component> lines = new ArrayList<>();
                 for (int i = 0; i < top.size(); i++) {
                     lines.add(messages.get("top.line", Placeholder.unparsed("rank", String.valueOf(i + 1)),
@@ -143,7 +143,7 @@ public final class LeaderboardHolograms {
                     Placeholder.unparsed("kit", board.kit())), List.of()));
         }
         Divisions divisions = settings.get().ranked().divisions();
-        return (kit.isPresent() ? stats.topByElo(kit.get().name(), LINES) : stats.topByElo(kits.names(), LINES)).thenApply(top -> {
+        return (kit.isPresent() ? stats.topByElo(kit.get().name(), count) : stats.topByElo(kits.names(), count)).thenApply(top -> {
             List<Component> lines = new ArrayList<>();
             for (int i = 0; i < top.size(); i++) {
                 lines.add(messages.get("top.elo-line", Placeholder.unparsed("rank", String.valueOf(i + 1)),

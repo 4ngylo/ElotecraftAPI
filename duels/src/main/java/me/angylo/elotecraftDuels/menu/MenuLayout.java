@@ -21,6 +21,7 @@ import org.bukkit.plugin.Plugin;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.logging.Level;
 
@@ -40,6 +41,11 @@ final class MenuLayout {
      * @throws IllegalArgumentException if the section is missing or invalid
      */
     static PaginatedMenu frame(Plugin plugin, ConfigurationSection section, TagResolver... tags) {
+        return frame(section, (rows, title) -> new PaginatedMenu(plugin, rows, title), tags);
+    }
+
+    /** Like {@link #frame(Plugin, ConfigurationSection, TagResolver...)}, with the menu made by {@code create} from rows and title. */
+    static <M extends PaginatedMenu> M frame(ConfigurationSection section, BiFunction<Integer, Component, M> create, TagResolver... tags) {
         if (section == null) {
             throw new IllegalArgumentException("Missing menu section in menus.yml");
         }
@@ -47,7 +53,7 @@ final class MenuLayout {
         if (rows < MIN_ROWS || rows > MAX_ROWS) {
             throw new IllegalArgumentException(section.getCurrentPath() + ".rows must be " + MIN_ROWS + " to " + MAX_ROWS);
         }
-        PaginatedMenu menu = new PaginatedMenu(plugin, rows, Text.mm(section.getString("title", ""), tags));
+        M menu = create.apply(rows, Text.mm(section.getString("title", ""), tags));
         if (section.isConfigurationSection("previous")) {
             menu.previousButton(MenuConfig.item(section.getConfigurationSection("previous")));
         }

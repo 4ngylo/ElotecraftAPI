@@ -1,12 +1,20 @@
 package me.angylo.elotecraftDuels;
 
+import io.papermc.paper.event.player.AsyncChatEvent;
 import me.angylo.elotecraftAPI.menu.Menu;
+import me.angylo.elotecraftAPI.util.Text;
 import me.angylo.elotecraftDuels.party.Party;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
+import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.ClickType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -84,7 +92,45 @@ class PartyFeaturesTest extends DuelsTestBase {
         assertTrue(said(lines, "[Party] Alex: hi there"));
         assertTrue(messages(cid).isEmpty());
         assertSays(cid, "pc hi", "You're not in a party.");
-        assertSays(alex, "pc", "Use /party chat");
+    }
+
+    @Test
+    void partyChatModeSendsChatToThePartyUntilSwitchedOffOrLeft() {
+        alex.performCommand("party invite Steve");
+        steve.performCommand("party accept");
+        assertSays(steve, "pc", "Party chat on");
+        messages(alex);
+        messages(cid);
+
+        steve.chat("secret");
+
+        // Chat events run off the main thread: collect until the party line arrives.
+        List<String> heard = new ArrayList<>();
+        tickUntil(() -> heard.addAll(messages(alex)) && said(heard, "[Party] Steve: secret"));
+        assertTrue(messages(cid).isEmpty());
+
+        assertSays(steve, "party chat", "Party chat off");
+        assertHeardPublicly("public");
+
+        steve.performCommand("pc");
+        steve.performCommand("party leave");
+        assertHeardPublicly("after leaving");
+    }
+
+    /** Steve says {@code text}; it goes on as public chat (MockBukkit shows it to no one), not to the party. */
+    private void assertHeardPublicly(String text) {
+        Set<String> publicChat = ConcurrentHashMap.newKeySet();
+        server.getPluginManager().registerEvents(new Listener() {
+            @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+            public void onChat(AsyncChatEvent event) {
+                publicChat.add(Text.plain(event.message()));
+            }
+        }, plugin);
+        messages(alex);
+        steve.chat(text);
+        tickUntil(() -> publicChat.contains(text));
+        tick();
+        assertTrue(messages(alex).stream().noneMatch(line -> line.contains("[Party]")));
     }
 
     @Test

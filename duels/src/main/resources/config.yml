@@ -113,6 +113,9 @@ events:
   # the others watch). A tournament's champion gets the reward above if they won the final by a kill.
   #   - {at: "20:00", kit: sumo, mode: sumo}
   schedule: []
+  # A tournament or sumo fight that ends in a draw (or is cancelled before it starts) is fought again
+  # up to this many times, 0 to 10; after that, one of the two goes through at random.
+  tournament-replays: 1
 
 # A sidebar gives the player their own scoreboard, so it hides other plugins' sidebars and nametag
 # teams for them while it shows. Texts are in messages.yml under sidebar.
@@ -123,6 +126,10 @@ sidebar:
   # Fighters and spectators with the match sidebar see each player's health under their name
   # (in health points: 20 is full), then messages.yml sidebar.health-below-name.
   health-below-name: true
+
+# Leaderboard holograms placed with /duels hologram.
+holograms:
+  lines: 10               # players on each board, 1 to 50
 
 # Hotbar items in the lobby that open the queues, events, kit editor and history (menus.yml lobby-items).
 # For practice servers: players' own items are never replaced, but the items take hotbar slots.

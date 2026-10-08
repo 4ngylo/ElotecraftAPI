@@ -2,8 +2,10 @@ package me.angylo.elotecraftDuels.party;
 
 import me.angylo.elotecraftAPI.util.Cooldowns;
 import me.angylo.elotecraftAPI.util.Messages;
+import me.angylo.elotecraftAPI.util.Text;
 import me.angylo.elotecraftDuels.PlayerOptions;
 import me.angylo.elotecraftDuels.Settings;
+import io.papermc.paper.event.player.AsyncChatEvent;
 import net.kyori.adventure.text.event.ClickEvent;
 import net.kyori.adventure.text.event.HoverEvent;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
@@ -11,8 +13,10 @@ import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.plugin.Plugin;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -20,6 +24,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
@@ -27,21 +32,26 @@ import java.util.function.Supplier;
 /**
  * Parties: create, invite (invites expire after {@code parties.invite-expiry}), accept, kick, leave,
  * disband and promote. A player is in at most one party; quitting the server leaves it, and
- * a leader who leaves hands the party to the member who joined next. Main thread only, except {@link #partyOf}.
+ * a leader who leaves hands the party to the member who joined next. Main thread only, except {@link #partyOf}
+ * and {@link #onChat}.
  */
 public final class PartyManager implements Listener {
 
     private static final long MILLIS_PER_TICK = 50;
     private static final Duration ADVERTISE_COOLDOWN = Duration.ofMinutes(1);
 
+    private final Plugin plugin;
     private final Messages messages;
     private final Supplier<Settings> settings;
     /** Member to their party; read by placeholders from other threads. */
     private final Map<UUID, Party> byPlayer = new ConcurrentHashMap<>();
     private final List<Party> parties = new ArrayList<>();
     private final Cooldowns<UUID> advertised = new Cooldowns<>();
+    /** Members whose chat goes to their party; read on chat threads. */
+    private final Set<UUID> chatMode = ConcurrentHashMap.newKeySet();
 
-    public PartyManager(Messages messages, Supplier<Settings> settings) {
+    public PartyManager(Plugin plugin, Messages messages, Supplier<Settings> settings) {
+        this.plugin = plugin;
         this.messages = messages;
         this.settings = settings;
     }
@@ -176,6 +186,7 @@ public final class PartyManager implements Listener {
         broadcast(party, "party.disbanded", name(player));
         for (UUID member : party.members()) {
             byPlayer.remove(member);
+            chatMode.remove(member);
         }
         parties.remove(party);
     }
@@ -262,7 +273,10 @@ public final class PartyManager implements Listener {
         return parties.stream().filter(Party::isOpen).sorted(Comparator.comparingInt(Party::size).reversed()).toList();
     }
 
-    /** Sends {@code message} to {@code player}'s party; it is shown as typed, never as formatting. */
+    /**
+     * Sends {@code message} to {@code player}'s party; it is shown as typed, never as formatting. Without a message,
+     * switches party chat mode: while it is on, what they type in chat goes to the party.
+     */
     public void chat(Player player, String message) {
         Party party = byPlayer.get(player.getUniqueId());
         if (party == null) {
@@ -271,10 +285,30 @@ public final class PartyManager implements Listener {
         }
         String text = message.strip();
         if (text.isEmpty()) {
-            messages.send(player, "party.chat-usage");
+            boolean on = !chatMode.remove(player.getUniqueId());
+            if (on) {
+                chatMode.add(player.getUniqueId());
+            }
+            messages.send(player, on ? "party.chat-on" : "party.chat-off");
             return;
         }
         broadcast(party, "party.chat", name(player), Placeholder.unparsed("message", text));
+    }
+
+    /** Chat of a player in party chat mode goes to their party. LOWEST, like ChatInput, before chat plugins see it. */
+    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
+    public void onChat(AsyncChatEvent event) {
+        Player player = event.getPlayer();
+        String text = Text.plain(event.message());
+        if (!chatMode.contains(player.getUniqueId()) || text.isBlank()) {
+            return;
+        }
+        event.setCancelled(true);
+        Bukkit.getScheduler().runTask(plugin, () -> {
+            if (player.isOnline()) {
+                chat(player, text);
+            }
+        });
     }
 
     /** A quitting player leaves their party; the others are told. */
@@ -293,6 +327,7 @@ public final class PartyManager implements Listener {
     public void clear() {
         parties.clear();
         byPlayer.clear();
+        chatMode.clear();
     }
 
     private Party newParty(Player leader) {
@@ -306,6 +341,7 @@ public final class PartyManager implements Listener {
     private void removeMember(Party party, UUID player) {
         party.remove(player);
         byPlayer.remove(player);
+        chatMode.remove(player);
         if (party.size() == 0) {
             parties.remove(party);
         }

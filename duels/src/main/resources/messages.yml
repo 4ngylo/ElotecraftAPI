@@ -30,7 +30,7 @@ command:
     <yellow>/party</yellow> <dark_gray>-</dark_gray> <gray>party menu: members, public parties, fights
     <yellow>/party public</yellow> <dark_gray>-</dark_gray> <gray>let anyone join without an invite, or stop (leader)
     <yellow>/party join <leader></yellow> <dark_gray>-</dark_gray> <gray>join a public party
-    <yellow>/party chat <message></yellow> <dark_gray>·</dark_gray> <yellow>/pc <message></yellow> <dark_gray>-</dark_gray> <gray>talk to your party
+    <yellow>/party chat [message]</yellow> <dark_gray>·</dark_gray> <yellow>/pc [message]</yellow> <dark_gray>-</dark_gray> <gray>talk to your party; without a message, your chat goes to the party until you run it again
   help: |-
     <gradient:#ff416c:#ff4b2b><bold>⚔ Duels</bold></gradient>
     <yellow>/duel <player> [kit] [arena]</yellow> <dark_gray>-</dark_gray> <gray>challenge someone
@@ -274,7 +274,8 @@ party:
   not-open: "<prefix><red><player>'s party is private: ask for an invite."
   # <message> is shown as typed.
   chat: "<light_purple>[Party] <white><player></white><dark_gray>:</dark_gray> <gray><message>"
-  chat-usage: "<prefix><red>Use /party chat <message> or /pc <message>."
+  chat-on: "<prefix><green>Party chat on: <gray>what you type goes to your party. <white>/pc</white> again to stop."
+  chat-off: "<prefix><gray>Party chat off: what you type goes to everyone again."
   prompt-invite: "<prefix><gray>Type the name of the player to invite, or <white>cancel</white>."
   prompt-duel: "<prefix><gray>Type the name of the party leader to challenge, or <white>cancel</white>."
   already-in-party: "<prefix><red>You're already in a party. <gray>Use <white>/party leave</white> first."
@@ -368,6 +369,7 @@ event:
   tournament-bye: "<prefix><gray>No opponent for you this round: you go through to the next one."
   tournament-advance: "<prefix><green>You beat <white><opponent></white> and go through to the next round."
   tournament-out: "<prefix><red>You're out of <host>'s tournament in round <round>."
+  tournament-replay: "<prefix><yellow>No winner against <white><opponent></white>: the fight is played again."
   tournament-won: "<prefix><gold><bold>TOURNAMENT</bold></gold> <white><winner></white> <gray>won <white><host></white>'s tournament <dark_gray>(<players> players · <kit>)"
 
 # Money bets: <amount> is each player's stake, <pot> what the winner gets.

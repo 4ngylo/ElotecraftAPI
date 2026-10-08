@@ -305,8 +305,9 @@ public final class DuelCommand {
     }
 
     private void spectate(Player player, String[] args) {
+        Optional<Match> watching = duels.matches().matchOf(player).filter(found -> found.isWatching(player));
         if (args.length == 0) {
-            spectateMenu.open(player);
+            watching.ifPresentOrElse(match -> spectateMenu.openFighters(player, match), () -> spectateMenu.open(player));
             return;
         }
         Optional<Player> target = Args.player(Args.get(args, 0));
@@ -318,6 +319,15 @@ public final class DuelCommand {
                 .filter(found -> found.isFighter(target.get()) && found.state() != Match.State.ENDING);
         if (match.isEmpty()) {
             messages.send(player, "general.not-dueling", Placeholder.unparsed("player", target.get().getName()));
+            return;
+        }
+        // Watching this fight already: go to the fighter, if they are still in it.
+        if (watching.equals(match)) {
+            if (match.get().isAlive(target.get())) {
+                player.teleport(target.get());
+            } else {
+                messages.send(player, "general.not-dueling", Placeholder.unparsed("player", target.get().getName()));
+            }
             return;
         }
         if (!match.get().watchableBy(player)) {

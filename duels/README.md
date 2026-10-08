@@ -104,6 +104,8 @@ and `/duels kit <kit>` opens one kit's settings: building, damage, icon, name, p
 categories, save or load its items, delete (shift + right-click) and every game rule (left-click
 switches, right-click resets). Names and values are typed in chat. Each button runs the matching
 command, so the same permission and checks apply. `/duels kit help` lists the commands.
+The settings menu has 5 rows, so every rule fits on one page; a menus.yml from an older version keeps
+`kit-settings.rows: 4` (two pages) until you change it.
 
 Kits are stored in `kits.yml` with Paper's item format, so they survive server updates.
 
@@ -229,7 +231,7 @@ with their arena and limited to 256 x 256 blocks across.
 | `/duel rematch` | `duels.duel` | Challenge your last opponent again, or accept their rematch |
 | `/duel queue [kit]` | `duels.queue` | Join or leave a kit's unranked queue (menu without a kit) |
 | `/duel ranked [kit]` | `duels.queue.ranked` | Join or leave a kit's ranked queue (menu without a kit) |
-| `/duel spectate [player]` | `duels.spectate` | Watch someone's duel; without a player, a menu of the fights you may watch (layout in menus.yml `spectate`) |
+| `/duel spectate [player]` | `duels.spectate` | Watch someone's duel; without a player, a menu of the fights you may watch (layout in menus.yml `spectate`). While watching (or knocked out), it takes you to a fighter of your fight; without a player, a menu of their heads (menus.yml `spectate-fighters`), also opened by clicking the compass in the middle of your inventory (E) while watching (`spectate-fighters.item`) |
 | `/duel leave` | | Leave the queue, stop spectating, or forfeit |
 | `/duel cancel [player]` | `duels.duel` | Take back a challenge you sent (also the [CANCEL] after sending) |
 | `/duel toggle <option>` | | Turn an option off or on: `requests`, `party-invites`, `sidebar` or `sounds`; the same switches as `/duel options`. Alone, it lists the options |
@@ -242,7 +244,7 @@ with their arena and limited to 256 x 256 blocks across.
 | `/party` | `duels.party` | The party menu: your party's members and buttons, or the public parties to join (layouts in menus.yml `party` and `party-none`) |
 | `/party <player>`, `/party accept\|deny [player]` | `duels.party` | Invite someone (makes a party if you have none) or answer an invite |
 | `/party public`, `/party join <leader>` | `duels.party` | Leader: let anyone join without an invite (announced once a minute at most), or stop; join a public party |
-| `/party chat <message>`, `/pc <message>` | `duels.party` | Talk to your party; the message shows as typed |
+| `/party chat [message]`, `/pc [message]` | `duels.party` | Talk to your party; the message shows as typed. Without a message, switches party chat mode: what you type in chat goes to your party until you run it again or leave the party |
 | `/party kick\|promote <player>`, `/party disband` | `duels.party` | Manage the party (leader only) |
 | `/party leave`, `/party info` | `duels.party` | Leave the party, list its members |
 | `/party split [kit] [arena]`, `/party ffa [kit] [arena]` | `duels.party.fight` | Leader: two teams picked in a menu, or everyone for themselves |
@@ -401,7 +403,8 @@ client plays it), so remove `lightning` if your arenas are close together. Menu 
 
 ## Leaderboard holograms
 
-`/duels hologram create <name> wins` places the top 10 by wins where you stand; `... elo` the top overall
+`/duels hologram create <name> wins` places the top players by wins where you stand (`holograms.lines`, 10 by
+default); `... elo` the top overall
 ratings and `... elo <kit>` one kit's. They use the lines of `/duel top` from messages.yml (`top.header`,
 `top.line`, `top.elo-header`, `top.elo-kit-header`, `top.elo-line`) and are read from the database every
 minute. Creating one with a name in use moves and replaces it; `/duels hologram delete <name>` removes it and
@@ -445,8 +448,8 @@ to the next round, an odd player out goes through without a fight, and the last 
 champion. A tournament runs each round's fights at once, as arenas are free; sumo runs one at a time, and
 the other players watch it (with Spectators on). Players between fights may `/duel spectate` its fights
 but cannot queue or duel, and `/event leave` takes them out. Each fight is a duel to its fighters: its
-result is not broadcast and pays nothing. A draw or a fight cancelled before it started sends one of the
-two through at random. The champion is announced like an event's result and gets `events.reward` if they
+result is not broadcast and pays nothing. A draw or a fight cancelled before it started is fought again
+(`events.tournament-replays` times, 1 by default); after that, one of the two goes through at random. The champion is announced like an event's result and gets `events.reward` if they
 won the final by a lethal hit. A round waits 3 seconds after the last.
 
 ### Scheduled events
@@ -506,12 +509,15 @@ The automated tests run on MockBukkit, which cannot click menus. Before a releas
   minute of a duel, come back after `/stop` and after walking away until the chunk unloads and coming back
 - [ ] Options: spectators off refuses a watcher, staff still watch; lobby players off hides everyone but the party
   in the lobby and shows everyone in a fight; a ping range keeps a laggy player out of your queue
-- [ ] `/duel spectate` without a player: the menu lists the fight, a click watches it
+- [ ] `/duel spectate` without a player: the menu lists the fight, a click watches it; `/duel spectate` again while watching
+  shows the fighters' heads, a click teleports to one; the compass in the middle of the inventory (E) opens the same menu,
+  and is gone after the fight
 - [ ] Kit rules on a real client: `max-health 40` shows 20 hearts and is back to 10 after the duel, `damage-multiplier 50`
   halves hits, `saturation` heals fast, `auto-ignite-tnt` lights TNT on placing; `/duels kit effect <kit> speed 2` shows
   the effect icon and it is gone after the duel
 - [ ] Parties: `/party` menu with and without a party, every button; `/party public` announces once, another player
-  joins with the [JOIN] click; `/party chat` and `/pc` reach members only
+  joins with the [JOIN] click; `/party chat` and `/pc` reach members only; `/pc` alone, then typing in chat, reaches
+  members only until `/pc` again
 - [ ] Ranked: `/duel stats` shows the peak; with `ranked.daily-limit: 1` a second ranked queue is refused and an unranked
   one is not; `/duels season end` warns, `confirm` archives and resets, a division's `season-reward` command runs and
   `/duel top season 1` shows the old ratings; the same with MySQL

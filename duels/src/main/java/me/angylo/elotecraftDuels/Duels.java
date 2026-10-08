@@ -19,6 +19,7 @@ import me.angylo.elotecraftDuels.hook.WorldEditHook;
 import me.angylo.elotecraftDuels.hud.DuelsSidebar;
 import me.angylo.elotecraftDuels.hud.LeaderboardHolograms;
 import me.angylo.elotecraftDuels.hud.LobbyItems;
+import me.angylo.elotecraftDuels.hud.WatchItem;
 import me.angylo.elotecraftDuels.hud.LobbyVisibility;
 import me.angylo.elotecraftDuels.kit.KitEditor;
 import me.angylo.elotecraftDuels.kit.KitLayouts;
@@ -97,6 +98,7 @@ public final class Duels {
     private final SessionListener sessions;
     private final DuelsSidebar sidebar;
     private final LobbyItems lobbyItems;
+    private final WatchItem watchItem;
     private final LeaderboardHolograms holograms;
     private final LobbyVisibility visibility;
     private final PlaceholderHook placeholders;
@@ -136,14 +138,15 @@ public final class Duels {
         KitMenu kitMenu = new KitMenu(plugin, messages, menus, this::settings, kits, matches, queues, stats);
         ArenaMenu arenaMenu = new ArenaMenu(plugin, messages, menus, this::settings, arenas, matches);
 
-        this.parties = new PartyManager(messages, this::settings);
+        this.parties = new PartyManager(plugin, messages, this::settings);
         TeamMenu teamMenu = new TeamMenu(plugin, messages, menus, this::settings);
         this.partyFights = new PartyFights(messages, this::settings, kits, arenas, matches, queues, parties, teamMenu);
+        SpectateMenu spectateMenu = new SpectateMenu(plugin, messages, menus, this::settings, matches);
         Command duel = new DuelCommand(this, kitMenu, arenaMenu, new FightInventoryMenu(plugin, messages, menus),
                 new HistoryMenu(plugin, messages, menus, this::settings, kits),
                 new OptionsMenu(plugin, messages, menus, this::settings),
                 new CosmeticsMenu(plugin, messages, menus, this::settings),
-                new SpectateMenu(plugin, messages, menus, this::settings, matches)).register();
+                spectateMenu).register();
         new AdminCommand(this, new ArenaAdminMenu(plugin, messages, menus, this::settings, arenas),
                 new KitAdminMenu(plugin, messages, menus, this::settings, kits)).register();
         new PartyCommand(this, kitMenu, new PartyMenu(plugin, messages, menus, this::settings, parties)).register();
@@ -151,7 +154,8 @@ public final class Duels {
                 kitMenu, arenaMenu, teamMenu)).register();
         this.sessions = new SessionListener(plugin, messages, stats, snapshots, matches, requests, queues);
         this.lobbyItems = new LobbyItems(plugin, this::settings, menus, matches, queues);
-        for (Listener listener : List.of(sessions, parties, layouts, editor, events, lobbyItems,
+        this.watchItem = new WatchItem(plugin, menus, matches, spectateMenu);
+        for (Listener listener : List.of(sessions, parties, layouts, editor, events, lobbyItems, watchItem,
                 new CombatListener(plugin, messages, this::settings, matches, snapshots),
                 new ProtectionListener(messages, this::settings, matches, duel),
                 new BuildListener(this::settings, matches, instances, arenas))) {
@@ -344,6 +348,7 @@ public final class Duels {
         holograms.tick();
         visibility.tick();
         lobbyItems.tick();
+        watchItem.tick();
         if (++seconds % SECONDS_PER_RETRY == 0) {
             stats.retryFailed();
             snapshots.retryFailedDeletes();

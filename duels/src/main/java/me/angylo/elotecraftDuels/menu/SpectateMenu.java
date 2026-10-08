@@ -10,10 +10,14 @@ import me.angylo.elotecraftDuels.Effects;
 import me.angylo.elotecraftDuels.Settings;
 import me.angylo.elotecraftDuels.match.Match;
 import me.angylo.elotecraftDuels.match.MatchManager;
+import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver;
+import org.bukkit.Material;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Player;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.SkullMeta;
 import org.bukkit.plugin.Plugin;
 
 import java.time.Duration;
@@ -26,7 +30,8 @@ import java.util.stream.Collectors;
 /**
  * {@code /duel spectate} without a player: every fight the viewer may watch ({@link Match#watchableBy}), one
  * button each with its kit's icon; a click runs {@code /duel spectate <fighter>}, so the same checks apply.
- * Layout in menus.yml {@code spectate}.
+ * Layout in menus.yml {@code spectate}. While watching, {@link #openFighters} instead: a head per fighter still in the
+ * fight, a click teleporting to them (menus.yml {@code spectate-fighters}).
  */
 public final class SpectateMenu {
 
@@ -66,6 +71,38 @@ public final class SpectateMenu {
             menu.open(viewer);
         } catch (IllegalArgumentException e) {
             MenuLayout.menuError(plugin, messages, viewer, "spectate", e);
+        }
+    }
+
+    /** The fighters still in {@code match}, for {@code viewer} watching it; a click runs {@code /duel spectate <fighter>}. */
+    public void openFighters(Player viewer, Match match) {
+        ConfigurationSection section = menus.get().getConfigurationSection("spectate-fighters");
+        try {
+            Effects effects = settings.get().effects();
+            FighterMenu menu = MenuLayout.frame(section, (rows, title) -> new FighterMenu(plugin, rows, title));
+            menu.items(match.fighters().stream().filter(match::isAlive).map(fighter -> Button.of(head(section, fighter),
+                    MenuLayout.choose(plugin, effects, player -> player.performCommand("duel spectate " + fighter.getName())))).toList());
+            MenuLayout.place(menu, section, "close", MenuLayout.choose(plugin, effects, player -> { }));
+            MenuLayout.fill(menu, section);
+            menu.open(viewer);
+        } catch (IllegalArgumentException e) {
+            MenuLayout.menuError(plugin, messages, viewer, "spectate-fighters", e);
+        }
+    }
+
+    private static ItemStack head(ConfigurationSection section, Player fighter) {
+        ItemStack head = MenuLayout.icon(Material.PLAYER_HEAD, section.getConfigurationSection("fighter"), "lore", false,
+                Placeholder.unparsed("player", fighter.getName()),
+                Placeholder.unparsed("health", String.valueOf((int) Math.ceil(fighter.getHealth()))));
+        head.editMeta(SkullMeta.class, meta -> meta.setOwningPlayer(fighter));
+        return head;
+    }
+
+    /** The fighter menu: the one menu that opens for players in a match ({@code ProtectionListener}). */
+    public static final class FighterMenu extends PaginatedMenu {
+
+        FighterMenu(Plugin plugin, int rows, Component title) {
+            super(plugin, rows, title);
         }
     }
 

@@ -253,6 +253,11 @@ public final class Match {
         return spectators.containsKey(player.getUniqueId());
     }
 
+    /** A spectator, or a knocked-out fighter still watching the fight. */
+    public boolean isWatching(Player player) {
+        return isParticipant(player) && !isAlive(player);
+    }
+
     /** A fighter who may hit and be hit right now. */
     public boolean isFighting(Player player) {
         return state == State.FIGHTING && isAlive(player);

@@ -130,6 +130,26 @@ class TournamentTest extends DuelsTestBase {
     }
 
     @Test
+    void aFightWithoutAWinnerIsPlayedAgainThenDecidedAtRandom() {
+        hostAndStart(HostedEvent.Mode.TOURNAMENT);
+        Match fight = fights(1).getFirst();
+        Set<Player> pair = Set.copyOf(fight.fighters());
+
+        assertTrue(duels.matches().stop(fight.first()));
+        tickUntil(() -> !duels.matches().running().contains(fight));
+        Match replay = fights(1).getFirst();
+
+        assertEquals(pair, Set.copyOf(replay.fighters()));
+        assertTrue(messages((TestPlayer) fight.first()).stream().anyMatch(line -> line.contains("the fight is played again")));
+
+        assertTrue(duels.matches().stop(replay.first()));
+        tickUntil(() -> !duels.matches().running().contains(replay));
+        Match next = fights(1).getFirst();
+        assertFalse(pair.equals(Set.copyOf(next.fighters())));
+        assertEquals(1, pair.stream().filter(duels.events()::isWaiting).count());
+    }
+
+    @Test
     void anOddPlayerOutGoesThroughAndAQuitterLoses() {
         dee.disconnect();
         assertSays(ann, "event host sword", "You're hosting");

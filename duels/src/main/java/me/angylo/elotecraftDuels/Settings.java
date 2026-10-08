@@ -33,13 +33,15 @@ public record Settings(int countdownSeconds, Duration maxDuration, int endDelayS
                 Reward winReward, Reward lossReward, Title.Times titleTimes, Effects effects,
                 boolean breakArenaBlocks, int regenBlocksPerTick, boolean voidEliminates, String arenasWorld,
                 int pregenSpacing, int maxCopies, int partyMaxSize, Duration partyInviteExpiry, boolean partyFriendlyFire, Duration kitEditorTimeout, Ranked ranked,
-                Sidebars sidebars, LobbyItems lobbyItems, Events events, Cosmetics cosmetics, Bets bets) {
+                Sidebars sidebars, int hologramLines, LobbyItems lobbyItems, Events events, Cosmetics cosmetics, Bets bets) {
 
     private static final long MILLIS_PER_TICK = 50;
     private static final int MAX_TITLE_TICKS = 200;
     private static final int MAX_ELO_RANGE = 5000;
+    private static final int MAX_HOLOGRAM_LINES = 50;
     private static final int MAX_DAILY_RANKED = 1000;
     private static final int MAX_EVENT_PLAYERS = 100;
+    private static final int MAX_TOURNAMENT_REPLAYS = 10;
     private static final double MAX_BORDER_DAMAGE = 20;
     private static final int MINUTES_PER_DAY = 24 * 60;
     private static final double MIN_BET = 0.01;
@@ -90,7 +92,8 @@ public record Settings(int countdownSeconds, Duration maxDuration, int endDelayS
      * prize of each winner and the border the host may turn on.
      */
     public record Events(int minPlayers, int maxPlayers, Duration waitTime, Duration announceInterval,
-                         Duration hostCooldown, boolean broadcastResult, Reward reward, Border border, List<Scheduled> schedule) {
+                         Duration hostCooldown, boolean broadcastResult, Reward reward, Border border, List<Scheduled> schedule,
+                         int tournamentReplays) {
 
         public Events {
             schedule = List.copyOf(schedule);
@@ -195,6 +198,7 @@ public record Settings(int countdownSeconds, Duration maxDuration, int endDelayS
                         config.getBoolean("sidebar.lobby", false),
                         Set.copyOf(config.getStringList("sidebar.lobby-worlds")),
                         config.getBoolean("sidebar.health-below-name", true)),
+                integer(config, logger, "holograms.lines", 10, 1, MAX_HOLOGRAM_LINES),
                 new LobbyItems(config.getBoolean("lobby-items.enabled", false),
                         Set.copyOf(config.getStringList("lobby-items.worlds"))),
                 events(config, logger),
@@ -225,7 +229,8 @@ public record Settings(int countdownSeconds, Duration maxDuration, int endDelayS
                         duration(config, logger, "events.border.shrink-time", Duration.ofMinutes(2), Duration.ofSeconds(1)),
                         integer(config, logger, "events.border.min-size", 10, 1, 1000),
                         damage),
-                schedule(config, logger));
+                schedule(config, logger),
+                integer(config, logger, "events.tournament-replays", 1, 0, MAX_TOURNAMENT_REPLAYS));
     }
 
     /** {@code events.schedule}: entries without a valid time, kit or mode are logged and left out. */

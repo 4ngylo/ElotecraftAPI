@@ -16,7 +16,7 @@ command:
     <gradient:#ff416c:#ff4b2b><bold>⚔ Events</bold></gradient>
     <yellow>/event</yellow> <dark_gray>-</dark_gray> <gray>events to join or watch (your settings while you host)
     <yellow>/event join <host></yellow> <dark_gray>·</dark_gray> <yellow>/event leave</yellow> <dark_gray>-</dark_gray> <gray>join or leave an event
-    <yellow>/event host [kit]</yellow> <dark_gray>-</dark_gray> <gray>host one: pick the kit, arena, rules and mode (free for all, teams, tournament or sumo)
+    <yellow>/event host [kit]</yellow> <dark_gray>-</dark_gray> <gray>host one: pick the kit, arena, rules and mode (free for all, teams, tournament, sumo or double elimination)
     <yellow>/event settings|start|cancel</yellow> <dark_gray>-</dark_gray> <gray>run your event
     <yellow>/event invite <player></yellow> <dark_gray>-</dark_gray> <gray>let someone into your private event
   party-help: |-
@@ -325,6 +325,7 @@ event:
   mode-teams: "Team vs team"
   mode-tournament: "Tournament"
   mode-sumo: "Sumo (one fight at a time)"
+  mode-double: "Double elimination"
   # The host of events config.yml events.schedule starts.
   server-host: "Server"
   hosted: "<prefix><green>You're hosting a <white><kit></white> event. <gray>Change it in the menu or with <white>/event settings</white>; start it with <white>/event start</white>."
@@ -369,6 +370,8 @@ event:
   tournament-bye: "<prefix><gray>No opponent for you this round: you go through to the next one."
   tournament-advance: "<prefix><green>You beat <white><opponent></white> and go through to the next round."
   tournament-out: "<prefix><red>You're out of <host>'s tournament in round <round>."
+  # Double elimination: a first loss.
+  tournament-life-lost: "<prefix><yellow>You lost to <white><opponent></white>. <gray>One more loss and you're out."
   tournament-replay: "<prefix><yellow>No winner against <white><opponent></white>: the fight is played again."
   tournament-won: "<prefix><gold><bold>TOURNAMENT</bold></gold> <white><winner></white> <gray>won <white><host></white>'s tournament <dark_gray>(<players> players · <kit>)"
 

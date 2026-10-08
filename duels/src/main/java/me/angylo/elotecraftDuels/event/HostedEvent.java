@@ -20,11 +20,11 @@ import java.util.UUID;
 public final class HostedEvent {
 
     /**
-     * Everyone for themselves, two teams, or a single-elimination tournament of 1v1 fights: all fights of a
-     * round at once, or (sumo) one fight at a time while the others watch.
+     * Everyone for themselves, two teams, or a tournament of 1v1 fights: single elimination with all fights of a
+     * round at once, or (sumo) one fight at a time while the others watch, or double elimination (out after two losses).
      */
     public enum Mode {
-        FFA, TEAMS, TOURNAMENT, SUMO;
+        FFA, TEAMS, TOURNAMENT, SUMO, DOUBLE;
 
         /** Lower case, for config.yml, messages.yml ({@code event.mode-<key>}) and menus.yml. */
         public String key() {
@@ -32,7 +32,7 @@ public final class HostedEvent {
         }
 
         public boolean isTournament() {
-            return this == TOURNAMENT || this == SUMO;
+            return this == TOURNAMENT || this == SUMO || this == DOUBLE;
         }
 
         Mode next() {

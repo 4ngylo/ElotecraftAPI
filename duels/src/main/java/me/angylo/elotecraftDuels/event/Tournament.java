@@ -18,6 +18,7 @@ import org.bukkit.entity.Player;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -33,8 +34,9 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Supplier;
 
 /**
- * A single-elimination tournament of 1v1 {@link Match.Type#EVENT} fights, started from a hosted event. Each round
- * pairs the players left at random, an odd one out going through without a fight. Fights start once both players
+ * A tournament of 1v1 {@link Match.Type#EVENT} fights, started from a hosted event: single elimination, or double
+ * (a player is out after two losses). Each round pairs the players left at random, players with as many losses
+ * together, an odd one out going through without a fight. Fights start once both players
  * are back from their last one and an arena is free: all at once, or one at a time with the others watching (sumo).
  * The last player left is the champion, paid the event reward if they won the final by a lethal hit. Between fights
  * players count as waiting for an event, so they cannot queue or duel. Main thread only.
@@ -62,12 +64,15 @@ final class Tournament {
     /** The arena the host picked, or null for random ones. */
     private final String arena;
     private final boolean oneAtATime;
+    /** Losses that put a player out: 2 in double elimination. */
+    private final int lives;
     private final boolean spectatable;
     private final boolean border;
     /** Everyone who started it, with their names for players who left since. */
     private final Map<UUID, String> names = new LinkedHashMap<>();
     /** Players not knocked out yet. */
     private final Set<UUID> alive = new LinkedHashSet<>();
+    private final Map<UUID, Integer> losses = new HashMap<>();
     /** This round's fights not started yet. */
     private final Deque<Pair> pending = new ArrayDeque<>();
     private final Map<Match, Pair> fights = new HashMap<>();
@@ -92,6 +97,7 @@ final class Tournament {
         this.kit = kit;
         this.arena = event.arena();
         this.oneAtATime = event.mode() == HostedEvent.Mode.SUMO;
+        this.lives = event.mode() == HostedEvent.Mode.DOUBLE ? 2 : 1;
         this.spectatable = event.isSpectatable();
         this.border = event.hasBorder();
         players.forEach(player -> {
@@ -143,7 +149,7 @@ final class Tournament {
     }
 
     /**
-     * A fight ended: its winner goes on, the other is out. Without a winner it is played again, up to
+     * A fight ended: its winner goes on, the other loses a life (out with none left). Without a winner it is played again, up to
      * {@code events.tournament-replays} times; then a random one still here goes on.
      */
     void finished(Match match) {
@@ -163,9 +169,13 @@ final class Tournament {
             alive.remove(pair.first());
             alive.remove(pair.second());
         } else {
-            alive.remove(loser);
             send(winner, "event.tournament-advance", Placeholder.unparsed("opponent", names.get(loser)));
-            send(loser, "event.tournament-out", Placeholder.unparsed("host", host), Placeholder.unparsed("round", String.valueOf(round)));
+            if (losses.merge(loser, 1, Integer::sum) >= lives) {
+                alive.remove(loser);
+                send(loser, "event.tournament-out", Placeholder.unparsed("host", host), Placeholder.unparsed("round", String.valueOf(round)));
+            } else {
+                send(loser, "event.tournament-life-lost", Placeholder.unparsed("opponent", names.get(winner)));
+            }
         }
         roundOverIfDone();
     }
@@ -202,6 +212,8 @@ final class Tournament {
         round++;
         replays.clear();
         Collections.shuffle(players);
+        // Stable: still random among players with as many losses, who meet each other first.
+        players.sort(Comparator.comparingInt(player -> losses.getOrDefault(player, 0)));
         for (int i = 0; i + 1 < players.size(); i += 2) {
             pending.add(new Pair(players.get(i), players.get(i + 1)));
         }

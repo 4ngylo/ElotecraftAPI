@@ -420,9 +420,10 @@ sets it up in the Event Settings menu (`/event settings`):
 - **Kit** and **arena** (random by default; choosing one needs `duels.select-arena`).
 - **Rules**: the kit's game rules for this event only (potions, hunger, fall damage...); the kit
   itself is not changed. Changing the kit resets them.
-- **Mode**: free for all, team vs team, tournament or sumo. Teams are picked in the team menu when the
-  host starts it, or split at random when it starts on its own. A [tournament](#tournaments) is 1v1
-  knockout rounds; sumo is the same with one fight at a time.
+- **Mode**: free for all, team vs team, tournament, sumo or double elimination. Teams are picked in the team
+  menu when the host starts it, or split at random when it starts on its own. A [tournament](#tournaments) is
+  1v1 knockout rounds; sumo is the same with one fight at a time; double elimination puts a player out after
+  two losses.
 - **Winners**: in a free for all, how many of the last players standing win.
 - **Border**: closes in on the fighters (`events.border`): it starts around the arena, waits `delay`
   into the fight, then shrinks to `min-size` blocks across over `shrink-time`; fighters outside lose
@@ -449,13 +450,19 @@ champion. A tournament runs each round's fights at once, as arenas are free; sum
 the other players watch it (with Spectators on). Players between fights may `/duel spectate` its fights
 but cannot queue or duel, and `/event leave` takes them out. Each fight is a duel to its fighters: its
 result is not broadcast and pays nothing. A draw or a fight cancelled before it started is fought again
-(`events.tournament-replays` times, 1 by default); after that, one of the two goes through at random. The champion is announced like an event's result and gets `events.reward` if they
-won the final by a lethal hit. A round waits 3 seconds after the last.
+(`events.tournament-replays` times, 1 by default); after that, one of the two goes through at random. The
+champion is announced like an event's result and gets `events.reward` if they won the final by a lethal hit.
+A round waits 3 seconds after the last.
+
+In double elimination a loss only puts a player out the second time. Each round pairs players with as many
+losses together (all unbeaten players, then those with one loss), crossing over when a group is odd, and the
+odd player out is one with the most losses. A final where the unbeaten player loses is played again, as both
+then have one loss.
 
 ### Scheduled events
 
 `events.schedule` lists events the server hosts every day at a server time, e.g.
-`- {at: "20:00", kit: sumo, mode: sumo}` (mode `ffa`, `teams`, `tournament` or `sumo`). They gather
+`- {at: "20:00", kit: sumo, mode: sumo}` (mode `ffa`, `teams`, `tournament`, `sumo` or `double`). They gather
 players like a player's event, with messages.yml `event.server-host` as the host (`/event join Server`),
 and start when the wait ends or they are full. One that is still gathering players skips the next; a kit
 without items or an arena is logged and skipped.
@@ -527,12 +534,13 @@ The automated tests run on MockBukkit, which cannot click menus. Before a releas
   blocked by an event rule, the reward command once per winner, the host quitting cancels
 - [ ] Tournaments: 4 players in tournament mode with 2 arenas fight round 1 at once, the final after it and one
   reward; sumo with the others spectating; 3 players with a bye; a quit mid-fight; an `events.schedule` entry
-  a minute ahead hosting a Server event
+  a minute ahead hosting a Server event; double elimination with 2 players: the first loser wins the second
+  fight and the third decides it
 - [ ] Bets (with an economy plugin): a challenge with `bet 100` shows the pot, accepting takes both stakes, the
   winner gets the pot less `bets.tax`; `/duels stop` gives both back; a server stop mid-duel gives both back on the
   next start; a stake above `bets.max` or more than you have is refused
 
 ## Not included
 
-Own-inventory duels and double-elimination brackets. Arenas cannot span worlds, and without WorldEdit copies don't keep
+Own-inventory duels. Arenas cannot span worlds, and without WorldEdit copies don't keep
 chest contents or sign text.

@@ -580,6 +580,7 @@ event-settings:
     teams: SHIELD
     tournament: GOLDEN_SWORD
     sumo: SLIME_BALL
+    double: TOTEM_OF_UNDYING
     name: "<gold><bold>Mode"
     lore: ["<gray>Now: <white><mode>", "", "<yellow>▶ Click to switch"]
   winners:

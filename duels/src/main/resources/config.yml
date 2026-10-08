@@ -109,8 +109,8 @@ events:
     damage: 1.0           # 0 to 20 health a second outside it (2 = one heart)
   # Events the server hosts every day at a server time ("HH:mm"), gathering players for wait-time
   # like a player's event (messages.yml event.server-host is the host). mode: ffa, teams, tournament
-  # (1v1 knockout rounds, each round's fights at once) or sumo (the same, one fight at a time while
-  # the others watch). A tournament's champion gets the reward above if they won the final by a kill.
+  # (1v1 knockout rounds, each round's fights at once), sumo (the same, one fight at a time while
+  # the others watch) or double (a tournament where a player is out after two losses). A tournament's champion gets the reward above if they won the final by a kill.
   #   - {at: "20:00", kit: sumo, mode: sumo}
   schedule: []
   # A tournament or sumo fight that ends in a draw (or is cancelled before it starts) is fought again

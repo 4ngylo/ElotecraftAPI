@@ -129,6 +129,50 @@ class TournamentTest extends DuelsTestBase {
         assertTrue(waiting.stream().allMatch(next::isFighter));
     }
 
+    /** {@code winner} kills the other fighter of {@code match}; returns once the fight is over. */
+    private void winBy(Match match, Player winner) {
+        ((TestPlayer) match.opponentOf(winner)).simulateDamage(100, winner);
+        tickUntil(() -> !duels.matches().running().contains(match));
+    }
+
+    @Test
+    void doubleEliminationKeepsPlayersInAfterOneLossUntilAChampion() {
+        secondArena();
+        hostAndStart(HostedEvent.Mode.DOUBLE);
+        List<Match> round1 = fights(2);
+        List<Player> losers = round1.stream().map(Match::second).toList();
+        round1.forEach(this::win);
+
+        assertTrue(losers.stream().allMatch(duels.events()::isWaiting));
+        assertTrue(messages((TestPlayer) losers.getFirst()).stream().anyMatch(line -> line.contains("One more loss and you're out")));
+        // 4 players out after 2 losses: 7 fights at most (8 with a final played again).
+        for (int fight = 0; fight < 8 && prizes.isEmpty(); fight++) {
+            tickUntil(() -> !prizes.isEmpty() || duels.matches().running().stream().anyMatch(match -> match.state() == Match.State.FIGHTING));
+            duels.matches().running().stream().filter(match -> match.state() == Match.State.FIGHTING).findFirst().ifPresent(this::win);
+        }
+        assertEquals(1, prizes.size());
+    }
+
+    @Test
+    void aDoubleEliminationFinalIsPlayedAgainWhenTheUnbeatenFinalistLoses() {
+        assertSays(ann, "event host sword", "You're hosting");
+        while (duels.events().hostedBy(ann).orElseThrow().mode() != HostedEvent.Mode.DOUBLE) {
+            duels.events().toggleMode(ann);
+        }
+        assertSays(bob, "event join Ann", "You joined");
+        assertSays(ann, "event start", "Ann's tournament begins: 2 players");
+
+        winBy(fights(1).getFirst(), ann);
+        winBy(fights(1).getFirst(), bob);
+        assertTrue(duels.events().isWaiting(ann) && duels.events().isWaiting(bob));
+        Match decider = fights(1).getFirst();
+        assertEquals(Set.of(ann, bob), Set.copyOf(decider.fighters()));
+        winBy(decider, bob);
+
+        tickUntil(() -> !prizes.isEmpty());
+        assertTrue(prizes.getFirst().startsWith("Bob Ann sword"));
+    }
+
     @Test
     void aFightWithoutAWinnerIsPlayedAgainThenDecidedAtRandom() {
         hostAndStart(HostedEvent.Mode.TOURNAMENT);

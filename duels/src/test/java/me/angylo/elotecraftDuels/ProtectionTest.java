@@ -97,6 +97,14 @@ class ProtectionTest extends DuelsTestBase {
     }
 
     @Test
+    void theBypassPermissionAllowsEveryCommandInADuel() {
+        alex.addAttachment(plugin, "duels.bypass.commands", true);
+
+        assertFalse(command(alex, "/home"));
+        assertTrue(command(steve, "/home"));
+    }
+
+    @Test
     void fightersCannotTeleportOutOrDropItems() {
         Location before = alex.getLocation();
 

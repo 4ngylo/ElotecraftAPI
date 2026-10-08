@@ -61,6 +61,8 @@ import java.util.function.Supplier;
  */
 public final class ProtectionListener implements Listener {
 
+    /** Runs any command in a duel. */
+    private static final String BYPASS_COMMANDS = "duels.bypass.commands";
     private static final Set<InventoryType> OWN_INVENTORY = Set.of(InventoryType.CRAFTING, InventoryType.PLAYER);
     private static final String DUEL_DROP_TAG = "elotecraft-duels-drop";
     /** Any of them lets fighters pick items up; throwing items needs {@code item-drops}. */
@@ -233,7 +235,7 @@ public final class ProtectionListener implements Listener {
     @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
     public void onCommand(PlayerCommandPreprocessEvent event) {
         Player player = event.getPlayer();
-        if (matches.isRestricted(player) && !allowed(event.getMessage())) {
+        if (matches.isRestricted(player) && !player.hasPermission(BYPASS_COMMANDS) && !allowed(event.getMessage())) {
             event.setCancelled(true);
             messages.send(player, "match.blocked-command");
         }

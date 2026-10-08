@@ -95,6 +95,7 @@ permissions:
       duels.queue.ranked.unlimited: true
       duels.admin.stop: true
       duels.bypass.cooldown: true
+      duels.bypass.commands: true
   duels.admin.arena:
     description: Create and edit arenas.
     default: op
@@ -115,6 +116,9 @@ permissions:
     default: op
   duels.queue.ranked.unlimited:
     description: No ranked.daily-limit.
+    default: op
+  duels.bypass.commands:
+    description: Run any command during a duel, not only /duel and rules.allowed-commands.
     default: op
   duels.bypass.cooldown:
     description: Send duel requests and host events without waiting for the cooldown.

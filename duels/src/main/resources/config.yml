@@ -33,6 +33,7 @@ rules:
   hunger: false                # false keeps food full while dueling
   natural-regeneration: true   # false: only potions, golden apples and the like heal
   # Commands fighters and spectators may use besides /duel (their aliases too), without the slash.
+  # duels.bypass.commands (operators by default) allows every command.
   allowed-commands: [msg, tell, w, r, reply]
   # true: a fighter who falls out of the bottom of the arena's box loses, as in the void. Leaving any other
   # way sends them back to their spawn.

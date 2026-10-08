@@ -302,8 +302,8 @@ with their arena and limited to 256 x 256 blocks across.
 
 Choosing the arena needs `duels.select-arena`; without it arenas are random. `duels.player` (everyone by
 default) grants all player permissions, hosting events included; `duels.admin` (operators) grants all
-admin ones plus `duels.bypass.cooldown`, which also skips the event host cooldown, and can watch events
-that forbid spectators. `/duels` itself needs `duels.admin`.
+admin ones plus `duels.bypass.cooldown`, which also skips the event host cooldown, and
+`duels.bypass.commands`, which allows every command during a duel, and can watch events that forbid spectators. `/duels` itself needs `duels.admin`.
 
 ## How a duel runs
 
@@ -319,7 +319,7 @@ that forbid spectators. `/duels` itself needs `duels.admin`.
 
 While in a duel or spectating, players cannot drop, pick up (except fighters with a drop rule)
 or store items, open containers or other menus, change blocks (except with a [build kit](#build-kits)), use commands other than `/duel` and
-`rules.allowed-commands`, or teleport out of the arena (pearls inside it work). Nether and end portals take
+`rules.allowed-commands` (`duels.bypass.commands`, operators by default, allows all), or teleport out of the arena (pearls inside it work). Nether and end portals take
 nobody and nothing out of a duel or the arenas world, and none can be lit there. Among players only the
 two fighters can hurt each other; mobs, fall damage and the like still apply (unless a
 [game rule](#kit-game-rules) turns them off), so keep arenas mob-free and

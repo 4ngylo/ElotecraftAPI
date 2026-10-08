@@ -4,6 +4,7 @@ import me.angylo.elotecraftAPI.command.Args;
 import me.angylo.elotecraftAPI.hologram.Hologram;
 import me.angylo.elotecraftAPI.hud.Bossbars;
 import me.angylo.elotecraftAPI.hud.Sidebar;
+import me.angylo.elotecraftAPI.input.AnvilInput;
 import me.angylo.elotecraftAPI.input.ChatInput;
 import me.angylo.elotecraftAPI.menu.Menu;
 import me.angylo.elotecraftAPI.menu.MenuConfig;
@@ -53,6 +54,14 @@ final class     ExtrasDemo {
     /** Asks for a nickname in chat; the answer never shows in public chat. */
     void askName(Player player) {
         ChatInput.ask(plugin, player, messages.get(player, "example.input-ask"), INPUT_TIMEOUT)
+                .thenAccept(name -> name.ifPresentOrElse(
+                        value -> messages.send(player, "example.input-done", Placeholder.unparsed("name", value)),
+                        () -> messages.send(player, "example.input-cancelled")));
+    }
+
+    /** Asks for a nickname in an anvil: type it in the rename field, then click the result. */
+    void askNameInAnvil(Player player) {
+        AnvilInput.ask(plugin, player, messages.get(player, "example.anvil-title"), "Steve", INPUT_TIMEOUT)
                 .thenAccept(name -> name.ifPresentOrElse(
                         value -> messages.send(player, "example.input-done", Placeholder.unparsed("name", value)),
                         () -> messages.send(player, "example.input-cancelled")));

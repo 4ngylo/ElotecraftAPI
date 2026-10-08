@@ -90,6 +90,7 @@ public final class ExampleCommand {
                 .playerSub("give", null, example::give, (sender, args) -> Args.filter(List.of("1", "16", "64"), args))
                 .playerSub("sneak", null, (player, args) -> example.waitForSneak(player))
                 .playerSub("input", null, (player, args) -> example.extras.askName(player))
+                .playerSub("anvil", null, (player, args) -> example.extras.askNameInAnvil(player))
                 .playerSub("hud", null, (player, args) -> example.extras.toggleHud(player))
                 .playerSub("hologram", null, (player, args) -> example.extras.hologram(player))
                 .playerSub("skull", null, (player, args) -> example.extras.giveSkull(player, Args.get(args, 0)),

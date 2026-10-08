@@ -1,6 +1,8 @@
 package me.angylo.elotecraftDuels.party;
 
+import me.angylo.elotecraftAPI.util.Cooldowns;
 import me.angylo.elotecraftAPI.util.Messages;
+import me.angylo.elotecraftDuels.PlayerOptions;
 import me.angylo.elotecraftDuels.Settings;
 import net.kyori.adventure.text.event.ClickEvent;
 import net.kyori.adventure.text.event.HoverEvent;
@@ -12,7 +14,9 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerQuitEvent;
 
+import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -28,12 +32,14 @@ import java.util.function.Supplier;
 public final class PartyManager implements Listener {
 
     private static final long MILLIS_PER_TICK = 50;
+    private static final Duration ADVERTISE_COOLDOWN = Duration.ofMinutes(1);
 
     private final Messages messages;
     private final Supplier<Settings> settings;
     /** Member to their party; read by placeholders from other threads. */
     private final Map<UUID, Party> byPlayer = new ConcurrentHashMap<>();
     private final List<Party> parties = new ArrayList<>();
+    private final Cooldowns<UUID> advertised = new Cooldowns<>();
 
     public PartyManager(Messages messages, Supplier<Settings> settings) {
         this.messages = messages;
@@ -67,6 +73,10 @@ public final class PartyManager implements Listener {
         }
         if (byPlayer.containsKey(target.getUniqueId())) {
             messages.send(player, "party.target-in-party", name(target));
+            return;
+        }
+        if (!PlayerOptions.PARTY_INVITES.isOn(target)) {
+            messages.send(player, "party.invites-disabled", name(target));
             return;
         }
         if (party != null && party.size() >= settings.get().partyMaxSize()) {
@@ -197,6 +207,74 @@ public final class PartyManager implements Listener {
             messages.send(player, party.isLeader(member) ? "party.info-leader" : "party.info-member",
                     Placeholder.unparsed("player", online == null ? member.toString() : online.getName()));
         }
+    }
+
+    /**
+     * Makes {@code player}'s party public, so anyone may {@link #join} it, or private again; leader only. Going
+     * public is announced to everyone not in a party, with a click to join.
+     */
+    public void toggleOpen(Player player) {
+        Party party = ledBy(player);
+        if (party == null) {
+            return;
+        }
+        party.open(!party.isOpen());
+        broadcast(party, party.isOpen() ? "party.opened" : "party.closed", name(player));
+        // A leader switching back and forth announces it once a minute at most.
+        if (party.isOpen() && advertised.tryUse(player.getUniqueId(), ADVERTISE_COOLDOWN)) {
+            ClickEvent join = ClickEvent.runCommand("/party join " + player.getName());
+            for (Player online : Bukkit.getOnlinePlayers()) {
+                if (!byPlayer.containsKey(online.getUniqueId()) && PlayerOptions.PARTY_INVITES.isOn(online)) {
+                    messages.send(online, "party.advertised", name(player), Placeholder.styling("join", join,
+                            HoverEvent.showText(messages.get(online, "party.join-hover"))));
+                }
+            }
+        }
+    }
+
+    /** Joins the party {@code leaderName} leads: a public one, or one that invited {@code player}. */
+    public void join(Player player, String leaderName) {
+        if (byPlayer.containsKey(player.getUniqueId())) {
+            messages.send(player, "party.already-in-party");
+            return;
+        }
+        Player leader = Bukkit.getPlayerExact(leaderName);
+        Party party = leader == null ? null : byPlayer.get(leader.getUniqueId());
+        if (party == null || !party.isLeader(leader.getUniqueId())) {
+            messages.send(player, "party.no-such-party", Placeholder.unparsed("player", leaderName));
+            return;
+        }
+        if (!party.isOpen() && !party.hasInvite(player.getUniqueId(), Bukkit.getCurrentTick())) {
+            messages.send(player, "party.not-open", name(leader));
+            return;
+        }
+        if (party.size() >= settings.get().partyMaxSize()) {
+            messages.send(player, "party.full");
+            return;
+        }
+        party.add(player.getUniqueId());
+        byPlayer.put(player.getUniqueId(), party);
+        broadcast(party, "party.joined", name(player));
+    }
+
+    /** Public parties, biggest first. */
+    public List<Party> openParties() {
+        return parties.stream().filter(Party::isOpen).sorted(Comparator.comparingInt(Party::size).reversed()).toList();
+    }
+
+    /** Sends {@code message} to {@code player}'s party; it is shown as typed, never as formatting. */
+    public void chat(Player player, String message) {
+        Party party = byPlayer.get(player.getUniqueId());
+        if (party == null) {
+            messages.send(player, "party.not-in-party");
+            return;
+        }
+        String text = message.strip();
+        if (text.isEmpty()) {
+            messages.send(player, "party.chat-usage");
+            return;
+        }
+        broadcast(party, "party.chat", name(player), Placeholder.unparsed("message", text));
     }
 
     /** A quitting player leaves their party; the others are told. */

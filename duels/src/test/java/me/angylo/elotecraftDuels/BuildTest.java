@@ -3,12 +3,14 @@ package me.angylo.elotecraftDuels;
 import me.angylo.elotecraftDuels.arena.Arena;
 import me.angylo.elotecraftDuels.arena.ArenaTemplate;
 import me.angylo.elotecraftDuels.kit.Kit;
+import me.angylo.elotecraftDuels.kit.KitRule;
 import me.angylo.elotecraftDuels.match.Match;
 import org.bukkit.ExplosionResult;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
+import org.bukkit.entity.TNTPrimed;
 import org.bukkit.event.Cancellable;
 import org.bukkit.event.Event;
 import org.bukkit.event.block.Action;
@@ -84,6 +86,28 @@ class BuildTest extends DuelsTestBase {
     }
 
     @Test
+    void autoIgniteLightsPlacedTntAtOnce() {
+        fight(kit.withRule(KitRule.AUTO_IGNITE_TNT, true));
+
+        BlockPlaceEvent place = alex.simulateBlockPlace(Material.TNT, inside());
+
+        assertFalse(place.isCancelled());
+        assertEquals(Material.AIR, inside().getBlock().getType());
+        TNTPrimed tnt = arenaWorld.getEntitiesByClass(TNTPrimed.class).iterator().next();
+        assertEquals(alex, tnt.getSource());
+    }
+
+    @Test
+    void tntStaysABlockWithoutAutoIgnite() {
+        fight(kit);
+
+        alex.simulateBlockPlace(Material.TNT, inside());
+
+        assertEquals(Material.TNT, inside().getBlock().getType());
+        assertTrue(arenaWorld.getEntitiesByClass(TNTPrimed.class).isEmpty());
+    }
+
+    @Test
     void fightersBreakOnlyBlocksPlacedDuringTheDuel() {
         fight(kit);
 
@@ -97,6 +121,18 @@ class BuildTest extends DuelsTestBase {
         assertFalse(breakPlaced.isCancelled());
         assertFalse(breakPlaced.isDropItems());
         assertEquals(Material.AIR, inside().getBlock().getType());
+    }
+
+    @Test
+    void blockDropsRuleLetsBrokenBlocksDrop() {
+        fight(kit.withRule(KitRule.BLOCK_DROPS, true));
+
+        alex.simulateBlockPlace(Material.OAK_PLANKS, inside());
+        BlockBreakEvent breakPlaced = alex.simulateBlockBreak(inside().getBlock());
+
+        assertFalse(breakPlaced.isCancelled());
+        assertTrue(breakPlaced.isDropItems());
+        assertEquals(0, breakPlaced.getExpToDrop());
     }
 
     /**

@@ -12,6 +12,8 @@ import me.angylo.elotecraftDuels.kit.KitRule;
 import me.angylo.elotecraftDuels.match.Match;
 import me.angylo.elotecraftDuels.match.MatchManager;
 import me.angylo.elotecraftDuels.match.QueueManager;
+import me.angylo.elotecraftDuels.match.Rewards;
+import me.angylo.elotecraftDuels.state.SnapshotStore;
 import net.kyori.adventure.text.event.ClickEvent;
 import net.kyori.adventure.text.event.HoverEvent;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
@@ -23,6 +25,8 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerQuitEvent;
 
 import java.time.Duration;
+import java.time.LocalTime;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -34,13 +38,15 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Supplier;
+import java.util.logging.Logger;
 
 /**
  * Player-hosted events: a host picks the kit, arena and rules while players join, then everyone fights
  * once in one arena, everyone for themselves or in two teams; the last players or team standing win.
  * Joined players count as busy, so they cannot queue or duel meanwhile. An event starts when the host
  * says so, when it is full, or when its wait ends with enough players; otherwise it is cancelled.
- * Main thread only.
+ * A tournament or sumo event becomes a {@link Tournament} instead, and config.yml {@code events.schedule}
+ * hosts events with the server as host. Main thread only.
  */
 public final class EventManager implements Listener {
 
@@ -50,31 +56,50 @@ public final class EventManager implements Listener {
     private static final String BYPASS_COOLDOWN = "duels.bypass.cooldown";
     private static final long MILLIS_PER_TICK = 50;
 
+    private final Logger logger;
     private final Messages messages;
     private final Supplier<Settings> settings;
     private final KitRegistry kits;
     private final ArenaRegistry arenas;
     private final MatchManager matches;
     private final QueueManager queues;
+    private final SnapshotStore snapshots;
+    private final Rewards rewards;
+    private final List<Tournament> tournaments = new ArrayList<>();
+    /** The minute {@code events.schedule} was last checked for. */
+    private LocalTime lastScheduled;
     /** Hosts, in the order they started hosting. */
     private final Map<UUID, HostedEvent> byHost = new LinkedHashMap<>();
     private final Map<UUID, HostedEvent> byPlayer = new HashMap<>();
     /** When each host last hosted, in server ticks. */
     private final Map<UUID, Long> lastHosted = new HashMap<>();
 
-    public EventManager(Messages messages, Supplier<Settings> settings, KitRegistry kits, ArenaRegistry arenas,
-                        MatchManager matches, QueueManager queues) {
+    public EventManager(Logger logger, Messages messages, Supplier<Settings> settings, KitRegistry kits, ArenaRegistry arenas,
+                        MatchManager matches, QueueManager queues, SnapshotStore snapshots, Rewards rewards) {
+        this.logger = logger;
         this.messages = messages;
         this.settings = settings;
         this.kits = kits;
         this.arenas = arenas;
         this.matches = matches;
         this.queues = queues;
+        this.snapshots = snapshots;
+        this.rewards = rewards;
+        matches.onFinish(match -> {
+            List.copyOf(tournaments).forEach(tournament -> tournament.finished(match));
+            tournaments.removeIf(Tournament::isOver);
+        });
     }
 
-    /** Whether {@code player} joined an event that has not started yet. */
+    /** Whether {@code player} joined an event that has not started yet, or is between fights of a tournament. */
     public boolean isWaiting(Player player) {
-        return byPlayer.containsKey(player.getUniqueId());
+        UUID uuid = player.getUniqueId();
+        return byPlayer.containsKey(uuid) || tournaments.stream().anyMatch(tournament -> tournament.isWaiting(uuid));
+    }
+
+    /** Whether {@code player}, between fights of a tournament, may watch {@code match}: one of its fights. */
+    public boolean mayWatch(Player player, Match match) {
+        return tournaments.stream().anyMatch(tournament -> tournament.isWaiting(player.getUniqueId()) && tournament.owns(match));
     }
 
     public Optional<HostedEvent> eventOf(Player player) {
@@ -168,8 +193,7 @@ public final class EventManager implements Listener {
 
     /** {@code /event join <host>} */
     public void join(Player player, String hostName) {
-        Player host = Bukkit.getPlayerExact(hostName);
-        HostedEvent event = host == null ? null : byHost.get(host.getUniqueId());
+        HostedEvent event = byHost.values().stream().filter(found -> found.hostName().equalsIgnoreCase(hostName)).findFirst().orElse(null);
         if (event == null) {
             messages.send(player, "event.not-found", Placeholder.unparsed("player", hostName));
             return;
@@ -185,7 +209,13 @@ public final class EventManager implements Listener {
     public boolean leave(Player player) {
         HostedEvent event = byPlayer.get(player.getUniqueId());
         if (event == null) {
-            return false;
+            Tournament tournament = tournaments.stream().filter(found -> found.isWaiting(player.getUniqueId())).findFirst().orElse(null);
+            if (tournament == null) {
+                return false;
+            }
+            tournament.quit(player.getUniqueId());
+            messages.send(player, "event.left");
+            return true;
         }
         if (event.isHost(player.getUniqueId())) {
             cancel(event, "event.cancelled");
@@ -283,7 +313,7 @@ public final class EventManager implements Listener {
     public void toggleMode(Player host) {
         HostedEvent event = hosting(host);
         if (event != null) {
-            event.mode(event.mode() == HostedEvent.Mode.FFA ? HostedEvent.Mode.TEAMS : HostedEvent.Mode.FFA);
+            event.mode(event.mode().next());
         }
     }
 
@@ -330,8 +360,14 @@ public final class EventManager implements Listener {
         }
     }
 
-    /** Once a second: counts down, announces public events again, and starts or cancels those whose wait ended. */
+    /**
+     * Once a second: hosts scheduled events, counts down, announces public events again, starts or cancels those
+     * whose wait ended, and runs tournaments.
+     */
     public void tick() {
+        runSchedule(LocalTime.now());
+        List.copyOf(tournaments).forEach(Tournament::tick);
+        tournaments.removeIf(Tournament::isOver);
         int interval = announceSeconds();
         for (HostedEvent event : List.copyOf(byHost.values())) {
             if (event.countDown() <= 0) {
@@ -340,6 +376,46 @@ public final class EventManager implements Listener {
                 announce(event);
             }
         }
+    }
+
+    /** Hosts the {@code events.schedule} events due at {@code now}'s minute, once per minute. */
+    public void runSchedule(LocalTime now) {
+        LocalTime minute = now.truncatedTo(ChronoUnit.MINUTES);
+        if (minute.equals(lastScheduled)) {
+            return;
+        }
+        lastScheduled = minute;
+        for (Settings.Scheduled entry : settings.get().events().schedule()) {
+            if (entry.at().equals(minute)) {
+                hostScheduled(entry);
+            }
+        }
+    }
+
+    /**
+     * Starts gathering players for a server-hosted event, announced like any other. One at a time: a server
+     * event still gathering players skips the next.
+     *
+     * @return false after logging why not
+     */
+    public boolean hostScheduled(Settings.Scheduled entry) {
+        Kit kit = kits.get(entry.kit()).filter(found -> !found.isEmpty()).orElse(null);
+        if (kit == null || !matches.hasArenaFor(kit)) {
+            logger.warning("Skipped the scheduled " + entry.mode().key() + " event at " + entry.at() + ": "
+                    + (kit == null ? "there is no kit '" + entry.kit() + "' with items" : "no arena is ready for kit " + kit.name()));
+            return false;
+        }
+        if (byHost.containsKey(HostedEvent.SERVER)) {
+            logger.info("Skipped the scheduled event at " + entry.at() + ": the last one is still gathering players");
+            return false;
+        }
+        Settings.Events config = settings.get().events();
+        HostedEvent event = new HostedEvent(HostedEvent.SERVER, Text.plain(messages.get("event.server-host")), kit.name(),
+                (int) config.waitTime().toSeconds(), announceSeconds());
+        event.mode(entry.mode());
+        byHost.put(HostedEvent.SERVER, event);
+        announce(event);
+        return true;
     }
 
     private int announceSeconds() {
@@ -357,6 +433,7 @@ public final class EventManager implements Listener {
 
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
+        List.copyOf(tournaments).forEach(tournament -> tournament.quit(event.getPlayer().getUniqueId()));
         HostedEvent hosted = byPlayer.get(event.getPlayer().getUniqueId());
         if (hosted == null) {
             return;
@@ -373,6 +450,7 @@ public final class EventManager implements Listener {
         byHost.clear();
         byPlayer.clear();
         lastHosted.clear();
+        tournaments.clear();
     }
 
     /**
@@ -394,6 +472,19 @@ public final class EventManager implements Listener {
         if (arena == null || !matches.isArenaFree(arena)) {
             arena = matches.randomFreeArena(kit).orElse(null);
         }
+        if (event.mode().isTournament()) {
+            // Its fights wait for free arenas.
+            if (!matches.hasArenaFor(kit)) {
+                return "event.no-arena";
+            }
+            cancelQuietly(event);
+            players.forEach(queues::handleQuit);
+            Tournament tournament = new Tournament(messages, settings, arenas, matches, snapshots, rewards, event, kit, players);
+            tournaments.add(tournament);
+            tournament.begin();
+            tournaments.removeIf(Tournament::isOver);
+            return null;
+        }
         if (arena == null) {
             return matches.hasArenaFor(kit) ? "event.no-free-arena" : "event.no-arena";
         }
@@ -404,7 +495,7 @@ public final class EventManager implements Listener {
         cancelQuietly(event);
         players.forEach(queues::handleQuit);
         int winners = Math.min(event.winners(), teams.size() - 1);
-        Match.Options options = new Match.Options(winners, event.isSpectatable(), event.hasBorder(), event.hostName());
+        Match.Options options = new Match.Options(winners, event.isSpectatable(), event.hasBorder(), event.hostName(), false);
         if (!matches.start(teams, kit, arena, Match.Type.EVENT, false, options)) {
             players.forEach(player -> messages.send(player, "event.start-failed", hostTag(event)));
         }
@@ -459,7 +550,7 @@ public final class EventManager implements Listener {
             messages.send(player, "event.announce", hostTag(event), countTag(event), maxTag(),
                     kit == null ? Placeholder.unparsed("kit", event.kit()) : kitTag(kit),
                     Placeholder.component("arena", arena == null ? messages.get(player, "general.random-arena") : Text.mm(arena.displayName())),
-                    Placeholder.component("mode", messages.get(player, event.mode() == HostedEvent.Mode.FFA ? "event.mode-ffa" : "event.mode-teams")),
+                    Placeholder.component("mode", messages.get(player, "event.mode-" + event.mode().key())),
                     time(event.secondsLeft()), joinTag(player, event));
         }
     }

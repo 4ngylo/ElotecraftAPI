@@ -9,9 +9,11 @@ import me.angylo.elotecraftDuels.kit.KitRule;
 import me.angylo.elotecraftDuels.match.Match;
 import me.angylo.elotecraftDuels.match.MatchManager;
 import me.angylo.elotecraftDuels.state.SnapshotStore;
+import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.entity.AbstractArrow;
 import org.bukkit.entity.AreaEffectCloud;
 import org.bukkit.entity.EnderPearl;
 import org.bukkit.entity.Entity;
@@ -39,16 +41,23 @@ import org.bukkit.event.player.PlayerItemDamageEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerPickupArrowEvent;
 import org.bukkit.event.player.PlayerRespawnEvent;
+import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
 import org.bukkit.plugin.Plugin;
+import org.bukkit.inventory.meta.PotionMeta;
+import org.bukkit.potion.PotionEffectType;
+import org.bukkit.potion.PotionType;
 
+import java.util.Locale;
 import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.function.Supplier;
+import java.util.stream.Stream;
 
 /**
  * Fight rules: only the two fighters of a match hurt each other, and only while fighting. A lethal hit
- * ends the duel instead of killing, so there is no death screen, no drops and no death event for other
- * plugins (graves, /back) to react to. Also freezes fighters during the countdown, keeps everyone
+ * ends the duel instead of killing, so there is no death screen, no vanilla drops and no death event for
+ * other plugins (graves, /back) to react to; kits with {@link KitRule#DEATH_DROPS} drop the inventory. Also freezes fighters during the countdown, keeps everyone
  * inside the arena and applies the kit's game rules ({@link KitRule}).
  */
 public final class CombatListener implements Listener {
@@ -56,6 +65,9 @@ public final class CombatListener implements Listener {
     private static final long RESPAWN_DELAY_TICKS = 1;
     private static final long PEARL_COOLDOWN_DELAY_TICKS = 1;
     private static final int TICKS_PER_SECOND = 20;
+    /** A health potion that healed its thrower less than this was missed. */
+    private static final double HALF_INTENSITY = 0.5;
+    private static final double PERCENT = 100;
 
     private final Plugin plugin;
     private final Messages messages;
@@ -97,6 +109,27 @@ public final class CombatListener implements Listener {
             event.setCancelled(true);
             return;
         }
+        boolean byOpponent = attacker != null && !attacker.equals(victim);
+        OptionalInt multiplier = victimMatch.kit().number(KitRule.DAMAGE_MULTIPLIER);
+        if (byOpponent && multiplier.isPresent() && multiplier.getAsInt() > 0) {
+            event.setDamage(event.getDamage() * multiplier.getAsInt() / PERCENT);
+        }
+        if (byOpponent && invulnerable(victim)) {
+            // Paper fires this event again for a harder hit while the victim is still invulnerable, and a
+            // knockback-only kit's 0 damage makes every hit harder: count none of them, and let only damage through.
+            if (!victimMatch.kit().damage()) {
+                event.setCancelled(true);
+                return;
+            }
+        } else if (byOpponent) {
+            victimMatch.fightStats().hit(attacker, victim);
+            if (lastHit(victimMatch, attacker, victim)) {
+                event.setCancelled(true);
+                dropInventory(victim);
+                matches.eliminate(victim);
+                return;
+            }
+        }
         // Knockback-only kits (Sumo): the hit still pushes, but never hurts; falling off the arena decides.
         if (!victimMatch.kit().damage()) {
             event.setDamage(0);
@@ -104,8 +137,22 @@ public final class CombatListener implements Listener {
         }
         if (victim.getHealth() - event.getFinalDamage() <= 0 && !holdsTotem(victim)) {
             event.setCancelled(true);
+            dropInventory(victim);
             matches.eliminate(victim);
         }
+    }
+
+    /** Tells a shooter how much health their arrow left the target with ({@code match.arrow-health}). */
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onArrowHit(EntityDamageByEntityEvent event) {
+        if (!settings.get().arrowHealth() || !(event.getDamager() instanceof AbstractArrow arrow)
+                || !(arrow.getShooter() instanceof Player shooter) || !(event.getEntity() instanceof Player target)
+                || shooter.equals(target) || matches.matchOf(target).isEmpty()) {
+            return;
+        }
+        double hearts = Math.max(0, target.getHealth() - event.getFinalDamage()) / 2;
+        messages.send(shooter, "match.arrow-health", Placeholder.unparsed("player", target.getName()),
+                Placeholder.unparsed("health", String.format(Locale.ROOT, "%.1f", hearts)));
     }
 
     /** Backup for deaths that skip {@link #onDamage}, such as {@code /kill}: nothing is lost. */
@@ -120,6 +167,7 @@ public final class CombatListener implements Listener {
         event.setKeepLevel(true);
         event.setShouldDropExperience(false);
         event.deathMessage(null);
+        dropInventory(player);
         matches.handleDeath(player);
         Tasks.later(plugin, () -> {
             if (player.isOnline() && player.isDead()) {
@@ -243,7 +291,7 @@ public final class CombatListener implements Listener {
         if (match == null || !(event.getProjectile() instanceof EnderPearl)) {
             return;
         }
-        match.kit().seconds(KitRule.PEARL_COOLDOWN).ifPresent(seconds ->
+        match.kit().number(KitRule.PEARL_COOLDOWN).ifPresent(seconds ->
                 // Paper puts the vanilla cooldown on after this event, so ours goes on a tick later.
                 Tasks.later(plugin, () -> {
                     if (player.isOnline() && matches.matchOf(player).orElse(null) == match) {
@@ -259,6 +307,11 @@ public final class CombatListener implements Listener {
             if (!canAffect(thrower, entity)) {
                 event.setIntensity(entity, 0);
             }
+        }
+        Match match = thrower == null ? null : matches.matchOf(thrower).orElse(null);
+        if (match != null && match.isFighting(thrower) && heals(event.getPotion())) {
+            boolean healed = event.getAffectedEntities().contains(thrower) && event.getIntensity(thrower) >= HALF_INTENSITY;
+            match.fightStats().healthPotion(thrower, !healed);
         }
     }
 
@@ -279,10 +332,50 @@ public final class CombatListener implements Listener {
                 && sourceMatch.isFighting(player) && sourceMatch.isFighting(source);
     }
 
+    /**
+     * With the kit's {@link KitRule#DEATH_DROPS}, a fighter about to be knocked out drops everything they
+     * carry where they stand, tagged like other duel drops. Their own items come back from their snapshot.
+     */
+    private void dropInventory(Player fighter) {
+        Match match = matches.matchOf(fighter).orElse(null);
+        if (match == null || !match.isFighting(fighter)) {
+            return;
+        }
+        // Before the drop empties it, for /duel inventory.
+        match.recordFinal(fighter);
+        if (!match.kit().flag(KitRule.DEATH_DROPS, settings.get())) {
+            return;
+        }
+        PlayerInventory inventory = fighter.getInventory();
+        Location at = fighter.getLocation();
+        for (ItemStack stack : inventory.getContents()) {
+            if (stack != null && !stack.isEmpty()) {
+                at.getWorld().dropItemNaturally(at, stack, ProtectionListener::markDuelDrop);
+            }
+        }
+        inventory.clear();
+    }
+
     /** {@code rule} of the kit {@code player} is in a duel with, or its default outside one (the kit editor). */
     private boolean rule(Player player, KitRule rule) {
         Settings current = settings.get();
         return matches.matchOf(player).map(match -> match.kit().flag(rule, current)).orElseGet(() -> rule.defaultFlag(current));
+    }
+
+    /**
+     * Counts a hit for {@link KitRule#HITS_TO_WIN} and shows the attacker the count.
+     *
+     * @return true when it is the hit that knocks {@code victim} out
+     */
+    private boolean lastHit(Match match, Player attacker, Player victim) {
+        int needed = match.kit().number(KitRule.HITS_TO_WIN).orElse(0);
+        if (needed <= 0) {
+            return false;
+        }
+        int hits = match.hit(victim);
+        attacker.sendActionBar(messages.get(attacker, "match.hits", Placeholder.unparsed("player", victim.getName()),
+                Placeholder.unparsed("hits", String.valueOf(hits)), Placeholder.unparsed("max", String.valueOf(needed))));
+        return hits >= needed;
     }
 
     /** The kit's damage rules: falling, fire, explosions and hurting yourself (bow boosting, your own TNT). */
@@ -300,9 +393,22 @@ public final class CombatListener implements Listener {
         return rule == null || kit.flag(rule, current);
     }
 
+    /** Paper's own test in {@code LivingEntity.hurtServer}: within the first half of the no-damage ticks. */
+    private static boolean invulnerable(Player victim) {
+        return victim.getNoDamageTicks() > victim.getMaximumNoDamageTicks() / 2f;
+    }
+
     private boolean frozenFighter(Player player) {
         Match match = matches.matchOf(player).orElse(null);
         return match != null && match.isFighter(player) && match.state() != Match.State.FIGHTING;
+    }
+
+    /** Whether {@code potion} holds instant health, from its type or as an added effect. */
+    private static boolean heals(ThrownPotion potion) {
+        PotionMeta meta = potion.getPotionMeta();
+        PotionType base = meta.getBasePotionType();
+        return Stream.concat(base == null ? Stream.empty() : base.getPotionEffects().stream(), meta.getCustomEffects().stream())
+                .anyMatch(effect -> effect.getType().equals(PotionEffectType.INSTANT_HEALTH));
     }
 
     /** The player behind a damaging entity: arrows, tridents, TNT, lingering potions and pets count. */

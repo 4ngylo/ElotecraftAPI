@@ -8,6 +8,7 @@ import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.event.inventory.ClickType;
 import org.bukkit.inventory.Inventory;
+import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -107,6 +108,8 @@ class MenuConfigTest {
         assertEquals(3, item.getAmount());
         assertEquals("<red>Archer", Text.plain(item.getItemMeta().displayName()));
         assertEquals("Queued: 4", Text.plain(item.getItemMeta().lore().getFirst()));
+        // A bow's attributes and a potion's "No Effects" would show under the lore.
+        assertTrue(item.getItemMeta().hasItemFlag(ItemFlag.HIDE_ATTRIBUTES));
         assertThrows(IllegalArgumentException.class, () -> MenuConfig.item(null));
     }
 

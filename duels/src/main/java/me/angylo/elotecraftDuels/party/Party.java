@@ -17,6 +17,8 @@ public final class Party {
     /** Invited player to the server tick their invite expires on. */
     private final Map<UUID, Long> invites = new HashMap<>();
     private volatile UUID leader;
+    /** Public: anyone may join without an invite. */
+    private volatile boolean open;
 
     Party(UUID leader) {
         this.leader = leader;
@@ -55,6 +57,14 @@ public final class Party {
         if (leader.equals(player) && !members.isEmpty()) {
             leader = members.getFirst();
         }
+    }
+
+    public boolean isOpen() {
+        return open;
+    }
+
+    void open(boolean value) {
+        open = value;
     }
 
     void promote(UUID player) {

@@ -58,7 +58,8 @@ public final class ArenaChanges {
     }
 
     /**
-     * Puts back up to {@code budget} blocks, without physics so nothing pops off or flows meanwhile.
+     * Puts back up to {@code budget} blocks, without physics so nothing pops off or flows meanwhile. Once all
+     * are back, none counts as {@link #changed} any more.
      *
      * @return whether every block is back
      */
@@ -70,6 +71,11 @@ public final class ArenaChanges {
             pending.remove();
             original.update(true, false);
         }
-        return originals.isEmpty();
+        if (originals.isEmpty()) {
+            // Back to the arena's own blocks, which fighters may not break in the next round.
+            replaced.clear();
+            return true;
+        }
+        return false;
     }
 }

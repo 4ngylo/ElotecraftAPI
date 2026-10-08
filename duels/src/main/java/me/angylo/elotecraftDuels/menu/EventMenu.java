@@ -43,6 +43,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
+import static me.angylo.elotecraftDuels.menu.MenuLayout.material;
 import static me.angylo.elotecraftDuels.menu.MenuLayout.value;
 import static me.angylo.elotecraftDuels.menu.MenuLayout.with;
 
@@ -97,7 +98,7 @@ public final class EventMenu {
     /** Starts the host's event: a team event first lets them pick the teams. */
     public void start(Player host) {
         HostedEvent event = events.hostedBy(host).orElse(null);
-        if (event == null || event.mode() == HostedEvent.Mode.FFA) {
+        if (event == null || event.mode() != HostedEvent.Mode.TEAMS) {
             events.start(host, null, null);
             return;
         }
@@ -255,7 +256,7 @@ public final class EventMenu {
             TagResolver[] tags = {
                     Placeholder.component("kit", Text.mm(kit.displayName())),
                     Placeholder.component("arena", arena == null ? messages.get(host, "general.random-arena") : Text.mm(arena.displayName())),
-                    Placeholder.component("mode", messages.get(host, event.mode() == HostedEvent.Mode.FFA ? "event.mode-ffa" : "event.mode-teams")),
+                    Placeholder.component("mode", messages.get(host, "event.mode-" + event.mode().key())),
                     Placeholder.unparsed("winners", String.valueOf(event.winners())),
                     Placeholder.unparsed("players", String.valueOf(event.size())),
                     Placeholder.unparsed("min", String.valueOf(config.minPlayers())),
@@ -280,7 +281,7 @@ public final class EventMenu {
             });
             put("rules", null, false, tags, MenuLayout.choose(plugin, effects, EventMenu.this::openRules));
             put("start", null, false, tags, MenuLayout.choose(plugin, effects, EventMenu.this::start));
-            put("mode", material(section.getConfigurationSection("mode"), event.mode() == HostedEvent.Mode.FFA ? "ffa" : "teams"),
+            put("mode", material(section.getConfigurationSection("mode"), event.mode().key()),
                     false, tags, change(events::toggleMode));
             put("winners", null, false, tags, change(player -> { }, (player, click) ->
                     events.changeWinners(player, click.isRightClick() ? -1 : 1)));
@@ -335,19 +336,10 @@ public final class EventMenu {
                 Placeholder.unparsed("host", event.hostName()),
                 Placeholder.component("kit", kit == null ? Component.text(event.kit()) : Text.mm(kit.displayName())),
                 Placeholder.component("arena", arena == null ? messages.get(viewer, "general.random-arena") : Text.mm(arena.displayName())),
-                Placeholder.component("mode", messages.get(viewer, event.mode() == HostedEvent.Mode.FFA ? "event.mode-ffa" : "event.mode-teams")),
+                Placeholder.component("mode", messages.get(viewer, "event.mode-" + event.mode().key())),
                 Placeholder.unparsed("winners", String.valueOf(event.winners())),
                 Placeholder.unparsed("players", String.valueOf(event.size())),
                 Placeholder.unparsed("max", String.valueOf(config.maxPlayers())),
                 Placeholder.unparsed("time", Durations.format(Duration.ofSeconds(Math.max(0, event.secondsLeft()))))};
-    }
-
-    private static Material material(ConfigurationSection template, String key) {
-        String raw = template == null ? "" : template.getString(key, "");
-        Material material = Material.matchMaterial(raw);
-        if (material == null || !material.isItem() || material.isAir()) {
-            throw new IllegalArgumentException((template == null ? key : template.getCurrentPath() + "." + key) + " is not an item: '" + raw + "'");
-        }
-        return material;
     }
 }

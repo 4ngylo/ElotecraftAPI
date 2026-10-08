@@ -78,7 +78,8 @@ public final class MenuConfig {
     /**
      * Builds one item from a section with the keys shown above ({@code material}, optional {@code amount},
      * {@code name}, {@code lore}, {@code glint}, {@code model}), e.g. for buttons placed in a menu built in code.
-     * Tags such as {@code <kit>} in the name and lore are filled from {@code resolvers}.
+     * Tags such as {@code <kit>} in the name and lore are filled from {@code resolvers}. Vanilla attributes and item
+     * details are hidden ({@link ItemBuilder#hideDetails()}).
      *
      * @throws IllegalArgumentException if the section is missing or has an unknown material or invalid model
      */
@@ -87,8 +88,10 @@ public final class MenuConfig {
             throw new IllegalArgumentException("Missing item config section");
         }
         String path = section.getCurrentPath();
+        // Menu buttons show only their name and lore: no sword damage or empty potion effects.
         ItemBuilder builder = ItemBuilder.of(material(section.getString("material", ""), path + ".material"))
-                .amount(section.getInt("amount", 1));
+                .amount(section.getInt("amount", 1))
+                .hideDetails();
         if (section.isString("name")) {
             builder.name(Text.mm(section.getString("name", ""), resolvers));
         }

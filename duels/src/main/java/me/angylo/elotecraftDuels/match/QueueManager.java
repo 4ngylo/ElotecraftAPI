@@ -3,6 +3,7 @@ package me.angylo.elotecraftDuels.match;
 import me.angylo.elotecraftAPI.util.Durations;
 import me.angylo.elotecraftAPI.util.Messages;
 import me.angylo.elotecraftAPI.util.Text;
+import me.angylo.elotecraftDuels.PingRange;
 import me.angylo.elotecraftDuels.Settings;
 import me.angylo.elotecraftDuels.arena.Arena;
 import me.angylo.elotecraftDuels.kit.Kit;
@@ -78,6 +79,11 @@ public final class QueueManager {
             messages.send(player, "general.no-arena-for-kit", kitTag(kit));
             return;
         }
+        int dailyLimit = settings.get().ranked().dailyLimit();
+        if (ranked && !DailyRanked.allowed(player, dailyLimit)) {
+            messages.send(player, "queue.ranked-limit", Placeholder.unparsed("limit", String.valueOf(dailyLimit)));
+            return;
+        }
         remove(player.getUniqueId());
         queues.computeIfAbsent(id, key -> new LinkedHashMap<>()).put(player.getUniqueId(), (long) Bukkit.getCurrentTick());
         queued.put(player.getUniqueId(), id);
@@ -125,7 +131,7 @@ public final class QueueManager {
                 player.sendActionBar(messages.get(player, id.ranked() ? "queue.action-bar-ranked" : "queue.action-bar",
                         kitTag(id.kit()), typeTag(player, id.ranked()),
                         Placeholder.unparsed("time", Durations.format(Duration.ofMillis((now - joined) * MILLIS_PER_TICK))),
-                        Placeholder.unparsed("elo", String.valueOf(stats.elo(uuid))),
+                        Placeholder.unparsed("elo", String.valueOf(stats.elo(uuid, id.kit()))),
                         Placeholder.unparsed("range", String.valueOf(ranked.range((now - joined) / TICKS_PER_SECOND)))));
             }
         }));
@@ -155,7 +161,7 @@ public final class QueueManager {
         }
         dropUnavailable(queue);
         Optional<List<Player>> pair;
-        while ((pair = id.ranked() ? findRankedPair(queue) : firstTwo(queue)).isPresent()) {
+        while ((pair = id.ranked() ? findRankedPair(id.kit(), queue) : findPair(queue)).isPresent()) {
             Optional<Arena> arena = matches.randomFreeArena(kit.get());
             if (arena.isEmpty()) {
                 for (Player player : pair.get()) {
@@ -169,34 +175,45 @@ public final class QueueManager {
             Player second = pair.get().get(1);
             remove(first.getUniqueId());
             remove(second.getUniqueId());
-            matches.start(first, second, kit.get(), arena.get(), id.ranked());
+            if (matches.start(first, second, kit.get(), arena.get(), id.ranked()) && id.ranked()) {
+                DailyRanked.count(first);
+                DailyRanked.count(second);
+            }
         }
     }
 
-    /** The two longest-waiting players, if two wait. */
-    private static Optional<List<Player>> firstTwo(LinkedHashMap<UUID, Long> queue) {
-        if (queue.size() < 2) {
-            return Optional.empty();
-        }
+    /** The longest-waiting player who fits someone's ping range, and the longest-waiting one they fit; see {@link PingRange}. */
+    private static Optional<List<Player>> findPair(LinkedHashMap<UUID, Long> queue) {
         List<UUID> waiting = List.copyOf(queue.keySet());
-        return Optional.of(List.of(Bukkit.getPlayer(waiting.get(0)), Bukkit.getPlayer(waiting.get(1))));
+        for (int i = 0; i < waiting.size(); i++) {
+            Player first = Bukkit.getPlayer(waiting.get(i));
+            for (UUID other : waiting.subList(i + 1, waiting.size())) {
+                Player second = Bukkit.getPlayer(other);
+                if (PingRange.fits(first, second)) {
+                    return Optional.of(List.of(first, second));
+                }
+            }
+        }
+        return Optional.empty();
     }
 
     /**
-     * The longest-waiting player with an opponent in rating range, and the longest-waiting such opponent.
-     * The range is the earlier player's, the wider of the two, so waiting long enough finds anyone.
+     * The longest-waiting player with an opponent in rating range in {@code kit}, and the longest-waiting such opponent.
+     * The range is the earlier player's, the wider of the two, so waiting long enough finds anyone. Both must
+     * also fit each other's {@link PingRange}.
      */
-    // ponytail: O(n²) per kit every second; sort by rating if a queue ever holds hundreds of players
-    private Optional<List<Player>> findRankedPair(LinkedHashMap<UUID, Long> queue) {
+    // ponytail: O(n²) per kit every second, as is findPair; sort by rating if a queue ever holds hundreds of players
+    private Optional<List<Player>> findRankedPair(String kit, LinkedHashMap<UUID, Long> queue) {
         Settings.Ranked ranked = settings.get().ranked();
         long now = Bukkit.getCurrentTick();
         List<UUID> waiting = List.copyOf(queue.keySet());
         for (int i = 0; i < waiting.size(); i++) {
             UUID first = waiting.get(i);
-            int elo = stats.elo(first);
+            int elo = stats.elo(first, kit);
             int range = ranked.range((now - queue.get(first)) / TICKS_PER_SECOND);
             for (UUID second : waiting.subList(i + 1, waiting.size())) {
-                if (Math.abs(elo - stats.elo(second)) <= range) {
+                if (Math.abs(elo - stats.elo(second, kit)) <= range
+                        && PingRange.fits(Bukkit.getPlayer(first), Bukkit.getPlayer(second))) {
                     return Optional.of(List.of(Bukkit.getPlayer(first), Bukkit.getPlayer(second)));
                 }
             }

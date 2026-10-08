@@ -110,7 +110,7 @@ class KitAdminMenuTest extends DuelsTestBase {
 
         assertTrue(messages(admin).stream().anyMatch(line -> line.contains("Type pearl-cooldown for Sword in seconds")));
         admin.chat("15");
-        tickUntil(() -> sword().seconds(KitRule.PEARL_COOLDOWN).equals(OptionalInt.of(15)));
+        tickUntil(() -> sword().number(KitRule.PEARL_COOLDOWN).equals(OptionalInt.of(15)));
         tick();
         assertEquals("⚙ Sword", title());
     }

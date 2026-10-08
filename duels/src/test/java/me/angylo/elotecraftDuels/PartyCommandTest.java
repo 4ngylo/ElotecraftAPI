@@ -29,7 +29,7 @@ class PartyCommandTest extends DuelsTestBase {
 
     @Test
     void helpAndUnknownPlayers() {
-        assertSays(alex, "party", "Parties");
+        assertSays(alex, "party help", "Parties");
         assertSays(alex, "party Nobody", "'Nobody' is not online.");
         assertSays(alex, "party invite Nobody", "'Nobody' is not online.");
         assertSays(alex, "party duel Nobody", "'Nobody' is not online.");

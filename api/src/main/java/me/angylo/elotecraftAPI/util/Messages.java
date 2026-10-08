@@ -91,6 +91,11 @@ public final class Messages {
         return raw.stream().map(line -> parse(player, language, line, resolvers)).toList();
     }
 
+    /** Whether {@code key} is in the default language file (or its bundled copy). */
+    public boolean has(String key) {
+        return raw(DEFAULT, key) != null;
+    }
+
     public void send(Audience audience, String key, TagResolver... resolvers) {
         audience.sendMessage(get(audience, key, resolvers));
     }

@@ -22,10 +22,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class DefaultKitsTest extends DuelsTestBase {
 
     private static final Set<String> DEFAULTS = Set.of("nodebuff", "debuff", "gapple", "builduhc", "classic", "archer", "sumo",
-            "vanilla", "uhc", "pot", "nethop", "smp", "sword", "axe", "mace");
+            "vanilla", "uhc", "pot", "nethop", "smp", "sword", "axe", "mace", "boxing", "combo", "spear");
 
     @Test
-    void aFirstStartInstallsFifteenPlayableKitsThatSurviveAReload() {
+    void aFirstStartInstallsEighteenPlayableKitsThatSurviveAReload() {
         duels.shutdown();
         assertTrue(new File(plugin.getDataFolder(), "kits.yml").delete());
         duels = Duels.start(plugin);
@@ -47,7 +47,13 @@ class DefaultKitsTest extends DuelsTestBase {
         Kit uhc = duels.kits().get("uhc").orElseThrow();
         assertFalse(uhc.flag(KitRule.NATURAL_REGENERATION, duels.settings()));
         assertTrue(uhc.flag(KitRule.HUNGER, duels.settings()));
-        assertEquals(15, noDebuff.seconds(KitRule.PEARL_COOLDOWN).orElseThrow());
+        assertEquals(15, noDebuff.number(KitRule.PEARL_COOLDOWN).orElseThrow());
+        assertEquals(2, duels.kits().get("sumo").orElseThrow().number(KitRule.ROUNDS_TO_WIN).orElseThrow());
+        Kit boxing = duels.kits().get("boxing").orElseThrow();
+        assertFalse(boxing.damage());
+        assertEquals(100, boxing.number(KitRule.HITS_TO_WIN).orElseThrow());
+        assertFalse(duels.kits().get("combo").orElseThrow().flag(KitRule.HIT_DELAY, duels.settings()));
+        assertEquals(Material.DIAMOND_SPEAR, duels.kits().get("spear").orElseThrow().items().get(0).getType());
     }
 
     @Test
@@ -56,7 +62,7 @@ class DefaultKitsTest extends DuelsTestBase {
         TestPlayer admin = join("Admin");
         admin.setOp(true);
 
-        assertSays(admin, "duels kit defaults", "Added 14 default kits");
+        assertSays(admin, "duels kit defaults", "Added 17 default kits");
         assertEquals(List.of(ItemStack.of(Material.DIAMOND_SWORD)), duels.kits().get("sword").orElseThrow().items().subList(0, 1));
         assertEquals(mine.displayName(), duels.kits().get("sword").orElseThrow().displayName());
         assertSays(admin, "duels kit defaults", "Added 0 default kits");

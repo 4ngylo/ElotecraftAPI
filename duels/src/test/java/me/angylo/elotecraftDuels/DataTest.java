@@ -1,5 +1,6 @@
 package me.angylo.elotecraftDuels;
 
+import me.angylo.elotecraftDuels.Settings.Reward;
 import me.angylo.elotecraftDuels.arena.Arena;
 import me.angylo.elotecraftDuels.arena.ArenaRegistry;
 import me.angylo.elotecraftDuels.kit.Kit;
@@ -151,6 +152,34 @@ class DataTest extends DuelsTestBase {
         assertTrue(duels.kits().reload());
         Kit loaded = duels.kits().get("uhc").orElseThrow();
         assertEquals(Map.of(KitRule.NATURAL_REGENERATION, false, KitRule.PEARL_COOLDOWN, 15), loaded.rules());
+    }
+
+    @Test
+    void kitRewardsSurviveAReloadAndNegativeMoneyBecomesZero() throws IOException {
+        Kit plain = swordKit();
+        Kit kit = new Kit("uhc", "UHC", Material.WATER_BUCKET, null, List.of(ItemStack.of(Material.IRON_SWORD)), false, Set.of(), true)
+                .withRewards(new Kit.Rewards(new Reward(50, List.of("give <winner> diamond 1")), new Reward(0, List.of("say <loser> lost"))));
+        await(duels.kits().update(kit));
+        server.getScheduler().waitAsyncTasksFinished();
+
+        assertTrue(duels.kits().reload());
+        assertEquals(kit.rewards(), duels.kits().get("uhc").orElseThrow().rewards());
+        assertEquals(Kit.Rewards.NONE, duels.kits().get(plain.name()).orElseThrow().rewards());
+
+        File file = new File(plugin.getDataFolder(), "kits.yml");
+        YamlConfiguration yaml = YamlConfiguration.loadConfiguration(file);
+        yaml.set("kits.uhc.rewards.win.money", -5);
+        yaml.save(file);
+        assertTrue(duels.kits().reload());
+        assertEquals(0, duels.kits().get("uhc").orElseThrow().rewards().win().money());
+    }
+
+    @Test
+    void rewardsAddUp() {
+        Reward sum = new Reward(10, List.of("a")).plus(new Reward(2.5, List.of("b")));
+
+        assertEquals(12.5, sum.money());
+        assertEquals(List.of("a", "b"), sum.commands());
     }
 
     @Test

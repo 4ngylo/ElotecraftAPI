@@ -1,8 +1,10 @@
 package me.angylo.elotecraftDuels.match;
 
+import me.angylo.elotecraftDuels.PlayerOptions;
 import me.angylo.elotecraftDuels.arena.Arena;
 import me.angylo.elotecraftDuels.arena.ArenaInstance;
 import me.angylo.elotecraftDuels.kit.Kit;
+import me.angylo.elotecraftDuels.kit.KitRule;
 import me.angylo.elotecraftDuels.state.PlayerSnapshot;
 import net.kyori.adventure.bossbar.BossBar;
 import org.bukkit.Location;
@@ -27,13 +29,15 @@ import java.util.UUID;
  */
 public final class Match {
 
-    /** Phases in order; a match only moves forward. */
+    /** Phases in order; a match only moves forward, except from {@link #ROUND_OVER} back to {@link #COUNTDOWN}. */
     public enum State {
         /** Saving everyone's state and teleporting them in. */
         STARTING,
         /** Frozen in place while the countdown runs. */
         COUNTDOWN,
         FIGHTING,
+        /** A round of a {@link KitRule#ROUNDS_TO_WIN} duel was won; nobody can be hurt until the next countdown. */
+        ROUND_OVER,
         /** Result shown; nobody can be hurt until everyone is sent back. */
         ENDING
     }
@@ -55,10 +59,11 @@ public final class Match {
      * @param spectatable whether outsiders may watch
      * @param border      whether a border closes in on the fighters (config.yml {@code events.border})
      * @param host        the name of the player hosting an event, or null
+     * @param bracket     a fight of a tournament: no event reward, and the result goes to its fighters only
      */
-    public record Options(int winners, boolean spectatable, boolean border, String host) {
+    public record Options(int winners, boolean spectatable, boolean border, String host, boolean bracket) {
 
-        public static final Options DEFAULT = new Options(1, true, false, null);
+        public static final Options DEFAULT = new Options(1, true, false, null, false);
 
         public Options {
             if (winners < 1) {
@@ -84,6 +89,16 @@ public final class Match {
     private final Set<UUID> arrived = new HashSet<>();
     /** Kept after release, for teleports into the arena that land after the player was sent back. */
     private final Map<UUID, Location> returnLocations = new HashMap<>();
+    /** Hits each fighter took from opponents, for {@code hits-to-win} kits. */
+    private final Map<UUID, Integer> hitsTaken = new HashMap<>();
+    private final FightStats fightStats = new FightStats();
+    /** Rounds won by each team, for {@link KitRule#ROUNDS_TO_WIN} duels. */
+    private final int[] roundWins;
+    private int round = 1;
+    /** The id of this fight's kept inventories once it ended with a result, for the links sent when it is over. */
+    private UUID resultsId;
+    /** Each fighter as they left the fight, in the order they left it. */
+    private final Map<UUID, FighterResult> finals = new LinkedHashMap<>();
     private State state = State.STARTING;
     private int secondsLeft;
     private int fightSeconds;
@@ -92,6 +107,10 @@ public final class Match {
     private FightBorder border;
     private BukkitTask task;
     private boolean over;
+    /** Set when the fight ends with a result; empty for a draw or a cancelled fight. */
+    private List<Integer> winnerTeams = List.of();
+    /** Null until the fight ends with a result or a draw. */
+    private EndReason endReason;
 
     Match(ArenaInstance instance, Kit kit, List<List<Player>> teams, Type type, boolean ranked, Options options) {
         this.instance = instance;
@@ -100,6 +119,7 @@ public final class Match {
         this.type = type;
         this.ranked = ranked;
         this.options = options;
+        this.roundWins = new int[teams.size()];
     }
 
     public Type type() {
@@ -108,6 +128,21 @@ public final class Match {
 
     public Options options() {
         return options;
+    }
+
+    /** The teams that won, once the fight ended; empty for a draw or a cancelled fight. */
+    public List<Integer> winnerTeams() {
+        return winnerTeams;
+    }
+
+    /** How the fight ended; null if it was cancelled or is not over. */
+    public EndReason endReason() {
+        return endReason;
+    }
+
+    void result(List<Integer> winners, EndReason reason) {
+        winnerTeams = List.copyOf(winners);
+        endReason = reason;
     }
 
     public boolean isDuel() {
@@ -223,6 +258,89 @@ public final class Match {
         return state == State.FIGHTING && isAlive(player);
     }
 
+    public FightStats fightStats() {
+        return fightStats;
+    }
+
+    /** Keeps {@code fighter} as they are now for {@code /duel inventory}, unless they were kept already. */
+    public void recordFinal(Player fighter) {
+        if (isFighter(fighter)) {
+            finals.computeIfAbsent(fighter.getUniqueId(), uuid -> FighterResult.capture(fighter, fightStats));
+        }
+    }
+
+    UUID resultsId() {
+        return resultsId;
+    }
+
+    void resultsId(UUID id) {
+        this.resultsId = id;
+    }
+
+    /** The fighters kept by {@link #recordFinal}. */
+    public List<FighterResult> finals() {
+        return List.copyOf(finals.values());
+    }
+
+    /** Rounds a team must win to win the fight: the kit's {@link KitRule#ROUNDS_TO_WIN} in a duel, else 1. */
+    public int roundsToWin() {
+        return isDuel() ? Math.max(1, kit.number(KitRule.ROUNDS_TO_WIN).orElse(1)) : 1;
+    }
+
+    /** The round being fought, from 1. */
+    public int round() {
+        return round;
+    }
+
+    /** Rounds {@code team} has won. */
+    public int roundWins(int team) {
+        return roundWins[team];
+    }
+
+    /** {@code team}'s rounds against the others', such as {@code 2 - 1}. */
+    public String score(int team) {
+        int others = 0;
+        for (int other = 0; other < roundWins.length; other++) {
+            if (other != team) {
+                others += roundWins[other];
+            }
+        }
+        return roundWins[Math.max(0, team)] + " - " + others;
+    }
+
+    /** Whether a round was played and the next has not started: leaving now loses the fight instead of cancelling it. */
+    public boolean betweenRounds() {
+        return state == State.ROUND_OVER || (state == State.COUNTDOWN && round > 1);
+    }
+
+    /** Gives {@code team} a round; returns how many it has won. */
+    int winRound(int team) {
+        return ++roundWins[team];
+    }
+
+    /** Brings everyone back into the fight for the next round; fight counts carry over, kill credit does not. */
+    void nextRound() {
+        round++;
+        knockedOut.clear();
+        hitsTaken.clear();
+        finals.clear();
+        fightStats.clearLastHits();
+    }
+
+    /**
+     * Whether {@code viewer} may start watching: the fight allows spectators and, except in events, every fighter
+     * takes them ({@link PlayerOptions#SPECTATORS}). Staff ({@code duels.admin}) may watch any fight.
+     */
+    public boolean watchableBy(Player viewer) {
+        return viewer.hasPermission("duels.admin") || (options().spectatable()
+                && (type() == Type.EVENT || fighters().stream().allMatch(PlayerOptions.SPECTATORS::isOn)));
+    }
+
+    /** Counts a hit on {@code fighter} by an opponent; returns how many they have taken. */
+    public int hit(Player fighter) {
+        return hitsTaken.merge(fighter.getUniqueId(), 1, Integer::sum);
+    }
+
     /** Whether {@code player} may change blocks at {@code location} now: fighting in a build duel, inside its arena. */
     public boolean canBuild(Player player, Location location) {
         return isFighting(player) && instance.isBuild() && !instance.isClosing() && instance.contains(location);
@@ -290,7 +408,7 @@ public final class Match {
     /** Seconds until the fight ends in a draw; the whole duration before it starts, 0 once it is over. */
     public int timeLeftSeconds() {
         return switch (state) {
-            case STARTING, COUNTDOWN -> maxFightSeconds;
+            case STARTING, COUNTDOWN, ROUND_OVER -> maxFightSeconds;
             case FIGHTING -> Math.max(0, maxFightSeconds - fightSeconds);
             case ENDING -> 0;
         };

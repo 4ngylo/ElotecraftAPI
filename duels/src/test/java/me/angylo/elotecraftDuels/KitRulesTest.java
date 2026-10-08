@@ -7,14 +7,22 @@ import me.angylo.elotecraftDuels.match.Match;
 import org.bukkit.Material;
 import org.bukkit.damage.DamageSource;
 import org.bukkit.damage.DamageType;
+import org.bukkit.entity.Arrow;
 import org.bukkit.entity.EnderPearl;
+import org.bukkit.entity.Item;
+import org.bukkit.entity.Player;
+import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
+import org.bukkit.event.entity.EntityPickupItemEvent;
 import org.bukkit.event.entity.EntityRegainHealthEvent;
 import org.bukkit.event.entity.FoodLevelChangeEvent;
+import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerItemDamageEvent;
 import org.bukkit.inventory.ItemStack;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -22,6 +30,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class KitRulesTest extends DuelsTestBase {
+
+    private static final String DUEL_DROP_TAG = "elotecraft-duels-drop";
 
     private TestPlayer alex;
     private TestPlayer steve;
@@ -65,7 +75,7 @@ class KitRulesTest extends DuelsTestBase {
 
         assertTrue(kit.flag(KitRule.HUNGER, duels.settings()));
         assertTrue(kit.flag(KitRule.FALL_DAMAGE, duels.settings()));
-        assertTrue(kit.seconds(KitRule.PEARL_COOLDOWN).isEmpty());
+        assertTrue(kit.number(KitRule.PEARL_COOLDOWN).isEmpty());
     }
 
     @Test
@@ -117,6 +127,63 @@ class KitRulesTest extends DuelsTestBase {
     }
 
     @Test
+    void itemDropsLetFightersDropAndPickUpButNobodyOutside() {
+        TestPlayer outsider = join("Outsider");
+        fight(swordKit().withRule(KitRule.ITEM_DROPS, true));
+        Item item = arenaWorld.dropItem(alex.getLocation(), ItemStack.of(Material.DIAMOND_SWORD));
+
+        PlayerDropItemEvent drop = new PlayerDropItemEvent(alex, item);
+        server.getPluginManager().callEvent(drop);
+        EntityPickupItemEvent fighterPickup = new EntityPickupItemEvent(steve, item, 0);
+        server.getPluginManager().callEvent(fighterPickup);
+        EntityPickupItemEvent outsiderPickup = new EntityPickupItemEvent(outsider, item, 0);
+        server.getPluginManager().callEvent(outsiderPickup);
+
+        assertFalse(drop.isCancelled());
+        assertTrue(item.getScoreboardTags().contains(DUEL_DROP_TAG));
+        assertFalse(fighterPickup.isCancelled());
+        assertTrue(outsiderPickup.isCancelled());
+    }
+
+    @Test
+    void anyDropRuleAllowsPickingUpButOnlyItemDropsAllowsThrowing() {
+        fight(swordKit().withRule(KitRule.DEATH_DROPS, true));
+        Item item = arenaWorld.dropItem(alex.getLocation(), ItemStack.of(Material.DIAMOND_SWORD));
+
+        PlayerDropItemEvent drop = new PlayerDropItemEvent(alex, item);
+        server.getPluginManager().callEvent(drop);
+        EntityPickupItemEvent pickup = new EntityPickupItemEvent(steve, item, 0);
+        server.getPluginManager().callEvent(pickup);
+
+        assertTrue(drop.isCancelled());
+        assertFalse(pickup.isCancelled());
+    }
+
+    @Test
+    void deathDropsSpillTheKnockedOutFightersInventory() {
+        fight(swordKit().withRule(KitRule.DEATH_DROPS, true));
+        alex.getInventory().setItem(0, ItemStack.of(Material.DIAMOND_SWORD));
+
+        alex.simulateDamage(alex.getHealth() + 10, steve);
+
+        assertTrue(alex.getInventory().isEmpty());
+        List<Item> drops = List.copyOf(arenaWorld.getEntitiesByClass(Item.class));
+        assertTrue(drops.stream().anyMatch(item -> item.getItemStack().getType() == Material.DIAMOND_SWORD));
+        assertTrue(drops.stream().allMatch(item -> item.getScoreboardTags().contains(DUEL_DROP_TAG)));
+    }
+
+    @Test
+    void withoutDeathDropsTheInventoryStays() {
+        fight(swordKit());
+        alex.getInventory().setItem(0, ItemStack.of(Material.DIAMOND_SWORD));
+
+        alex.simulateDamage(alex.getHealth() + 10, steve);
+
+        assertFalse(alex.getInventory().isEmpty());
+        assertTrue(arenaWorld.getEntitiesByClass(Item.class).isEmpty());
+    }
+
+    @Test
     void ruleValuesMustMatchTheirKind() {
         Kit kit = swordKit();
 
@@ -125,5 +192,67 @@ class KitRulesTest extends DuelsTestBase {
         assertThrows(IllegalArgumentException.class, () -> kit.withRule(KitRule.HUNGER, 1));
         assertThrows(IllegalArgumentException.class, () -> KitRule.PEARL_COOLDOWN.parse("soon"));
         assertEquals(false, KitRule.CRAFTING.parse("false"));
+    }
+
+    @Test
+    void boxingEndsTheDuelOnTheLastHit() {
+        Match match = fight(swordKit().withDamage(false).withRule(KitRule.HITS_TO_WIN, 3));
+
+        steve.simulateDamage(1, alex);
+        steve.simulateDamage(1, alex);
+        assertEquals(Match.State.FIGHTING, match.state());
+        steve.simulateDamage(1, alex);
+
+        assertEquals(Match.State.ENDING, match.state());
+        assertEquals(1, duels.stats().cached(alex.getUniqueId()).orElseThrow().wins());
+    }
+
+    /**
+     * Paper fires the damage event again for hits while the victim is still invulnerable (with 0 damage, for
+     * every click). Found with mineflayer bots spam-clicking: 22 hits counted for 5 that landed.
+     */
+    @Test
+    void hitsWhileInvulnerableDoNotCount() {
+        Match match = fight(swordKit().withDamage(false).withRule(KitRule.HITS_TO_WIN, 2));
+        assertFalse(punch(steve).isCancelled());
+
+        steve.setNoDamageTicks(steve.getMaximumNoDamageTicks() / 2 + 1);
+        assertTrue(punch(steve).isCancelled(), "a knockback-only hit while invulnerable");
+        assertEquals(Match.State.FIGHTING, match.state());
+
+        steve.setNoDamageTicks(steve.getMaximumNoDamageTicks() / 2);
+        punch(steve);
+        assertEquals(Match.State.ENDING, match.state());
+    }
+
+    /** Alex punches {@code victim} as Paper would report it. */
+    private EntityDamageByEntityEvent punch(Player victim) {
+        EntityDamageByEntityEvent event = new EntityDamageByEntityEvent(alex, victim, EntityDamageEvent.DamageCause.ENTITY_ATTACK,
+                DamageSource.builder(DamageType.PLAYER_ATTACK).withCausingEntity(alex).withDirectEntity(alex).build(), 1);
+        server.getPluginManager().callEvent(event);
+        return event;
+    }
+
+    @Test
+    void archersSeeTheHealthTheirArrowLeft() {
+        fight(swordKit());
+        Arrow arrow = arenaWorld.spawn(steve.getLocation(), Arrow.class);
+        arrow.setShooter(alex);
+        messages(alex);
+
+        server.getPluginManager().callEvent(new EntityDamageByEntityEvent(arrow, steve, EntityDamageEvent.DamageCause.PROJECTILE,
+                DamageSource.builder(DamageType.ARROW).withCausingEntity(alex).withDirectEntity(arrow).build(), 5));
+
+        assertTrue(messages(alex).stream().anyMatch(line -> line.contains("Steve is on 7.5❤")), "health message");
+    }
+
+    @Test
+    void numberRulesHaveTheirOwnLimits() {
+        Kit kit = swordKit();
+
+        assertEquals(100, kit.withRule(KitRule.HITS_TO_WIN, 100).number(KitRule.HITS_TO_WIN).orElseThrow());
+        assertThrows(IllegalArgumentException.class, () -> kit.withRule(KitRule.HITS_TO_WIN, KitRule.MAX_HITS + 1));
+        assertEquals("15s", KitRule.PEARL_COOLDOWN.format(15));
+        assertEquals("100", KitRule.HITS_TO_WIN.format(100));
     }
 }

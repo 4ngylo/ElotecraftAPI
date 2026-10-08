@@ -17,6 +17,7 @@ import org.mockbukkit.mockbukkit.entity.PlayerMock;
 import org.mockbukkit.mockbukkit.plugin.PluginMock;
 
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -36,6 +37,12 @@ class DuelsExpansionTest {
         PluginMock plugin = MockBukkit.createMockPlugin("ElotecraftDuels");
         world = server.addSimpleWorld("world");
         duels = Duels.start(plugin);
+        // Tables first: a player joining before them is loaded later, after this test reads the cache. The
+        // future completes on the main thread, so tick rather than block.
+        CompletableFuture<?> ready = duels.ready();
+        while (!ready.isDone()) {
+            server.getScheduler().performOneTick();
+        }
     }
 
     @AfterEach
@@ -61,6 +68,10 @@ class DuelsExpansionTest {
         assertEquals("0", expansion.onRequest(alex, "wins"));
         assertEquals("0", expansion.onRequest(alex, "win_rate"));
         assertEquals("1000", expansion.onRequest(alex, "elo"));
+        assertEquals("1000", expansion.onRequest(alex, "elo_sword"));
+        assertEquals("Bronze", expansion.onRequest(alex, "division"));
+        assertEquals("Bronze", expansion.onRequest(alex, "division_sword"));
+        assertNull(expansion.onRequest(alex, "elo_nope"));
         assertEquals("false", expansion.onRequest(alex, "in_match"));
         assertEquals("", expansion.onRequest(alex, "opponent"));
         assertEquals("sword", expansion.onRequest(alex, "queue"));
@@ -69,7 +80,7 @@ class DuelsExpansionTest {
         assertEquals("", expansion.onRequest(alex, "party_leader"));
         assertEquals("", expansion.onRequest(null, "wins"));
         assertNull(expansion.onRequest(alex, "unknown"));
-        assertEquals(15, expansion.getPlaceholders().size());
+        assertEquals(21, expansion.getPlaceholders().size());
     }
 
     /** Queues need a ready arena for the kit. */

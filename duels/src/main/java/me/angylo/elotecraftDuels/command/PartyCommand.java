@@ -8,6 +8,7 @@ import me.angylo.elotecraftDuels.Duels;
 import me.angylo.elotecraftDuels.arena.Arena;
 import me.angylo.elotecraftDuels.kit.Kit;
 import me.angylo.elotecraftDuels.menu.KitMenu;
+import me.angylo.elotecraftDuels.menu.PartyMenu;
 import me.angylo.elotecraftDuels.party.Party;
 import me.angylo.elotecraftDuels.party.PartyManager;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
@@ -32,12 +33,14 @@ public final class PartyCommand {
     private final Messages messages;
     private final PartyManager parties;
     private final KitMenu kitMenu;
+    private final PartyMenu partyMenu;
 
-    public PartyCommand(Duels duels, KitMenu kitMenu) {
+    public PartyCommand(Duels duels, KitMenu kitMenu, PartyMenu partyMenu) {
         this.duels = duels;
         this.messages = duels.messages();
         this.parties = duels.parties();
         this.kitMenu = kitMenu;
+        this.partyMenu = partyMenu;
     }
 
     public void register() {
@@ -47,7 +50,12 @@ public final class PartyCommand {
                 .messages(sender -> messages.get(sender, "command.no-permission"),
                         sender -> messages.get(sender, "command.player-only"))
                 .executes(this::inviteOrHelp, (sender, args) -> args.length == 1 ? Args.players(args) : List.of())
+                .sub("help", null, (sender, args) -> messages.send(sender, "command.party-help"))
                 .playerSub("create", null, (player, args) -> parties.create(player))
+                .playerSub("public", null, (player, args) -> parties.toggleOpen(player))
+                .playerSub("join", null, (player, args) -> join(player, args),
+                        (sender, args) -> args.length == 1 ? Args.filter(openLeaders(), args) : List.of())
+                .playerSub("chat", null, (player, args) -> parties.chat(player, String.join(" ", args)))
                 .playerSub("invite", null, (player, args) -> invite(player, Args.get(args, 0)), (sender, args) -> Args.players(args))
                 .playerSub("accept", null, (player, args) -> parties.accept(player, Args.get(args, 0)), (sender, args) -> Args.players(args))
                 .playerSub("deny", null, (player, args) -> parties.deny(player, Args.get(args, 0)), (sender, args) -> Args.players(args))
@@ -63,11 +71,42 @@ public final class PartyCommand {
                 .playerSub("duelaccept", FIGHT, (player, args) -> duels.partyFights().accept(player, Args.get(args, 0)), (sender, args) -> Args.players(args))
                 .playerSub("dueldeny", FIGHT, (player, args) -> duels.partyFights().deny(player, Args.get(args, 0)), (sender, args) -> Args.players(args))
                 .register(duels.plugin());
+        // /pc <message>: party chat in two letters.
+        CommandBuilder.create("pc")
+                .description(Text.plain(messages.get("command.party-chat-description")))
+                .permission(PARTY)
+                .messages(sender -> messages.get(sender, "command.no-permission"),
+                        sender -> messages.get(sender, "command.player-only"))
+                .executes((sender, args) -> {
+                    if (sender instanceof Player player) {
+                        parties.chat(player, String.join(" ", args));
+                    } else {
+                        messages.send(sender, "command.player-only");
+                    }
+                })
+                .register(duels.plugin());
+    }
+
+    private void join(Player player, String[] args) {
+        if (args.length == 0) {
+            partyMenu.open(player);
+            return;
+        }
+        parties.join(player, args[0]);
+    }
+
+    private List<String> openLeaders() {
+        return parties.openParties().stream().map(party -> Bukkit.getPlayer(party.leader())).filter(Objects::nonNull)
+                .map(Player::getName).toList();
     }
 
     private void inviteOrHelp(CommandSender sender, String[] args) {
         if (args.length == 0) {
-            messages.send(sender, "command.party-help");
+            if (sender instanceof Player player) {
+                partyMenu.open(player);
+            } else {
+                messages.send(sender, "command.party-help");
+            }
         } else if (sender instanceof Player player) {
             invite(player, args[0]);
         } else {

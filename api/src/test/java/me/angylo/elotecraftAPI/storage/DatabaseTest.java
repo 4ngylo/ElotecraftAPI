@@ -176,6 +176,21 @@ class DatabaseTest {
     }
 
     @Test
+    void closeRunsQueuedCallbacksAndTheWorkTheySubmit() {
+        AtomicBoolean chainedDone = new AtomicBoolean();
+        db.update(INSERT, "a", "Steve", 1)
+                .thenCompose(rows -> db.update(INSERT, "b", "Alex", 2))
+                .thenRun(() -> chainedDone.set(true));
+
+        // No ticks: like onDisable, the main thread is busy closing and never runs the scheduled completions.
+        db.close();
+
+        assertTrue(chainedDone.get());
+        db = Database.sqlite(plugin, FILE);
+        assertEquals(2, count());
+    }
+
+    @Test
     void fromConfigOpensSqliteAndRejectsUnknownTypes() {
         YamlConfiguration config = new YamlConfiguration();
         config.set("database.type", "sqlite");

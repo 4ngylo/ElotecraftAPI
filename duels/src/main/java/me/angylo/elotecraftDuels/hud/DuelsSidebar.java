@@ -2,7 +2,9 @@ package me.angylo.elotecraftDuels.hud;
 
 import me.angylo.elotecraftAPI.hud.Sidebar;
 import me.angylo.elotecraftAPI.util.Messages;
+import me.angylo.elotecraftAPI.util.Tasks;
 import me.angylo.elotecraftAPI.util.Text;
+import me.angylo.elotecraftDuels.PlayerOptions;
 import me.angylo.elotecraftDuels.Settings;
 import me.angylo.elotecraftDuels.kit.Kit;
 import me.angylo.elotecraftDuels.kit.KitRegistry;
@@ -16,7 +18,13 @@ import me.angylo.elotecraftDuels.stats.StatsService;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver;
+import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
+import org.bukkit.event.Listener;
+import org.bukkit.event.entity.EntityDamageEvent;
+import org.bukkit.event.entity.EntityRegainHealthEvent;
 import org.bukkit.plugin.Plugin;
 
 import java.util.HashMap;
@@ -35,9 +43,10 @@ import java.util.stream.Collectors;
  * The optional sidebar (config.yml {@code sidebar}): the fight for fighters and spectators, stats in the
  * lobby. Refreshed once a second from the cached stats, so it never waits for the database; the leaderboard
  * rank is read every minute. Only hides sidebars it showed, and leaves another plugin's sidebar alone.
+ * Players who turned it off in {@code /duel options} get none, and so no health under names in fights either.
  * Main thread only.
  */
-public final class DuelsSidebar {
+public final class DuelsSidebar implements Listener {
 
     // ponytail: rank only within the top 100 by name; a per-player COUNT query if ranks past 100 matter
     private static final int RANK_LIMIT = 100;
@@ -84,8 +93,12 @@ public final class DuelsSidebar {
         shown.keySet().removeIf(uuid -> plugin.getServer().getPlayer(uuid) == null);
         for (Player player : plugin.getServer().getOnlinePlayers()) {
             boolean inMatch = matches.matchOf(player).isPresent();
-            if (inMatch ? config.match() : config.lobby() && inLobby(player, config)) {
-                show(player, layoutFor(player));
+            if (inMatch && config.match() && config.healthBelowName()) {
+                // Changes without an event: healing at a round's start, absorption, other plugins.
+                Sidebar.updateHealth(player);
+            }
+            if (PlayerOptions.SIDEBAR.isOn(player) && (inMatch ? config.match() : config.lobby() && inLobby(player, config))) {
+                show(player, layoutFor(player), inMatch && config.healthBelowName());
             } else {
                 hide(player);
             }
@@ -108,7 +121,7 @@ public final class DuelsSidebar {
             return CompletableFuture.completedFuture(null);
         }
         readingRanks = true;
-        return stats.topByElo(RANK_LIMIT).handle((top, error) -> {
+        return stats.topByElo(kits.names(), RANK_LIMIT).handle((top, error) -> {
             readingRanks = false;
             if (error != null) {
                 plugin.getLogger().log(Level.WARNING, "Could not read the duel leaderboard for the sidebar", error);
@@ -123,13 +136,36 @@ public final class DuelsSidebar {
         });
     }
 
+    /** A fighter's health under their name follows hits and healing; set a tick later, once health has changed. */
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onDamage(EntityDamageEvent event) {
+        healthChanged(event.getEntity());
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onRegainHealth(EntityRegainHealthEvent event) {
+        healthChanged(event.getEntity());
+    }
+
+    private void healthChanged(Entity entity) {
+        Settings.Sidebars config = settings.get().sidebars();
+        if (entity instanceof Player player && config.match() && config.healthBelowName() && matches.matchOf(player).isPresent()) {
+            Tasks.later(plugin, () -> {
+                if (player.isOnline()) {
+                    Sidebar.updateHealth(player);
+                }
+            }, 1);
+        }
+    }
+
     /** Hides every sidebar this plugin showed; for shutdown. */
     public void hideAll() {
         shown.values().forEach(Sidebar::hide);
         shown.clear();
     }
 
-    private void show(Player player, Layout layout) {
+    /** @param health whether to show health under names, see {@link Sidebar#healthBelowName} */
+    private void show(Player player, Layout layout, boolean health) {
         Sidebar current = shown.get(player.getUniqueId());
         Sidebar onScreen = Sidebar.of(player).orElse(null);
         if (onScreen != null && onScreen != current) {
@@ -149,7 +185,8 @@ public final class DuelsSidebar {
             }
             lines = lines.subList(0, Sidebar.MAX_LINES);
         }
-        current.title(layout.title()).lines(lines);
+        current.title(layout.title()).lines(lines)
+                .healthBelowName(health ? messages.get(player, "sidebar.health-below-name") : null);
     }
 
     private void hide(Player player) {
@@ -160,8 +197,7 @@ public final class DuelsSidebar {
     }
 
     private boolean inLobby(Player player, Settings.Sidebars config) {
-        String world = player.getWorld().getName();
-        return config.lobbyWorlds().isEmpty() ? !world.equals(settings.get().arenasWorld()) : config.lobbyWorlds().contains(world);
+        return settings.get().isLobby(player.getWorld().getName(), config.lobbyWorlds());
     }
 
     private static String matchKey(Match match, Player viewer) {
@@ -179,7 +215,13 @@ public final class DuelsSidebar {
         Player opponent = match.isDuel() && team >= 0 ? match.opponentOf(viewer) : null;
         long teamLeft = team < 0 ? 0 : match.teams().get(team).stream().filter(match::isAlive).count();
         long enemiesLeft = match.fighters().stream().filter(match::isAlive).count() - teamLeft;
+        String kit = match.kit().name();
+        int elo = stats.elo(viewer.getUniqueId(), kit);
+        TagResolver round = TagResolver.resolver(Placeholder.unparsed("round", String.valueOf(match.round())),
+                Placeholder.unparsed("score", match.score(team)));
         return new TagResolver[]{
+                round,
+                Placeholder.component("rounds", match.roundsToWin() > 1 ? messages.get(viewer, "sidebar.rounds", round) : Component.empty()),
                 Placeholder.component("kit", Text.mm(match.kit().displayName())),
                 Placeholder.component("arena", Text.mm(match.arena().displayName())),
                 Placeholder.unparsed("time", clock(match.timeLeftSeconds())),
@@ -187,8 +229,9 @@ public final class DuelsSidebar {
                 Placeholder.unparsed("opponent", opponent == null ? "" : opponent.getName()),
                 Placeholder.unparsed("opponent_health", opponent == null ? "" : hearts(opponent.getHealth())),
                 Placeholder.unparsed("opponent_ping", opponent == null ? "" : String.valueOf(opponent.getPing())),
-                Placeholder.unparsed("elo", String.valueOf(stats.elo(viewer.getUniqueId()))),
-                Placeholder.unparsed("opponent_elo", opponent == null ? "" : String.valueOf(stats.elo(opponent.getUniqueId()))),
+                Placeholder.unparsed("elo", String.valueOf(elo)),
+                Placeholder.component("division", settings.get().ranked().divisions().name(elo)),
+                Placeholder.unparsed("opponent_elo", opponent == null ? "" : String.valueOf(stats.elo(opponent.getUniqueId(), kit))),
                 Placeholder.unparsed("team_left", String.valueOf(teamLeft)),
                 Placeholder.unparsed("enemies_left", String.valueOf(enemiesLeft)),
                 Placeholder.unparsed("fighters", match.teams().stream()
@@ -208,7 +251,9 @@ public final class DuelsSidebar {
                 Placeholder.component("win_rate", stat.apply(PlayerStats::winRate)),
                 Placeholder.component("win_streak", stat.apply(PlayerStats::winStreak)),
                 Placeholder.component("best_win_streak", stat.apply(PlayerStats::bestWinStreak)),
-                Placeholder.component("elo", stat.apply(PlayerStats::elo)),
+                Placeholder.component("elo", stat.apply(found -> found.overallElo(kits.names()))),
+                Placeholder.component("division", own.map(found -> settings.get().ranked().divisions()
+                        .name(found.overallElo(kits.names()))).orElse(loading)),
                 Placeholder.component("rank", position == null ? messages.get(viewer, "sidebar.no-rank")
                         : messages.get(viewer, "sidebar.rank", Placeholder.unparsed("position", String.valueOf(position)))),
                 Placeholder.component("queue", queues.queued(viewer.getUniqueId())

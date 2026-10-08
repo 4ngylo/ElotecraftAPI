@@ -10,7 +10,7 @@ import java.util.Optional;
 import java.util.logging.Logger;
 
 /**
- * Optional Vault payouts. Vault's classes are only touched in {@link Hook}, which is loaded only while
+ * Optional Vault payouts and bet stakes. Vault's classes are only touched in {@link Hook}, which is loaded only while
  * Vault is enabled, so the plugin runs without it.
  */
 public final class VaultEconomy {
@@ -36,6 +36,30 @@ public final class VaultEconomy {
         return Hook.deposit(this, player, amount);
     }
 
+    /** Whether Vault and an economy plugin are there to take money. */
+    public boolean available() {
+        return Bukkit.getPluginManager().isPluginEnabled("Vault") && Hook.economy() != null;
+    }
+
+    /** Whether {@code player} has {@code amount}; false without an economy. */
+    public boolean has(OfflinePlayer player, double amount) {
+        return available() && Hook.economy().has(player, amount);
+    }
+
+    /**
+     * Takes {@code amount} from {@code player}. Main thread only.
+     *
+     * @return false if there is no economy or the payment failed (logged)
+     */
+    public boolean withdraw(OfflinePlayer player, double amount) {
+        return available() && Hook.withdraw(this, player, amount);
+    }
+
+    /** {@code amount} as the economy plugin writes money, or the plain number without one. */
+    public String format(double amount) {
+        return available() ? Hook.economy().format(amount) : String.valueOf(amount);
+    }
+
     private void warnMissing(String reason) {
         if (!warnedMissing) {
             warnedMissing = true;
@@ -44,6 +68,19 @@ public final class VaultEconomy {
     }
 
     private static final class Hook {
+
+        static Economy economy() {
+            RegisteredServiceProvider<Economy> provider = Bukkit.getServicesManager().getRegistration(Economy.class);
+            return provider == null ? null : provider.getProvider();
+        }
+
+        static boolean withdraw(VaultEconomy owner, OfflinePlayer player, double amount) {
+            EconomyResponse response = economy().withdrawPlayer(player, amount);
+            if (!response.transactionSuccess()) {
+                owner.logger.warning("Could not take a duel bet of " + amount + " from " + player.getName() + ": " + response.errorMessage);
+            }
+            return response.transactionSuccess();
+        }
 
         static Optional<String> deposit(VaultEconomy owner, OfflinePlayer player, double amount) {
             RegisteredServiceProvider<Economy> provider = Bukkit.getServicesManager().getRegistration(Economy.class);

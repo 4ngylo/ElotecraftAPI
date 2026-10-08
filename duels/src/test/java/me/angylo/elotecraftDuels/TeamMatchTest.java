@@ -65,6 +65,7 @@ class TeamMatchTest extends DuelsTestBase {
         assertEquals(0, duels.stats().cached(cid.getUniqueId()).orElseThrow().losses());
 
         ticks(20 * duels.settings().endDelaySeconds() + 1);
+        assertTrue(messages(ann).stream().anyMatch(line -> line.contains("Inventories:") && line.contains("[Cid]")));
         for (TestPlayer player : List.of(ann, bob, cid, dee)) {
             assertFalse(duels.matches().isBusy(player));
             assertEquals(GameMode.SURVIVAL, player.getGameMode());

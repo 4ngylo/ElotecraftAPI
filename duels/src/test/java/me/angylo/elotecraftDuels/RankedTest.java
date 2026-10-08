@@ -12,6 +12,7 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -33,7 +34,7 @@ class RankedTest extends DuelsTestBase {
     }
 
     private void rate(TestPlayer player, int elo) {
-        duels.stats().cache(player.getUniqueId(), new PlayerStats(player.getName(), 0, 0, 0, 0, elo));
+        duels.stats().cache(player.getUniqueId(), new PlayerStats(player.getName(), 0, 0, 0, 0, elo, Map.of()));
     }
 
     private Match fightStarted(TestPlayer player) {
@@ -60,12 +61,12 @@ class RankedTest extends DuelsTestBase {
 
         steve.simulateDamage(100, alex);
 
-        assertEquals(1016, duels.stats().elo(alex.getUniqueId()));
-        assertEquals(984, duels.stats().elo(steve.getUniqueId()));
-        assertTrue(messages(alex).stream().anyMatch(line -> line.contains("Rating +16 · 1016")));
-        assertTrue(messages(steve).stream().anyMatch(line -> line.contains("Rating -16 · 984")));
-        tickUntil(() -> await(duels.stats().topByElo(2)).getFirst().elo() == 1016);
-        assertEquals(984, await(duels.stats().topByElo(2)).getLast().elo());
+        assertEquals(1016, duels.stats().elo(alex.getUniqueId(), "sword"));
+        assertEquals(984, duels.stats().elo(steve.getUniqueId(), "sword"));
+        assertTrue(messages(alex).stream().anyMatch(line -> line.contains("rating +16 · 1016")));
+        assertTrue(messages(steve).stream().anyMatch(line -> line.contains("rating -16 · 984")));
+        tickUntil(() -> await(duels.stats().topByElo("sword", 2)).getFirst().elo() == 1016);
+        assertEquals(984, await(duels.stats().topByElo("sword", 2)).getLast().elo());
     }
 
     @Test
@@ -76,8 +77,8 @@ class RankedTest extends DuelsTestBase {
 
         assertTrue(duels.matches().leave(alex));
 
-        assertEquals(984, duels.stats().elo(alex.getUniqueId()));
-        assertEquals(1016, duels.stats().elo(steve.getUniqueId()));
+        assertEquals(984, duels.stats().elo(alex.getUniqueId(), "sword"));
+        assertEquals(1016, duels.stats().elo(steve.getUniqueId(), "sword"));
     }
 
     @Test
@@ -88,8 +89,8 @@ class RankedTest extends DuelsTestBase {
         steve.simulateDamage(100, alex);
 
         assertEquals(1, duels.stats().cached(alex.getUniqueId()).orElseThrow().wins());
-        assertEquals(1000, duels.stats().elo(alex.getUniqueId()));
-        assertEquals(1000, duels.stats().elo(steve.getUniqueId()));
+        assertEquals(1000, duels.stats().elo(alex.getUniqueId(), "sword"));
+        assertEquals(1000, duels.stats().elo(steve.getUniqueId(), "sword"));
     }
 
     @Test
@@ -133,8 +134,8 @@ class RankedTest extends DuelsTestBase {
         steve.simulateDamage(100, alex);
 
         assertEquals(1, duels.stats().cached(alex.getUniqueId()).orElseThrow().wins());
-        assertEquals(1500, duels.stats().elo(alex.getUniqueId()));
-        assertEquals(1000, duels.stats().elo(steve.getUniqueId()));
+        assertEquals(1500, duels.stats().elo(alex.getUniqueId(), "sword"));
+        assertEquals(1000, duels.stats().elo(steve.getUniqueId(), "sword"));
     }
 
     @Test
@@ -173,6 +174,6 @@ class RankedTest extends DuelsTestBase {
 
         PlayerStats veteran = await(duels.stats().find("Veteran")).orElseThrow();
         assertEquals(7, veteran.wins());
-        assertEquals(PlayerStats.START_ELO, veteran.elo());
+        assertEquals(PlayerStats.START_ELO, veteran.legacyElo());
     }
 }

@@ -4,6 +4,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
 import org.bukkit.World;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeInstance;
@@ -19,6 +20,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 /**
@@ -35,6 +37,8 @@ public record PlayerSnapshot(UUID id, String world, double x, double y, double z
     private static final int MAX_FOOD = 20;
     private static final float DEFAULT_SATURATION = 5;
     private static final int DEFAULT_NO_DAMAGE_TICKS = 20;
+    /** The maximum health modifier of kits with {@code max-health}; saved with the player, so a crash keeps it until restored. */
+    public static final NamespacedKey KIT_MAX_HEALTH = Objects.requireNonNull(NamespacedKey.fromString("elotecraftduels:kit-max-health"));
 
     public PlayerSnapshot {
         inventory = inventory.stream().map(item -> item == null ? ItemStack.empty() : item.clone()).toList();
@@ -79,6 +83,8 @@ public record PlayerSnapshot(UUID id, String world, double x, double y, double z
      * full health and hunger, no fire, falling, drowning or freezing. The inventory is left to the kit.
      */
     public static void resetForDuel(Player player) {
+        // First, so full health below is the normal maximum.
+        clearKitRules(player);
         clearLooseItems(player);
         player.setGameMode(GameMode.SURVIVAL);
         player.setAllowFlight(false);
@@ -93,17 +99,25 @@ public record PlayerSnapshot(UUID id, String world, double x, double y, double z
         player.setFallDistance(0);
         player.setRemainingAir(player.getMaximumAir());
         player.setFreezeTicks(0);
-        clearKitRules(player);
     }
 
-    /** Undoes what kit rules change on a player: the combo hit delay and the pearl cooldown. Neither is saved by the server. */
+    /**
+     * Undoes what kit rules change on a player: the combo hit delay and the pearl cooldown (neither saved by the
+     * server) and the kit's maximum health.
+     */
     private static void clearKitRules(Player player) {
         player.setMaximumNoDamageTicks(DEFAULT_NO_DAMAGE_TICKS);
         player.setCooldown(Material.ENDER_PEARL, 0);
+        AttributeInstance health = player.getAttribute(Attribute.MAX_HEALTH);
+        if (health != null) {
+            health.removeModifier(KIT_MAX_HEALTH);
+        }
     }
 
     /** Puts everything back except the position; see {@link #location()}. */
     public void applyState(Player player) {
+        // First, so the health below fits the normal maximum.
+        clearKitRules(player);
         clearLooseItems(player);
         ItemStack[] contents = new ItemStack[player.getInventory().getSize()];
         for (int slot = 0; slot < contents.length; slot++) {
@@ -127,7 +141,6 @@ public record PlayerSnapshot(UUID id, String world, double x, double y, double z
         player.setFallDistance(fallDistance);
         player.setRemainingAir(remainingAir);
         player.setFreezeTicks(freezeTicks);
-        clearKitRules(player);
     }
 
     /** Stored form; read back with {@link #fromText(String)}. */

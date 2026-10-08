@@ -16,11 +16,14 @@ permissions:
     children:
       duels.duel: true
       duels.select-arena: true
+      duels.bet: true
       duels.queue: true
       duels.queue.ranked: true
       duels.spectate: true
       duels.stats: true
+      duels.history: true
       duels.top: true
+      duels.cosmetics: true
       duels.party: true
       duels.party.fight: true
       duels.kit.edit: true
@@ -41,6 +44,9 @@ permissions:
     default: true
   duels.select-arena:
     description: Choose the arena when challenging someone.
+    default: true
+  duels.bet:
+    description: Challenge someone for money with /duel <player> <kit> bet <amount>.
     default: true
   duels.queue:
     description: Join unranked matchmaking queues.
@@ -63,8 +69,14 @@ permissions:
   duels.stats:
     description: See your own and other players' duel stats.
     default: true
+  duels.history:
+    description: See your own and other players' latest duels with /duel history.
+    default: true
   duels.top:
     description: See the duel leaderboard.
+    default: true
+  duels.cosmetics:
+    description: Pick kill effects and kill messages with /duel cosmetics.
     default: true
   duels.admin:
     description: Use /duels; grants every admin permission below.
@@ -73,6 +85,9 @@ permissions:
       duels.admin.arena: true
       duels.admin.kit: true
       duels.admin.reload: true
+      duels.admin.hologram: true
+      duels.admin.season: true
+      duels.queue.ranked.unlimited: true
       duels.admin.stop: true
       duels.bypass.cooldown: true
   duels.admin.arena:
@@ -86,6 +101,15 @@ permissions:
     default: op
   duels.admin.stop:
     description: Stop another player's duel.
+    default: op
+  duels.admin.hologram:
+    description: Place and remove leaderboard holograms.
+    default: op
+  duels.admin.season:
+    description: End the rating season with /duels season end.
+    default: op
+  duels.queue.ranked.unlimited:
+    description: No ranked.daily-limit.
     default: op
   duels.bypass.cooldown:
     description: Send duel requests and host events without waiting for the cooldown.

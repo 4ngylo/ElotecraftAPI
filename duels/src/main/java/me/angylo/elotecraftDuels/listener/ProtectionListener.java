@@ -6,7 +6,7 @@ import me.angylo.elotecraftDuels.Settings;
 import me.angylo.elotecraftDuels.kit.KitRule;
 import me.angylo.elotecraftDuels.match.Match;
 import me.angylo.elotecraftDuels.match.MatchManager;
-import me.angylo.elotecraftDuels.menu.SpectateMenu;
+import me.angylo.elotecraftDuels.menu.InMatchMenu;
 import org.bukkit.Bukkit;
 import org.bukkit.command.Command;
 import org.bukkit.entity.Entity;
@@ -212,11 +212,11 @@ public final class ProtectionListener implements Listener {
         cancelIfBusy(event.getPlayer(), event);
     }
 
-    /** Chests, ender chests and other plugins' menus: anything but the player's own inventory and the spectators' fighter menu. */
+    /** Chests, ender chests and other plugins' menus: anything but the player's own inventory and {@link InMatchMenu}s. */
     @EventHandler(priority = EventPriority.LOW, ignoreCancelled = true)
     public void onInventoryOpen(InventoryOpenEvent event) {
         if (event.getPlayer() instanceof Player player && !OWN_INVENTORY.contains(event.getInventory().getType())
-                && !(event.getInventory().getHolder() instanceof SpectateMenu.FighterMenu)) {
+                && !(event.getInventory().getHolder() instanceof InMatchMenu)) {
             cancelIfBusy(player, event);
         }
     }

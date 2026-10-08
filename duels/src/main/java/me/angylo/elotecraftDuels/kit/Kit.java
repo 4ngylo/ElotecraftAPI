@@ -47,6 +47,8 @@ public record Kit(String name, String displayName, Material icon, String permiss
                   List<PotionEffect> effects) {
 
     public static final Material DEFAULT_ICON = Material.IRON_SWORD;
+    /** The name of every player's custom kit ({@link CustomKits}); admin kits cannot use it. */
+    public static final String CUSTOM = "custom";
     public static final int MAX_EFFECT_LEVEL = 10;
 
     /** The extra money and commands for the winner and the loser of a duel with a kit; set in kits.yml only. */
@@ -82,6 +84,20 @@ public record Kit(String name, String displayName, Material icon, String permiss
     /** A kit holding a copy of everything in {@code inventory}, armor and off hand included. */
     static Kit of(String name, Material icon, PlayerInventory inventory) {
         return new Kit(name, name, icon, null, Arrays.asList(inventory.getContents()), false, Set.of(), true);
+    }
+
+    /**
+     * A player's custom kit: {@code items} with everything else (rules, arenas, permission, rewards, effects) from
+     * {@code base}, the kit whose items they were picked from.
+     */
+    static Kit custom(Kit base, String displayName, List<ItemStack> items) {
+        return new Kit(CUSTOM, displayName, base.icon, base.permission, items, base.build, base.arenaCategories, base.damage,
+                base.rules, base.rewards, base.effects);
+    }
+
+    /** Whether this is a player's custom kit, which no registry holds. */
+    public boolean isCustom() {
+        return CUSTOM.equals(name);
     }
 
     /** Whether duels with this kit may use {@code arena}: the kit takes any arena, or they share a category. */

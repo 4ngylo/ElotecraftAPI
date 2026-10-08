@@ -149,7 +149,7 @@ final class MatchResults {
         for (Player player : List.of(first, second)) {
             Player opponent = match.opponentOf(player);
             rematches.put(player.getUniqueId(), new Rematch(opponent.getUniqueId(), opponent.getName(),
-                    match.kit().name(), match.arena().name(), expiresAt));
+                    match.kit(), match.arena().name(), expiresAt));
             display.rematchOffer(player, opponent);
         }
     }

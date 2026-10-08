@@ -116,6 +116,17 @@ Kits are stored in `kits.yml` with Paper's item format, so they survive server u
 duel with the kit then uses their layout. When an admin changes a kit's items, old layouts are dropped;
 `/duel editkit reset <kit>` drops one by hand.
 
+**Custom kits.** With config.yml `custom-kits.base-kit` set to a kit, players build their own kits from its
+items with `/duel customkit` (permission `duels.kit.custom`): a menu of their `custom-kits.slots` kits (3 by
+default); a click opens the kit editor with that kit (or nothing) and the base kit's items in a menu
+(`/duel customkit items`). A click on an item puts a copy in the inventory, a click on an item in the inventory
+below the menu takes it out; arrange them, then [SAVE]. Only the base kit's items can be saved (an empty kit is
+deleted). Players challenge with the kit `custom:<number>` (`custom` alone is the first), or pick it in the
+kit menu when challenging; both fighters get the builder's items, with the base kit's rules, arenas,
+permission, rewards and effects. Custom kits are for challenges and party fights only: not for queues,
+events or bets. A custom kit holding an item the base kit no longer has is not offered until it is built
+again. They are stored with the kit layouts.
+
 **Default kits.** A first start (no `kits.yml` yet) adds 18 kits after the most played practice modes:
 NoDebuff, Debuff, Gapple, BuildUHC, Classic, Archer, Sumo, Boxing, Combo, Vanilla (crystals and anchors), UHC,
 Pot, NethOP, SMP, Sword, Axe, Mace and Spear. BuildUHC, Vanilla and UHC are build kits. Sumo hits only knock back
@@ -228,6 +239,7 @@ with their arena and limited to 256 x 256 blocks across.
 | `/duel <player> [kit] [arena]` | `duels.duel` | Challenge; without a kit the kit menu opens, then the arena menu |
 | `/duel <player> <kit> [arena] bet <amount>` | `duels.bet` | Challenge for money: each player stakes `<amount>`, the winner takes both ([bets](#bets)) |
 | `/duel accept [player]`, `/duel deny [player]` | `duels.duel` | Answer a challenge (clickable in chat too) |
+| `/duel customkit [<number> \| items]` | `duels.kit.custom` | Your [custom kits](#setting-up): a menu of them, building one, or the items to build it from |
 | `/duel rematch` | `duels.duel` | Challenge your last opponent again, or accept their rematch |
 | `/duel queue [kit]` | `duels.queue` | Join or leave a kit's unranked queue (menu without a kit) |
 | `/duel ranked [kit]` | `duels.queue.ranked` | Join or leave a kit's ranked queue (menu without a kit) |
@@ -501,6 +513,8 @@ The automated tests run on MockBukkit, which cannot click menus. Before a releas
   own items back; the leader quitting mid-fight hands the party over
 - [ ] `/duel editkit`: rearrange, [SAVE], the next duel uses the layout; [CANCEL] and `/stop` while
   editing give your own items back
+- [ ] Custom kits (`custom-kits.base-kit` set): `/duel customkit`, build kit 1 from the items menu, take one out
+  with a click below, [SAVE]; `/duel <player> custom:1` gives both fighters those items; `... bet 100` is refused
 - [ ] Kit rules on a real client: `hit-delay false` combos, `pearl-cooldown 15` shows the cooldown on the
   pearl, `natural-regeneration false` stops healing on a full hunger bar, `crafting false` blocks the 2x2 grid
 - [ ] `/duels arena` and `/duels kit` menus: every button, chat prompts for names and numbers,

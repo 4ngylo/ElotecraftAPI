@@ -4,7 +4,7 @@ import me.angylo.elotecraftAPI.menu.Menu;
 import me.angylo.elotecraftDuels.arena.Arena;
 import me.angylo.elotecraftDuels.kit.Kit;
 import me.angylo.elotecraftDuels.match.Match;
-import me.angylo.elotecraftDuels.menu.SpectateMenu;
+import me.angylo.elotecraftDuels.menu.InMatchMenu;
 import org.bukkit.GameMode;
 import org.bukkit.Material;
 import org.bukkit.event.inventory.ClickType;
@@ -116,7 +116,7 @@ class PlayerSettingsTest extends DuelsTestBase {
 
         cid.performCommand("duel spectate");
         tick();
-        assertInstanceOf(SpectateMenu.FighterMenu.class, cid.getOpenInventory().getTopInventory().getHolder());
+        assertInstanceOf(InMatchMenu.class, cid.getOpenInventory().getTopInventory().getHolder());
         click(cid, 1);
 
         assertEquals(steve.getLocation(), cid.getLocation());
@@ -139,7 +139,7 @@ class PlayerSettingsTest extends DuelsTestBase {
         tick();
 
         assertTrue(click.isCancelled());
-        assertInstanceOf(SpectateMenu.FighterMenu.class, cid.getOpenInventory().getTopInventory().getHolder());
+        assertInstanceOf(InMatchMenu.class, cid.getOpenInventory().getTopInventory().getHolder());
         cid.closeInventory();
         assertTrue(duels.matches().stop(alex));
         tickUntil(() -> duels.matches().matchOf(cid).isEmpty());

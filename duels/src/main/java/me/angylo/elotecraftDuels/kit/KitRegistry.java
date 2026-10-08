@@ -85,6 +85,11 @@ public final class KitRegistry {
         return Optional.ofNullable(kits.get(name.toLowerCase(Locale.ROOT)));
     }
 
+    /** The kit as it is now: an admin kit read again by name (empty once deleted), a custom kit as it was. */
+    public Optional<Kit> current(Kit kit) {
+        return kit.isCustom() ? Optional.of(kit) : get(kit.name());
+    }
+
     /** Every kit, sorted by name. */
     public List<Kit> all() {
         return List.copyOf(kits.values());
@@ -100,7 +105,7 @@ public final class KitRegistry {
      * @throws IllegalArgumentException if the name is invalid or taken
      */
     public CompletableFuture<Kit> create(String name, Material icon, PlayerInventory inventory) {
-        if (!ArenaRegistry.validName(name) || kits.containsKey(name)) {
+        if (!ArenaRegistry.validName(name) || kits.containsKey(name) || Kit.CUSTOM.equals(name)) {
             throw new IllegalArgumentException("Invalid or taken kit name: " + name);
         }
         Kit kit = Kit.of(name, icon, inventory);
@@ -142,8 +147,9 @@ public final class KitRegistry {
         }
         for (String name : root.getKeys(false)) {
             ConfigurationSection section = root.getConfigurationSection(name);
-            if (!ArenaRegistry.validName(name) || section == null) {
-                logger.warning("Skipping kit '" + name + "' in kits.yml: names use lowercase letters, digits, - or _");
+            if (!ArenaRegistry.validName(name) || section == null || Kit.CUSTOM.equals(name)) {
+                logger.warning("Skipping kit '" + name + "' in kits.yml: names use lowercase letters, digits, - or _, and '"
+                        + Kit.CUSTOM + "' is for players' custom kits");
                 continue;
             }
             try {

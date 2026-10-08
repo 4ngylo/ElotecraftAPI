@@ -119,7 +119,8 @@ final class KitAdminCommand {
             messages.send(player, "admin.invalid-name");
             return;
         }
-        if (kits.get(name).isPresent()) {
+        // "custom" names players' custom kits.
+        if (kits.get(name).isPresent() || Kit.CUSTOM.equals(name)) {
             messages.send(player, "admin.kit.exists", Placeholder.unparsed("id", name));
             return;
         }

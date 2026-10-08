@@ -126,10 +126,10 @@ public final class PartyCommand {
     /** {@code <kit> [arena]} from {@code args[from]}; the kit menu opens without a kit. */
     private void fight(Player player, String[] args, int from, BiConsumer<Kit, Arena> start) {
         if (args.length <= from) {
-            kitMenu.open(player, KitMenu.Mode.CHALLENGE, kit -> start.accept(kit, null));
+            kitMenu.open(player, KitMenu.Mode.CHALLENGE, duels.customKits().of(player), kit -> start.accept(kit, null));
             return;
         }
-        Optional<Kit> kit = duels.kits().get(args[from]).filter(found -> !found.isEmpty());
+        Optional<Kit> kit = duels.customKits().resolve(player, args[from]).filter(found -> !found.isEmpty());
         if (kit.isEmpty()) {
             messages.send(player, "general.kit-not-found", Placeholder.unparsed("kit", args[from]));
             return;

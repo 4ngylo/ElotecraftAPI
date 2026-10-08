@@ -27,6 +27,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Predicate;
@@ -36,7 +37,8 @@ import java.util.logging.Logger;
 
 /**
  * The kit editor: a player gets a kit in their own inventory, moves the items around and saves that as
- * their layout of the kit. Their inventory is saved to the database first and put back afterwards, so a
+ * their layout of the kit. Or, for a {@link CustomKits custom kit}, they get the one they built in a slot (or
+ * nothing) and pick items from the base kit's (the {@code /duel customkit items} menu) until they save it. Their inventory is saved to the database first and put back afterwards, so a
  * crash cannot lose it. While editing they count as busy (no queues, duels or other plugins' menus), in
  * adventure mode, and cannot drop, pick up, use or place items. Main thread only.
  */
@@ -45,13 +47,17 @@ public final class KitEditor implements Listener {
     private static final long MILLIS_PER_TICK = 50;
 
     private static final class Session {
+        /** The kit being arranged, or the base kit of a custom kit. */
         private final Kit kit;
+        /** The custom kit's slot, or 0 for a layout. */
+        private final int customSlot;
         private final PlayerSnapshot saved;
         private BukkitTask timeout;
         private boolean ready;
 
-        private Session(Kit kit, PlayerSnapshot saved) {
+        private Session(Kit kit, int customSlot, PlayerSnapshot saved) {
             this.kit = kit;
+            this.customSlot = customSlot;
             this.saved = saved;
         }
     }
@@ -62,18 +68,20 @@ public final class KitEditor implements Listener {
     private final Supplier<Settings> settings;
     private final SnapshotStore snapshots;
     private final KitLayouts layouts;
+    private final CustomKits customKits;
     private final Predicate<Player> busy;
     private final Map<UUID, Session> sessions = new HashMap<>();
 
     /** @param busy whether a player is in a duel, spectating, or otherwise cannot edit */
     public KitEditor(Plugin plugin, Messages messages, Supplier<Settings> settings, SnapshotStore snapshots,
-                     KitLayouts layouts, Predicate<Player> busy) {
+                     KitLayouts layouts, CustomKits customKits, Predicate<Player> busy) {
         this.plugin = plugin;
         this.logger = plugin.getLogger();
         this.messages = messages;
         this.settings = settings;
         this.snapshots = snapshots;
         this.layouts = layouts;
+        this.customKits = customKits;
         this.busy = busy;
     }
 
@@ -83,6 +91,30 @@ public final class KitEditor implements Listener {
 
     /** Saves {@code player}'s inventory, then gives them their layout of {@code kit} to rearrange. */
     public void start(Player player, Kit kit) {
+        start(player, kit, 0);
+    }
+
+    /** Saves {@code player}'s inventory, then gives them their custom kit in {@code slot} to build. */
+    public void startCustom(Player player, int slot) {
+        Optional<Kit> base = customKits.base();
+        if (base.isEmpty()) {
+            messages.send(player, "custom-kit.disabled");
+        } else if (!base.get().canUse(player)) {
+            messages.send(player, "general.kit-locked", kitTag(base.get()));
+        } else if (slot < 1 || slot > customKits.slots()) {
+            messages.send(player, "custom-kit.no-slot", Placeholder.unparsed("slots", String.valueOf(customKits.slots())));
+        } else {
+            start(player, base.get(), slot);
+        }
+    }
+
+    /** The base kit {@code player} is building a custom kit from, if they are. */
+    public Optional<Kit> buildingFrom(Player player) {
+        Session session = sessions.get(player.getUniqueId());
+        return session != null && session.ready && session.customSlot > 0 ? Optional.of(session.kit) : Optional.empty();
+    }
+
+    private void start(Player player, Kit kit, int customSlot) {
         if (isEditing(player)) {
             messages.send(player, "editor.already");
             return;
@@ -92,7 +124,7 @@ public final class KitEditor implements Listener {
             return;
         }
         player.closeInventory();
-        Session session = new Session(kit, PlayerSnapshot.capture(player));
+        Session session = new Session(kit, customSlot, PlayerSnapshot.capture(player));
         CompletableFuture<Void> saved;
         try {
             saved = snapshots.save(Map.of(player.getUniqueId(), session.saved));
@@ -114,10 +146,25 @@ public final class KitEditor implements Listener {
             }
             PlayerSnapshot.resetForDuel(player);
             player.setGameMode(GameMode.ADVENTURE);
-            layouts.apply(player, kit);
+            if (customSlot > 0) {
+                Kit.apply(player, customKits.items(player, customSlot));
+            } else {
+                layouts.apply(player, kit);
+            }
             session.ready = true;
             session.timeout = Tasks.later(plugin, () -> timeOut(player, session),
                     settings.get().kitEditorTimeout().toMillis() / MILLIS_PER_TICK);
+            if (customSlot > 0) {
+                messages.send(player, "editor.custom-started", kitTag(kit), Placeholder.unparsed("slot", String.valueOf(customSlot)),
+                        Placeholder.styling("items", ClickEvent.runCommand("/duel customkit items"),
+                                HoverEvent.showText(messages.get(player, "editor.items-hover"))),
+                        Placeholder.styling("save", ClickEvent.runCommand("/duel editkit save"),
+                                HoverEvent.showText(messages.get(player, "editor.save-hover"))),
+                        Placeholder.styling("cancel", ClickEvent.runCommand("/duel editkit cancel"),
+                                HoverEvent.showText(messages.get(player, "editor.cancel-hover"))));
+                player.performCommand("duel customkit items");
+                return;
+            }
             messages.send(player, "editor.started", kitTag(kit),
                     Placeholder.styling("save", ClickEvent.runCommand("/duel editkit save"),
                             HoverEvent.showText(messages.get(player, "editor.save-hover"))),
@@ -134,6 +181,10 @@ public final class KitEditor implements Listener {
         }
         player.closeInventory();
         List<ItemStack> layout = Arrays.asList(player.getInventory().getContents());
+        if (session.customSlot > 0) {
+            saveCustom(player, session, layout);
+            return;
+        }
         if (!session.kit.sameItems(layout)) {
             messages.send(player, "editor.invalid", kitTag(session.kit));
             return;
@@ -141,6 +192,19 @@ public final class KitEditor implements Listener {
         layouts.save(player.getUniqueId(), session.kit, layout);
         finish(player, session, false);
         messages.send(player, "editor.saved", kitTag(session.kit));
+    }
+
+    /** A custom kit is saved if every item came from the base kit; an empty inventory deletes it. */
+    private void saveCustom(Player player, Session session, List<ItemStack> items) {
+        if (!CustomKits.fits(session.kit, items)) {
+            messages.send(player, "editor.custom-invalid", kitTag(session.kit));
+            return;
+        }
+        customKits.store(player, session.customSlot, items);
+        finish(player, session, false);
+        boolean empty = items.stream().allMatch(item -> item == null || item.isEmpty());
+        messages.send(player, empty ? "editor.custom-deleted" : "editor.custom-saved",
+                Placeholder.unparsed("slot", String.valueOf(session.customSlot)));
     }
 
     public void cancel(Player player) {

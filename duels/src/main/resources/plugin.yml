@@ -27,6 +27,7 @@ permissions:
       duels.party: true
       duels.party.fight: true
       duels.kit.edit: true
+      duels.kit.custom: true
       duels.event: true
       duels.event.host: true
       duels.event.host.private: true
@@ -56,6 +57,9 @@ permissions:
     default: true
   duels.kit.edit:
     description: Arrange your own layout of each kit with /duel editkit.
+    default: true
+  duels.kit.custom:
+    description: Build your own kits from the base kit's items with /duel customkit.
     default: true
   duels.party:
     description: Create, join and manage parties.

@@ -100,6 +100,43 @@ lobby-items:
   party: {slot: 2, show: idle, permission: duels.party, command: "party", material: CAKE, name: "<light_purple><bold>Party</bold> <gray>(right-click)", lore: ["<gray>Your party, or a public one to join"]}
   cosmetics: {slot: 3, show: idle, permission: duels.cosmetics, command: "duel cosmetics", material: BLAZE_POWDER, name: "<gold><bold>Cosmetics</bold> <gray>(right-click)", lore: ["<gray>Kill effects and kill messages"]}
 
+# /duel customkit: a button per custom kit; a click builds it. <slot> is its number; a built one also has
+# <items> (filled slots) and <state> (values.ready, or values.outdated once the base kit no longer has an item).
+custom-kits:
+  title: "<gradient:#f7971e:#ffd200><bold>✎ Custom kits"
+  rows: 2
+  filler: {material: BLACK_STAINED_GLASS_PANE, name: " "}
+  kit:
+    name: "<gold><bold>Custom kit <slot>"
+    lore:
+      - "<dark_gray>▪ <gray>Items: <white><items>"
+      - "<dark_gray>▪ <state>"
+      - ""
+      - "<gray>Challenge with the kit <white>custom:<slot>"
+      - "<yellow>▶ Click to edit"
+  empty:
+    material: GRAY_DYE
+    name: "<gray><bold>Custom kit <slot>"
+    lore: ["<gray>Empty", "", "<yellow>▶ Click to build it"]
+  values:
+    ready: "<green>Ready"
+    outdated: "<red>Holds items the base kit no longer has: edit it"
+  previous: {material: ARROW, name: "<yellow>« Previous page"}
+  next: {material: ARROW, name: "<yellow>Next page »"}
+  close: {slot: 4, material: BARRIER, name: "<red>Close"}
+
+# /duel customkit items, while building a custom kit: the base kit's items. A click puts one in your
+# inventory; clicking an item in your inventory below takes it out.
+custom-kit-items:
+  title: "<gradient:#f7971e:#ffd200><bold>✎ Pick items"
+  rows: 6
+  filler: {material: BLACK_STAINED_GLASS_PANE, name: " "}
+  previous: {material: ARROW, name: "<yellow>« Previous page"}
+  next: {material: ARROW, name: "<yellow>Next page »"}
+  clear: {slot: 2, material: LAVA_BUCKET, name: "<red><bold>Empty your inventory", lore: ["<gray>Takes out every item"]}
+  save: {slot: 4, material: LIME_DYE, name: "<green><bold>Save", lore: ["<gray>Saves the kit as your inventory holds it"]}
+  close: {slot: 6, material: BARRIER, name: "<red>Close", lore: ["<gray>Arrange your items, then", "<gray>/duel customkit items or /duel editkit save"]}
+
 # A kit's items, opened by right-clicking it in the kits menu: storage, hotbar, then armor and off hand.
 kit-preview:
   title: "<gradient:#f7971e:#ffd200><bold><kit>"

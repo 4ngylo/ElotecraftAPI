@@ -39,7 +39,8 @@ public final class PartyFights {
     private static final long MILLIS_PER_TICK = 50;
 
     /** A challenge from {@code fromLeader}'s party; {@code arena} null for a random one. */
-    private record Challenge(UUID fromLeader, String kit, String arena, long expiresAtTick) {
+    /** @param kit read again from the registry on accept, unless it is a custom kit */
+    private record Challenge(UUID fromLeader, Kit kit, String arena, long expiresAtTick) {
     }
 
     private final Messages messages;
@@ -129,7 +130,7 @@ public final class PartyFights {
         long now = Bukkit.getCurrentTick();
         Map<UUID, Challenge> received = challenges.computeIfAbsent(target.getUniqueId(), uuid -> new LinkedHashMap<>());
         received.values().removeIf(challenge -> now >= challenge.expiresAtTick());
-        received.put(leader.getUniqueId(), new Challenge(leader.getUniqueId(), kit.name(), arena == null ? null : arena.name(),
+        received.put(leader.getUniqueId(), new Challenge(leader.getUniqueId(), kit, arena == null ? null : arena.name(),
                 now + settings.get().requestExpiry().toMillis() / MILLIS_PER_TICK));
         TagResolver[] setup = {kitTag(kit), arenaTag(target, arena)};
         messages.send(leader, "party.duel-sent", with(setup, name(target)));
@@ -153,7 +154,7 @@ public final class PartyFights {
         challenges.get(leader.getUniqueId()).remove(challenge.fromLeader());
         Player from = Bukkit.getPlayer(challenge.fromLeader());
         Party theirs = from == null ? null : parties.partyOf(from.getUniqueId()).filter(party -> party.isLeader(from.getUniqueId())).orElse(null);
-        Optional<Kit> kit = kits.get(challenge.kit());
+        Optional<Kit> kit = kits.current(challenge.kit());
         if (theirs == null || kit.isEmpty()) {
             messages.send(leader, "party.duel-gone");
             return;

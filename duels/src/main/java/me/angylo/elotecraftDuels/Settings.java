@@ -33,7 +33,8 @@ public record Settings(int countdownSeconds, Duration maxDuration, int endDelayS
                 Reward winReward, Reward lossReward, Title.Times titleTimes, Effects effects,
                 boolean breakArenaBlocks, int regenBlocksPerTick, boolean voidEliminates, String arenasWorld,
                 int pregenSpacing, int maxCopies, int partyMaxSize, Duration partyInviteExpiry, boolean partyFriendlyFire, Duration kitEditorTimeout, Ranked ranked,
-                Sidebars sidebars, int hologramLines, LobbyItems lobbyItems, Events events, Cosmetics cosmetics, Bets bets) {
+                Sidebars sidebars, int hologramLines, LobbyItems lobbyItems, Events events, Cosmetics cosmetics, Bets bets,
+                CustomKitOptions customKits) {
 
     private static final long MILLIS_PER_TICK = 50;
     private static final int MAX_TITLE_TICKS = 200;
@@ -42,6 +43,7 @@ public record Settings(int countdownSeconds, Duration maxDuration, int endDelayS
     private static final int MAX_DAILY_RANKED = 1000;
     private static final int MAX_EVENT_PLAYERS = 100;
     private static final int MAX_TOURNAMENT_REPLAYS = 10;
+    private static final int MAX_CUSTOM_KITS = 9;
     private static final double MAX_BORDER_DAMAGE = 20;
     private static final int MINUTES_PER_DAY = 24 * 60;
     private static final double MIN_BET = 0.01;
@@ -97,6 +99,18 @@ public record Settings(int countdownSeconds, Duration maxDuration, int endDelayS
 
         public Events {
             schedule = List.copyOf(schedule);
+        }
+    }
+
+    /**
+     * Kits players build themselves ({@code /duel customkit}) from the items of {@code baseKit}, which also gives them
+     * its rules, arenas and permission; empty when off. Each player keeps {@code slots} of them, named in duels by
+     * {@code displayName} with {@code <player>} and {@code <slot>}.
+     */
+    public record CustomKitOptions(String baseKit, int slots, String displayName) {
+
+        public boolean enabled() {
+            return !baseKit.isEmpty();
         }
     }
 
@@ -203,7 +217,10 @@ public record Settings(int countdownSeconds, Duration maxDuration, int endDelayS
                         Set.copyOf(config.getStringList("lobby-items.worlds"))),
                 events(config, logger),
                 Cosmetics.load(config, logger),
-                bets(config, logger));
+                bets(config, logger),
+                new CustomKitOptions(config.getString("custom-kits.base-kit", "").strip().toLowerCase(Locale.ROOT),
+                        integer(config, logger, "custom-kits.slots", 3, 1, MAX_CUSTOM_KITS),
+                        config.getString("custom-kits.display-name", "<yellow><player>'s custom kit <slot>")));
     }
 
     private static Events events(ConfigurationSection config, Logger logger) {

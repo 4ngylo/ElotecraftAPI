@@ -19,6 +19,7 @@ import me.angylo.elotecraftDuels.menu.FightInventoryMenu;
 import me.angylo.elotecraftDuels.menu.HistoryMenu;
 import me.angylo.elotecraftDuels.menu.KitMenu;
 import me.angylo.elotecraftDuels.menu.OptionsMenu;
+import me.angylo.elotecraftDuels.menu.CustomKitMenu;
 import me.angylo.elotecraftDuels.menu.SpectateMenu;
 import me.angylo.elotecraftDuels.stats.Divisions;
 import me.angylo.elotecraftDuels.stats.KitRating;
@@ -34,6 +35,7 @@ import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import java.util.Optional;
 import java.util.OptionalInt;
@@ -60,10 +62,12 @@ public final class DuelCommand {
     private final OptionsMenu optionsMenu;
     private final CosmeticsMenu cosmeticsMenu;
     private final SpectateMenu spectateMenu;
+    private final CustomKitMenu customKitMenu;
     private final Cooldowns<String> lookups = new Cooldowns<>();
 
     public DuelCommand(Duels duels, KitMenu kitMenu, ArenaMenu arenaMenu, FightInventoryMenu inventoryMenu, HistoryMenu historyMenu,
-                       OptionsMenu optionsMenu, CosmeticsMenu cosmeticsMenu, SpectateMenu spectateMenu) {
+                       OptionsMenu optionsMenu, CosmeticsMenu cosmeticsMenu, SpectateMenu spectateMenu,
+                       CustomKitMenu customKitMenu) {
         this.duels = duels;
         this.messages = duels.messages();
         this.kitMenu = kitMenu;
@@ -73,6 +77,7 @@ public final class DuelCommand {
         this.optionsMenu = optionsMenu;
         this.cosmeticsMenu = cosmeticsMenu;
         this.spectateMenu = spectateMenu;
+        this.customKitMenu = customKitMenu;
     }
 
     /** Registers {@code /duel} and returns it, so it can stay allowed during duels. */
@@ -99,6 +104,9 @@ public final class DuelCommand {
                 .playerSub("editkit", "duels.kit.edit", this::editKit, (sender, args) -> args.length == 1
                         ? Args.filter(Stream.concat(Stream.of("save", "cancel", "reset"), usableKits(sender).stream()).toList(), args)
                         : args.length == 2 && args[0].equalsIgnoreCase("reset") ? Args.filter(usableKits(sender), args) : List.of())
+                .playerSub("customkit", "duels.kit.custom", this::customKit, (sender, args) -> args.length == 1
+                        ? Args.filter(Stream.concat(Stream.of("items"), IntStream.rangeClosed(1, duels.customKits().slots())
+                                .mapToObj(String::valueOf)).toList(), args) : List.of())
                 .playerSub("spectate", "duels.spectate", this::spectate, (sender, args) -> Args.players(args))
                 .sub("stats", "duels.stats", (sender, args) -> limited(sender, () -> stats(sender, args)),
                         (sender, args) -> Args.players(args))
@@ -169,10 +177,10 @@ public final class DuelCommand {
             args = Arrays.copyOf(args, args.length - 2);
         }
         if (args.length == 1) {
-            kitMenu.open(player, KitMenu.Mode.CHALLENGE, kit -> chooseArena(player, target.get(), kit, 0));
+            kitMenu.open(player, KitMenu.Mode.CHALLENGE, duels.customKits().of(player), kit -> chooseArena(player, target.get(), kit, 0));
             return;
         }
-        Optional<Kit> kit = duels.kits().get(args[1]).filter(found -> !found.isEmpty());
+        Optional<Kit> kit = duels.customKits().resolve(player, args[1]).filter(found -> !found.isEmpty());
         if (kit.isEmpty()) {
             messages.send(player, "general.kit-not-found", Placeholder.unparsed("kit", args[1]));
             return;
@@ -205,7 +213,8 @@ public final class DuelCommand {
     private List<String> suggestChallenge(CommandSender sender, String[] args) {
         return switch (args.length) {
             case 1 -> Args.players(args).stream().filter(name -> !name.equals(sender.getName())).toList();
-            case 2 -> Args.filter(usableKits(sender), args);
+            case 2 -> Args.filter(Stream.concat(usableKits(sender).stream(), sender instanceof Player player
+                    ? duels.customKits().arguments(player).stream() : Stream.<String>empty()).toList(), args);
             case 3 -> Args.filter(Stream.concat(betWord(sender), sender.hasPermission(SELECT_ARENA)
                     ? duels.arenas().all().stream().filter(arena -> arena.isReady()
                             && duels.kits().get(args[1]).map(kit -> kit.accepts(arena)).orElse(true)).map(Arena::name)
@@ -279,6 +288,18 @@ public final class DuelCommand {
             case "cancel" -> duels.editor().cancel(player);
             case "reset" -> usableKit(player, Args.get(args, 1)).ifPresent(kit -> duels.editor().reset(player, kit));
             default -> usableKit(player, first).ifPresent(kit -> duels.editor().start(player, kit));
+        }
+    }
+
+    /** {@code /duel customkit [<slot> | items]}: the custom kit menu, building one, or the items to build it from. */
+    private void customKit(Player player, String[] args) {
+        String first = Args.get(args, 0).toLowerCase(Locale.ROOT);
+        if (first.isEmpty()) {
+            customKitMenu.openSlots(player);
+        } else if (first.equals("items")) {
+            customKitMenu.openItems(player);
+        } else {
+            duels.editor().startCustom(player, first.matches("[1-9]") ? Integer.parseInt(first) : -1);
         }
     }
 

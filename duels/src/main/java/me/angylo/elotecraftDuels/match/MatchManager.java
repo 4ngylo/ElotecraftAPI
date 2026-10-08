@@ -55,7 +55,7 @@ public final class MatchManager {
     private static final int COMBO_NO_DAMAGE_TICKS = 2;
 
     /** The last opponent and setup of a player, for {@code /duel rematch}. */
-    public record Rematch(UUID opponent, String opponentName, String kit, String arena, long expiresAtTick) {
+    public record Rematch(UUID opponent, String opponentName, Kit kit, String arena, long expiresAtTick) {
 
         boolean expired() {
             return Bukkit.getCurrentTick() >= expiresAtTick;

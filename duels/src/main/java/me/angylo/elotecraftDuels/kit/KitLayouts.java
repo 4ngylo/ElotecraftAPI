@@ -105,23 +105,34 @@ public final class KitLayouts implements Listener {
 
     /** Stores {@code layout} as {@code player}'s layout of {@code kit}; callers check it with {@link Kit#sameItems}. */
     public void save(UUID player, Kit kit, List<ItemStack> layout) {
-        List<ItemStack> copy = layout.stream().map(item -> item == null ? ItemStack.empty() : item.clone()).toList();
-        online.computeIfAbsent(player, uuid -> new ConcurrentHashMap<>()).put(kit.name(), copy);
+        store(player, kit.name(), layout);
+    }
+
+    /** {@code player}'s items stored under {@code key} (a kit's name, or a custom kit's {@link CustomKits} key), unchecked. */
+    Optional<List<ItemStack>> stored(UUID player, String key) {
+        List<ItemStack> items = online.getOrDefault(player, Map.of()).get(key);
+        return items == null ? Optional.empty() : Optional.of(items.stream().map(item -> item == null ? ItemStack.empty() : item.clone()).toList());
+    }
+
+    /** Stores {@code items} as {@code player}'s under {@code key}, replacing what was there. */
+    void store(UUID player, String key, List<ItemStack> items) {
+        List<ItemStack> copy = items.stream().map(item -> item == null ? ItemStack.empty() : item.clone()).toList();
+        online.computeIfAbsent(player, uuid -> new ConcurrentHashMap<>()).put(key, copy);
         String encoded = Base64.getEncoder().encodeToString(ItemStack.serializeItemsAsBytes(copy));
         schema.thenCompose(ignored -> db.transaction(connection -> {
             try (PreparedStatement delete = connection.prepareStatement(DELETE)) {
                 delete.setString(1, player.toString());
-                delete.setString(2, kit.name());
+                delete.setString(2, key);
                 delete.executeUpdate();
             }
             try (PreparedStatement insert = connection.prepareStatement(INSERT)) {
                 insert.setString(1, player.toString());
-                insert.setString(2, kit.name());
+                insert.setString(2, key);
                 insert.setString(3, encoded);
                 return insert.executeUpdate();
             }
         })).exceptionally(error -> {
-            logger.log(Level.WARNING, "Could not save a kit layout of kit " + kit.name(), error);
+            logger.log(Level.WARNING, "Could not save a kit layout of kit " + key, error);
             return null;
         });
     }

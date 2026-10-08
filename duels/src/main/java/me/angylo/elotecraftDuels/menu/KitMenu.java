@@ -29,6 +29,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.logging.Level;
+import java.util.stream.Stream;
 
 /**
  * Picks a kit: to challenge someone, or to join (or leave) its unranked or ranked queue; right-click
@@ -72,7 +73,12 @@ public final class KitMenu {
      * own menus, {@code ranked-queue} and {@code unranked-queue}; challenges and the editor use {@code kits}.
      */
     public void open(Player viewer, Mode mode, Consumer<Kit> onChoose) {
-        List<Kit> usable = kits.all().stream().filter(kit -> kit.canUse(viewer) && !kit.isEmpty()).toList();
+        open(viewer, mode, List.of(), onChoose);
+    }
+
+    /** Like {@link #open(Player, Mode, Consumer)}, with {@code extra} kits (the viewer's custom kits) after the others. */
+    public void open(Player viewer, Mode mode, List<Kit> extra, Consumer<Kit> onChoose) {
+        List<Kit> usable = Stream.concat(kits.all().stream().filter(kit -> kit.canUse(viewer) && !kit.isEmpty()), extra.stream()).toList();
         if (usable.isEmpty()) {
             messages.send(viewer, "general.no-kits");
             return;

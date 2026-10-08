@@ -42,7 +42,8 @@ public final class RequestManager {
      * @param expiresAtTick server tick, so the expiry follows game time
      * @param bet          each player's stake, or 0 for none
      */
-    private record Request(UUID sender, String senderName, UUID target, String targetName, String kit, String arena,
+    /** @param kit read again from the registry on accept, unless it is a custom kit */
+    private record Request(UUID sender, String senderName, UUID target, String targetName, Kit kit, String arena,
                            long expiresAtTick, double bet) {
     }
 
@@ -117,6 +118,11 @@ public final class RequestManager {
             messages.send(sender, "request.already-sent", Placeholder.unparsed("player", target.getName()));
             return;
         }
+        // Its builder knows a custom kit best: no money on them.
+        if (bet != 0 && kit.isCustom()) {
+            messages.send(sender, "bet.custom-kit");
+            return;
+        }
         if (bet != 0 && !bets.mayOffer(sender, bet)) {
             return;
         }
@@ -128,7 +134,7 @@ public final class RequestManager {
             return;
         }
         pending.computeIfAbsent(target.getUniqueId(), uuid -> new LinkedHashMap<>()).put(sender.getUniqueId(), new Request(sender.getUniqueId(), sender.getName(), target.getUniqueId(),
-                target.getName(), kit.name(), arena == null ? null : arena.name(),
+                target.getName(), kit, arena == null ? null : arena.name(),
                 Bukkit.getCurrentTick() + settings.get().requestExpiry().toMillis() / MILLIS_PER_TICK, bet));
         TagResolver[] setup = {kitTag(kit), arenaTag(target, arena)};
         messages.send(sender, "request.sent", MatchDisplay.with(setup, Placeholder.unparsed("player", target.getName()),
@@ -183,10 +189,10 @@ public final class RequestManager {
             messages.send(target, "general.busy-other", Placeholder.unparsed("player", sender.getName()));
             return;
         }
-        Optional<Kit> kit = kits.get(request.kit());
+        Optional<Kit> kit = kits.current(request.kit());
         if (kit.isEmpty()) {
             remove(request);
-            messages.send(target, "general.kit-not-found", Placeholder.unparsed("kit", request.kit()));
+            messages.send(target, "general.kit-not-found", Placeholder.unparsed("kit", request.kit().name()));
             return;
         }
         if (!kit.get().canUse(target)) {
@@ -289,9 +295,9 @@ public final class RequestManager {
             accept(player, opponent.getName());
             return;
         }
-        Optional<Kit> kit = kits.get(rematch.get().kit());
+        Optional<Kit> kit = kits.current(rematch.get().kit());
         if (kit.isEmpty()) {
-            messages.send(player, "general.kit-not-found", Placeholder.unparsed("kit", rematch.get().kit()));
+            messages.send(player, "general.kit-not-found", Placeholder.unparsed("kit", rematch.get().kit().name()));
             return;
         }
         // An arena the kit no longer accepts falls back to a random one.

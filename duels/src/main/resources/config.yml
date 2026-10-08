@@ -131,6 +131,15 @@ sidebar:
 holograms:
   lines: 10               # players on each board, 1 to 50
 
+# Kits players build themselves with /duel customkit, picking items from an admin kit: the base kit.
+# Custom kits take the base kit's rules, arenas, permission, rewards and effects; players use them to
+# challenge someone (/duel <player> custom[:slot]) or in party fights, never in queues, events or bets.
+custom-kits:
+  base-kit: ""            # the kit whose items players pick from; empty: custom kits are off
+  slots: 3                # custom kits each player keeps, 1 to 9
+  # The name duels show; <player> is the builder, <slot> the kit's number.
+  display-name: "<yellow><player>'s custom kit <slot>"
+
 # Hotbar items in the lobby that open the queues, events, kit editor and history (menus.yml lobby-items).
 # For practice servers: players' own items are never replaced, but the items take hotbar slots.
 lobby-items:

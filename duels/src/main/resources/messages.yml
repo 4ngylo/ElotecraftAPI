@@ -42,6 +42,7 @@ command:
     <yellow>/duel ranked [kit]</yellow> <dark_gray>-</dark_gray> <gray>find an opponent near your rating
     <yellow>/duel spectate [player]</yellow> <dark_gray>-</dark_gray> <gray>watch a duel; without a player, pick a fight
     <yellow>/duel editkit [kit]</yellow> <dark_gray>-</dark_gray> <gray>arrange your items in a kit
+    <yellow>/duel customkit</yellow> <dark_gray>-</dark_gray> <gray>build your own kits, then challenge with the kit custom:<number>
     <yellow>/duel leave</yellow> <dark_gray>-</dark_gray> <gray>leave the queue, stop spectating or forfeit
     <yellow>/duel toggle <option></yellow> <dark_gray>-</dark_gray> <gray>turn duel requests or another option off or on
     <yellow>/duel options</yellow> <dark_gray>-</dark_gray> <gray>requests, party invites, sidebar and sounds
@@ -262,6 +263,18 @@ editor:
   already: "<prefix><red>You're already editing a kit: <white>/duel editkit save</white> or <white>cancel</white>."
   not-editing: "<prefix><red>You're not editing a kit."
   reset: "<prefix><green>Your layout of <white><kit></white> is gone; you get the kit as made again."
+  # Building a custom kit (/duel customkit) from the items of <kit>, the base kit; <slot> is its number.
+  custom-started: "<prefix><gray>Building custom kit <white><slot></white>: pick <items><aqua><bold>[ITEMS]</bold></aqua></items> from <white><kit></white>, arrange them, then <save><green><bold>[SAVE]</bold></green></save> or <cancel><red><bold>[CANCEL]</bold></red></cancel>"
+  items-hover: "<aqua>Click to pick items"
+  custom-saved: "<prefix><green>Saved custom kit <white><slot></white>. <gray>Use it as the kit <white>custom:<slot></white> when you challenge someone."
+  custom-deleted: "<prefix><gray>Custom kit <white><slot></white> was empty, so it is gone."
+  custom-invalid: "<prefix><red>Only items from <kit> can go in a custom kit: take out the others and try again."
+
+custom-kit:
+  disabled: "<prefix><red>Custom kits are off on this server."
+  no-slot: "<prefix><red>Pick a custom kit from 1 to <slots>."
+  not-building: "<prefix><red>You're not building a custom kit: <white>/duel customkit</white>."
+  inventory-full: "<prefix><red>Your inventory is full: click an item in it to take it out."
 
 party:
   created: "<prefix><green>Created a party. <gray>Invite players with <white>/party <player></white>."
@@ -389,6 +402,7 @@ bet:
   cant-afford: "<prefix><red><player> doesn't have <white><amount></white> to bet any more."
   disabled: "<prefix><red>Bets are off on this server."
   no-economy: "<prefix><red>Bets need Vault and an economy plugin."
+  custom-kit: "<prefix><red>Bets are not allowed on custom kits."
   failed: "<prefix><red>The stakes couldn't be taken, so the duel didn't start; nobody paid anything."
 
 history:

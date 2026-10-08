@@ -622,6 +622,14 @@ sidebar:
   # Match sidebars may use <round> and <score> (the viewer's rounds against the opponent's), or <rounds>:
   # this line in a kit with rounds-to-win, nothing otherwise.
   rounds: "<dark_gray> · <gray>Round <white><round></white> <white><score>"
+  # Bridge and bed fight kits add one of these under the first line. <goals> and <bed> are the viewer's side,
+  # <opponent_goals> and <opponent_bed> the other; spectators see side 1 then side 2. <to_win> goals win.
+  goals: "<gray>Goals: <green><goals></green> <dark_gray>-</dark_gray> <red><opponent_goals></red> <dark_gray>(to <to_win>)"
+  goals-spectating: "<gray>Goals: <white><goals> <dark_gray>-</dark_gray> <white><opponent_goals> <dark_gray>(to <to_win>)"
+  beds: "<gray>Your bed: <bed> <dark_gray>·</dark_gray> <gray>Enemy: <opponent_bed>"
+  beds-spectating: "<gray>Beds: <bed> <dark_gray>vs</dark_gray> <opponent_bed>"
+  bed-standing: "<green>✔"
+  bed-broken: "<red>✘"
   match-title: "<gradient:#ff416c:#ff4b2b><bold>⚔ DUEL"
   lobby-title: "<gradient:#ff416c:#ff4b2b><bold>⚔ DUELS"
   duel: |-

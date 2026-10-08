@@ -400,7 +400,9 @@ With `sidebar.health-below-name` (on by default), the fight sidebar also shows e
 their name, in health points (20 is full) followed by `sidebar.health-below-name` in messages.yml; players
 who turned the sidebar off don't see it. Layouts are in `messages.yml` under `sidebar`, one row per line, at most 15. Match layouts may use
 `<round>` and `<score>`, or `<rounds>`, which is `sidebar.rounds` in a kit with `rounds-to-win` and empty
-otherwise.
+otherwise. In a [bridge or bed fight](#kit-modes), one more line goes under the first: the goals of each side
+(`sidebar.goals`, which takes the place of `<rounds>`) or whether each bed stands (`sidebar.beds`), from the
+fighter's side, or side 1 then side 2 for spectators (`goals-spectating`, `beds-spectating`).
 
 A sidebar gives the player their own scoreboard while it shows, so other plugins' sidebars and nametag
 teams (TAB, nametag colours) disappear for them; leave `sidebar.lobby` off if you use such a plugin. A

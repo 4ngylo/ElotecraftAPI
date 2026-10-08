@@ -1,5 +1,6 @@
 package me.angylo.elotecraftDuels;
 
+import me.angylo.elotecraftAPI.util.Text;
 import me.angylo.elotecraftDuels.arena.Arena;
 import me.angylo.elotecraftDuels.arena.Arena.Position;
 import me.angylo.elotecraftDuels.kit.Kit;
@@ -126,6 +127,31 @@ class ModesTest extends DuelsTestBase {
         steve.simulateDamage(100, alex);
         assertEquals(Match.State.ENDING, match.state());
         assertEquals(List.of(0), match.winnerTeams());
+    }
+
+    private List<String> sidebar(TestPlayer player) {
+        return duels.sidebar().layoutFor(player).lines().stream().map(Text::plain).toList();
+    }
+
+    @Test
+    void theSidebarShowsGoalsAndBeds() {
+        Match bridge = fight(kit(Kit.Mode.BRIDGE).withRule(KitRule.ROUNDS_TO_WIN, 3));
+        alex.simulatePlayerMove(steveGoal());
+
+        assertTrue(sidebar(alex).contains("Goals: 1 - 0 (to 3)"), sidebar(alex).toString());
+        assertTrue(sidebar(steve).contains("Goals: 0 - 1 (to 3)"));
+        assertTrue(sidebar(alex).stream().noneMatch(line -> line.contains("Round")));
+        assertTrue(duels.matches().stop(alex));
+        tickUntil(() -> duels.matches().matchOf(alex).isEmpty() && !duels.matches().running().contains(bridge));
+
+        block(5, 64, 12).setType(Material.RED_BED);
+        block(15, 64, 12).setType(Material.RED_BED);
+        fight(kit(Kit.Mode.BED_FIGHT));
+        assertTrue(sidebar(alex).contains("Your bed: ✔ · Enemy: ✔"));
+        alex.simulateBlockBreak(block(15, 64, 12));
+
+        assertTrue(sidebar(alex).contains("Your bed: ✔ · Enemy: ✘"));
+        assertTrue(sidebar(steve).contains("Your bed: ✘ · Enemy: ✔"));
     }
 
     @Test

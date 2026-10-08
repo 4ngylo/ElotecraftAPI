@@ -1,10 +1,16 @@
 package me.angylo.elotecraftDuels;
 
 import me.angylo.elotecraftDuels.match.Match;
+import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Item;
+import org.bukkit.event.entity.EntityPortalEvent;
+import org.bukkit.event.player.PlayerPortalEvent;
+import org.bukkit.event.player.PlayerTeleportEvent.TeleportCause;
+import org.bukkit.event.world.PortalCreateEvent;
 import org.bukkit.event.player.PlayerCommandPreprocessEvent;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.player.PlayerDropItemEvent;
@@ -18,6 +24,8 @@ import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.ItemStack;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -99,6 +107,48 @@ class ProtectionTest extends DuelsTestBase {
 
         assertEquals(arenaWorld, alex.getWorld());
         assertTrue(drop.isCancelled());
+    }
+
+    /** Portal events have their own handler list, so the teleport rule above never saw them. */
+    @Test
+    void nobodyInADuelOrTheArenasWorldUsesPortals() {
+        World arenas = Bukkit.getWorld(duels.settings().arenasWorld());
+        TestPlayer visitor = join("Visitor");
+        visitor.teleport(new Location(arenas, 0, 64, 0));
+        messages(alex);
+        messages(visitor);
+
+        assertTrue(cancelled(new PlayerPortalEvent(alex, alex.getLocation(), world.getSpawnLocation(), TeleportCause.NETHER_PORTAL)));
+        assertTrue(messages(alex).stream().anyMatch(line -> line.contains("You can't teleport away during a duel.")));
+        assertTrue(cancelled(new PlayerPortalEvent(visitor, visitor.getLocation(), world.getSpawnLocation(), TeleportCause.END_PORTAL)));
+        assertTrue(messages(visitor).isEmpty());
+        assertFalse(cancelled(new PlayerPortalEvent(outsider, outsider.getLocation(), arenaWorld.getSpawnLocation(), TeleportCause.NETHER_PORTAL)));
+    }
+
+    @Test
+    void nothingGoesThroughPortalsFromADuelOrTheArenasWorld() {
+        World arenas = Bukkit.getWorld(duels.settings().arenasWorld());
+        Item inDuel = arenaWorld.dropItem(alex.getLocation(), ItemStack.of(Material.DIAMOND));
+        Item inArenas = arenas.dropItem(new Location(arenas, 0, 64, 0), ItemStack.of(Material.DIAMOND));
+        Item inLobby = world.dropItem(world.getSpawnLocation(), ItemStack.of(Material.DIAMOND));
+
+        assertTrue(cancelled(new EntityPortalEvent(inDuel, inDuel.getLocation(), world.getSpawnLocation())));
+        assertTrue(cancelled(new EntityPortalEvent(inArenas, inArenas.getLocation(), world.getSpawnLocation())));
+        assertFalse(cancelled(new EntityPortalEvent(inLobby, inLobby.getLocation(), arenaWorld.getSpawnLocation())));
+    }
+
+    @Test
+    void portalsCannotBeLitInADuelOrTheArenasWorld() {
+        World arenas = Bukkit.getWorld(duels.settings().arenasWorld());
+
+        assertTrue(cancelled(portal(arenaWorld.getBlockAt(alex.getLocation()))));
+        assertTrue(cancelled(portal(arenas.getBlockAt(0, 64, 0))));
+        assertFalse(cancelled(portal(world.getBlockAt(0, 64, 0))));
+        assertFalse(cancelled(portal(arenaWorld.getBlockAt(100, 64, 100))));
+    }
+
+    private static PortalCreateEvent portal(Block block) {
+        return new PortalCreateEvent(List.of(block.getState()), block.getWorld(), PortalCreateEvent.CreateReason.FIRE);
     }
 
     @Test

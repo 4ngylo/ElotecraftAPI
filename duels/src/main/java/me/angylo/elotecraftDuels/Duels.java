@@ -166,7 +166,7 @@ public final class Duels {
         this.watchItem = new WatchItem(plugin, menus, matches, spectateMenu);
         for (Listener listener : List.of(sessions, parties, layouts, editor, events, lobbyItems, watchItem, customKitMenu,
                 new CombatListener(plugin, messages, this::settings, matches, snapshots),
-                new ProtectionListener(messages, this::settings, matches, duel),
+                new ProtectionListener(messages, this::settings, matches, instances, duel),
                 new BuildListener(this::settings, matches, instances, arenas))) {
             plugin.getServer().getPluginManager().registerEvents(listener, plugin);
         }

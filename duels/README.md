@@ -319,7 +319,8 @@ that forbid spectators. `/duels` itself needs `duels.admin`.
 
 While in a duel or spectating, players cannot drop, pick up (except fighters with a drop rule)
 or store items, open containers or other menus, change blocks (except with a [build kit](#build-kits)), use commands other than `/duel` and
-`rules.allowed-commands`, or teleport out of the arena (pearls inside it work). Among players only the
+`rules.allowed-commands`, or teleport out of the arena (pearls inside it work). Nether and end portals take
+nobody and nothing out of a duel or the arenas world, and none can be lit there. Among players only the
 two fighters can hurt each other; mobs, fall damage and the like still apply (unless a
 [game rule](#kit-game-rules) turns them off), so keep arenas mob-free and
 protected (e.g. WorldGuard). Explosions never break arena blocks, and arrows, tridents, pearls, dropped
@@ -525,7 +526,7 @@ The automated tests run on MockBukkit, which cannot click menus. Before a releas
 - [ ] Queue pairing and spectating; spectators cannot fly out of the arena
 - [ ] Ranked: rating change shown after a `/duel ranked` duel and not after a `/duel queue` one, `/duel top elo [kit]`, a first ranked duel in a kit starts from the old rating, a division change is announced
 - [ ] `/stop` during a duel, then join again: items and position restored
-- [ ] Ender pearl inside the arena works, out of it is blocked
+- [ ] Ender pearl inside the arena works, out of it is blocked; a lit nether portal in the arena takes nobody out
 - [ ] With MySQL: a duel's result appears in `/duel top`
 - [ ] Build kit: place, break your own blocks, bucket water and lava, flint and steel, TNT; the arena is
   back after the duel and nothing flowed or burned outside the box

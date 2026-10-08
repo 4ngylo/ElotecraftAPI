@@ -209,10 +209,10 @@ public final class CombatListener implements Listener {
             event.setTo(new Location(from.getWorld(), from.getX(), from.getY(), from.getZ(), to.getYaw(), to.getPitch()));
             return;
         }
-        // Bridge: walking into the other side's goal, or an end portal on its side, scores. The only place goals
-        // are counted: the portal itself is cancelled by ProtectionListener, after this move.
+        // Bridge: passing through the other side's goal, or into an end portal on its side, scores. The only place
+        // goals are counted: the portal itself is cancelled by ProtectionListener, after this move.
         if (event.hasChangedBlock() && match.mode() == Kit.Mode.BRIDGE && match.isFighting(player)
-                && match.scoresAt(match.teamOf(player.getUniqueId()), event.getTo(), settings.get().modes().goalRadius())) {
+                && match.scoresAt(match.teamOf(player.getUniqueId()), event.getFrom(), event.getTo(), settings.get().modes().goalRadius())) {
             matches.score(player);
             return;
         }

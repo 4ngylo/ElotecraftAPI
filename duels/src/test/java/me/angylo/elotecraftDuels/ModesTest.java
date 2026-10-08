@@ -133,6 +133,24 @@ class ModesTest extends DuelsTestBase {
         assertNotEquals(Color.RED, color(alex.getInventory().getBoots()));
     }
 
+    /** The goal is a flat ring at the goal point's layer: passing over or beside it scores nothing, through it scores. */
+    @Test
+    void aGoalIsALayerToPassThroughNotABox() {
+        Match match = fight(kit(Kit.Mode.BRIDGE).withRule(KitRule.ROUNDS_TO_WIN, 3));
+
+        alex.simulatePlayerMove(new Location(arenaWorld, 15.5, 65, 15.5));
+        alex.simulatePlayerMove(new Location(arenaWorld, 13.5, 66, 13.5));
+        alex.simulatePlayerMove(new Location(arenaWorld, 15.5, 66, 15.5));
+        alex.simulatePlayerMove(new Location(arenaWorld, 19.5, 66, 15.5));
+        alex.simulatePlayerMove(new Location(arenaWorld, 19.5, 64, 15.5));
+        assertEquals(Match.State.FIGHTING, match.state());
+
+        // Falling from above to below the layer in one move still crosses it.
+        alex.simulatePlayerMove(new Location(arenaWorld, 16.5, 66, 14.5));
+        alex.simulatePlayerMove(new Location(arenaWorld, 16.5, 62.5, 14.5));
+        assertEquals(Match.State.ROUND_OVER, match.state());
+    }
+
     @Test
     void anEndPortalOnTheEnemySideScoresOnceEvenOutsideTheGoalRadius() {
         Match match = fight(kit(Kit.Mode.BRIDGE).withRule(KitRule.ROUNDS_TO_WIN, 3));

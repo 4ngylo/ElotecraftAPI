@@ -318,19 +318,37 @@ public final class Match {
         };
     }
 
-    /** Bridge: whether {@code location} is in the goal of {@code team}, within {@code radius} blocks across and 1 up or down. */
-    public boolean inGoal(int team, Location location, int radius) {
+    /**
+     * Bridge: whether moving from {@code from} to {@code to} passes through the goal of {@code team}, a flat ring:
+     * the goal point's block layer, within {@code radius} blocks across (x and z). A fall through it in one move
+     * counts; passing over or beside it does not.
+     */
+    public boolean crossesGoal(int team, Location from, Location to, int radius) {
         Arena.Position goal = arena().points().goal(team + 1);
-        return goal != null && location.getWorld() == instance.world() && near(goal, location, radius, 1);
+        if (goal == null || to.getWorld() != instance.world()) {
+            return false;
+        }
+        int layer = (int) Math.floor(goal.y());
+        if (Math.min(from.getY(), to.getY()) >= layer + 1 || Math.max(from.getY(), to.getY()) < layer) {
+            return false;
+        }
+        // Where the move is halfway up the layer; a move along the layer is checked where it ends.
+        double rise = to.getY() - from.getY();
+        double along = rise == 0 ? 1 : Math.clamp((layer + 0.5 - from.getY()) / rise, 0, 1);
+        double x = from.getX() + (to.getX() - from.getX()) * along;
+        double z = from.getZ() + (to.getZ() - from.getZ()) * along;
+        return Math.abs((int) Math.floor(x) - (int) Math.floor(goal.x())) <= radius
+                && Math.abs((int) Math.floor(z) - (int) Math.floor(goal.z())) <= radius;
     }
 
     /**
-     * Bridge: whether a fighter of {@code team} at {@code location} scores: in the other side's goal, or in an end
-     * portal nearer the other side's goal than their own (goals are often end portals of any size).
+     * Bridge: whether a fighter of {@code team} moving from {@code from} to {@code location} scores: through the
+     * other side's goal, or into an end portal nearer the other side's goal than their own (goals are often end
+     * portals of any size).
      */
-    public boolean scoresAt(int team, Location location, int radius) {
+    public boolean scoresAt(int team, Location from, Location location, int radius) {
         int other = 1 - team;
-        if (inGoal(other, location, radius)) {
+        if (crossesGoal(other, from, location, radius)) {
             return true;
         }
         Arena.Position theirs = arena().points().goal(other + 1);

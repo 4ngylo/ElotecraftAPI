@@ -151,7 +151,7 @@ custom-kits:
 # between rounds. Bed fight: knocked-out fighters come back while their bed (/duels arena setbed) stands.
 modes:
   bridge:
-    goal-radius: 2          # blocks across from the goal point that count as in the goal, 0 to 16
+    goal-radius: 2          # 0 to 16 blocks across (x and z) from the goal point: a flat ring at its layer to pass through
     protect-radius: 3       # no blocks placed this close to a spawn or goal, 0 to 16
     goal-hologram: true     # messages.yml match.goal-hologram above each goal
 

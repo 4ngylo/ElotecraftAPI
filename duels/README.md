@@ -226,8 +226,9 @@ fight with two sides is won; bridge and bed fight also make the kit a build kit.
 (a party FFA) play them as normal kits.
 
 - **Bridge.** Each side has a goal: `/duels arena setgoal <arena> <1|2>` where you stand (side 1 starts at
-  spawn 1). Walking into the other side's goal (`modes.bridge.goal-radius` blocks across, 2 by default), or into an
-  end portal nearer the other side's goal than your own (goals are often end portal pits of any size), wins
+  spawn 1). Passing through the other side's goal, a flat ring at the goal point's block layer
+  (`modes.bridge.goal-radius` blocks across in x and z, 2 by default; a fall through it counts, going over or
+  beside it does not), or into an end portal nearer the other side's goal than your own (goals are often end portal pits of any size), wins
   the round; the kit rule `rounds-to-win` is the number of goals to win (5 for the default Bridge kit). Portals
   never take anyone anywhere and say nothing. The scorer watches as a spectator from the arena's center (or
   halfway between the spawns) until the next round. A `match.goal-hologram` ("JUMP") floats above each goal

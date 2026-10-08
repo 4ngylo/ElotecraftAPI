@@ -19,6 +19,8 @@ public enum KitRule {
     NATURAL_REGENERATION("natural-regeneration", Settings::naturalRegeneration),
     FRIENDLY_FIRE("friendly-fire", Settings::partyFriendlyFire),
     VOID_ELIMINATES("void-eliminates", Settings::voidEliminates),
+    /** Fighters leaving the arena's box by the sides or the top go back to their spawn; off for kits played over the void. */
+    ARENA_BOUNDS("arena-bounds", settings -> true),
     FALL_DAMAGE("fall-damage", settings -> true),
     FIRE_DAMAGE("fire-damage", settings -> true),
     EXPLOSION_DAMAGE("explosion-damage", settings -> true),

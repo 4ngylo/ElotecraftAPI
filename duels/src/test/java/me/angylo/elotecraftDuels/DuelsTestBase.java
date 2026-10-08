@@ -64,6 +64,8 @@ abstract class DuelsTestBase {
         await(duels.ready());
         // MockBukkit cannot show sidebars (ObjectiveMock.numberFormat); SidebarTest checks their layouts.
         setConfig("sidebar.match", false);
+        // Nor holograms (DisplayMock.setBillboard).
+        setConfig("modes.bridge.goal-hologram", false);
     }
 
     @AfterEach

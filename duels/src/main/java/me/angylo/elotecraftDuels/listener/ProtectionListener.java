@@ -254,15 +254,13 @@ public final class ProtectionListener implements Listener {
 
     /**
      * No nether or end portal in a duel or the arenas world. A portal event has its own handler list, so
-     * {@link #onTeleport} never sees it. Only players in a duel are told: in creative it fires every tick.
+     * {@link #onTeleport} never sees it. Nobody is told: bridge goals are end portals, and in creative a portal
+     * fires every tick.
      */
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onPortal(PlayerPortalEvent event) {
         Player player = event.getPlayer();
-        if (matches.isRestricted(player)) {
-            event.setCancelled(true);
-            messages.send(player, "match.blocked-teleport");
-        } else if (inArenasWorld(player.getWorld())) {
+        if (matches.isRestricted(player) || inArenasWorld(player.getWorld())) {
             event.setCancelled(true);
         }
     }

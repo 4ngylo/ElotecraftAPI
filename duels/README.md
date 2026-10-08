@@ -157,6 +157,7 @@ defaults: set them by hand, e.g. `/duels kit rule uhc natural-regeneration false
 | `natural-regeneration` | `rules.natural-regeneration` | false: a full hunger bar no longer heals (UHC); potions and golden apples still do |
 | `friendly-fire` | `parties.friendly-fire` | Teammates hurt each other in party fights |
 | `void-eliminates` | `rules.void-eliminates` | Falling out of the bottom of the arena loses |
+| `arena-bounds` | true | Fighters leaving the arena's box by the sides or the top go back to their spawn; false lets them out (kits played over the void, e.g. bridge), and they fall out of the bottom. Spectators always stay in the box. The default Bridge and Bed Fight kits have it off |
 | `fall-damage` | true | Falling hurts, and so does landing an ender pearl |
 | `fire-damage` | true | Fire, lava, magma blocks and campfires hurt |
 | `explosion-damage` | true | TNT, crystals and anchors hurt |
@@ -225,14 +226,21 @@ fight with two sides is won; bridge and bed fight also make the kit a build kit.
 (a party FFA) play them as normal kits.
 
 - **Bridge.** Each side has a goal: `/duels arena setgoal <arena> <1|2>` where you stand (side 1 starts at
-  spawn 1). Walking into the other side's goal (`modes.bridge.goal-radius` blocks across, 2 by default) wins
-  the round; the kit rule `rounds-to-win` is the number of goals to win (5 for the default Bridge kit).
+  spawn 1). Walking into the other side's goal (`modes.bridge.goal-radius` blocks across, 2 by default), or into an
+  end portal nearer the other side's goal than your own (goals are often end portal pits of any size), wins
+  the round; the kit rule `rounds-to-win` is the number of goals to win (5 for the default Bridge kit). Portals
+  never take anyone anywhere and say nothing. The scorer watches as a spectator from the arena's center (or
+  halfway between the spawns) until the next round. A `match.goal-hologram` ("JUMP") floats above each goal
+  (`modes.bridge.goal-hologram`). A golden apple heals a fighter fully at once, on top of its own effects.
   Knocked-out fighters come back at their spawn with the kit at once. Blocks placed stay from round to
   round and are put back when the duel ends, and nobody can place blocks within
   `modes.bridge.protect-radius` (3) of a spawn or goal.
 - **Bed fight.** Each side has a bed: look at it and run `/duels arena setbed <arena> <1|2>`. Knocked-out
   fighters come back at their spawn while their bed stands; fighters may break the other side's bed (not
   their own), after which that side is out once knocked out. The bed is put back after each round and the duel.
+
+In both modes side 1 is red and side 2 blue: leather armor is dyed, and wool and terracotta (not glazed) in the
+kit become the side's color, again on every respawn and round.
 
 The `/duels arena <arena>` menu has a button for each goal and bed too (for a bed, look at it before opening
 the menu). A bridge kit only uses arenas with both goals, a bed fight kit only arenas with both beds. Copies take the
@@ -544,6 +552,8 @@ The automated tests run on MockBukkit, which cannot click menus. Before a releas
   own items back; the leader quitting mid-fight hands the party over
 - [ ] `/duel editkit`: rearrange, [SAVE], the next duel uses the layout; [CANCEL] and `/stop` while
   editing give your own items back
+- [ ] Bridge (`smoke.js bridgeExtras`): JUMP over the goals, red and blue armor and terracotta, a golden apple
+  heals fully, an end portal goal scores once with no message, the scorer watches from the middle until the next round
 - [ ] Kit modes in an arena with goals and beds: a bridge goal wins the round and placed blocks stay, `/kill`
   brings a fighter back at their spawn with the kit; in a bed fight your own bed can't be broken, the enemy's
   can (both halves come back after the duel), and that side is out the next time

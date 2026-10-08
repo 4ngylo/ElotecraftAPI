@@ -250,7 +250,12 @@ public record Arena(String name, String displayName, Material icon, String world
      * fighter spawns. Only for a ready arena.
      */
     public Location spectatorSpawn(World in) {
-        Position position = spectator != null ? spectator : center != null ? center : new Position((spawn1.x() + spawn2.x()) / 2,
+        return spectator != null ? spectator.in(in) : middle(in);
+    }
+
+    /** The center in {@code in}, else halfway between the fighter spawns. Only for a ready arena. */
+    public Location middle(World in) {
+        Position position = center != null ? center : new Position((spawn1.x() + spawn2.x()) / 2,
                 (spawn1.y() + spawn2.y()) / 2, (spawn1.z() + spawn2.z()) / 2, spawn1.yaw(), 0);
         return position.in(in);
     }

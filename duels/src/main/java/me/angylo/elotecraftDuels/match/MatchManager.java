@@ -10,6 +10,7 @@ import me.angylo.elotecraftDuels.arena.ArenaRegistry;
 import me.angylo.elotecraftDuels.kit.Kit;
 import me.angylo.elotecraftDuels.kit.KitLayouts;
 import me.angylo.elotecraftDuels.kit.KitRule;
+import me.angylo.elotecraftDuels.kit.TeamColors;
 import me.angylo.elotecraftDuels.match.Match.EndReason;
 import me.angylo.elotecraftDuels.match.Match.State;
 import me.angylo.elotecraftDuels.match.Match.Type;
@@ -535,6 +536,9 @@ public final class MatchManager {
 
     private void beginCountdown(Match match) {
         Settings current = settings.get();
+        if (match.mode() == Kit.Mode.BRIDGE && current.modes().goalHologram()) {
+            GoalHolograms.show(plugin, match, messages.get("match.goal-hologram"));
+        }
         for (Player fighter : match.fighters()) {
             equip(match, fighter, current);
         }
@@ -555,6 +559,9 @@ public final class MatchManager {
             fighter.setMaximumNoDamageTicks(COMBO_NO_DAMAGE_TICKS);
         }
         layouts.apply(fighter, match.kit());
+        if (match.mode() != Kit.Mode.NORMAL) {
+            TeamColors.apply(fighter.getInventory(), match.teamOf(fighter.getUniqueId()));
+        }
         match.kit().applyStatus(fighter, current);
     }
 
@@ -659,6 +666,13 @@ public final class MatchManager {
         }
         int team = match.teamOf(scorer.getUniqueId());
         display.scored(match, scorer);
+        // Watches from the middle until the next round brings everyone back, or the fight ends.
+        scorer.setGameMode(GameMode.SPECTATOR);
+        Tasks.later(plugin, () -> {
+            if (byPlayer.get(scorer.getUniqueId()) == match) {
+                scorer.teleportAsync(match.instance().middle(), TeleportCause.UNKNOWN);
+            }
+        }, 1);
         if (match.winRound(team) < match.roundsToWin()) {
             roundOver(match, team);
         } else {
@@ -766,6 +780,7 @@ public final class MatchManager {
             match.task().cancel();
         }
         display.removeBossBar(match);
+        GoalHolograms.remove(match);
         for (Player spectator : match.spectators()) {
             messages.send(spectator, "spectate.ended");
         }

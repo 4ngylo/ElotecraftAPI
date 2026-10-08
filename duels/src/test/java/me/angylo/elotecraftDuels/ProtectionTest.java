@@ -127,7 +127,8 @@ class ProtectionTest extends DuelsTestBase {
         messages(visitor);
 
         assertTrue(cancelled(new PlayerPortalEvent(alex, alex.getLocation(), world.getSpawnLocation(), TeleportCause.NETHER_PORTAL)));
-        assertTrue(messages(alex).stream().anyMatch(line -> line.contains("You can't teleport away during a duel.")));
+        // Silent: bridge goals are end portals.
+        assertTrue(messages(alex).isEmpty());
         assertTrue(cancelled(new PlayerPortalEvent(visitor, visitor.getLocation(), world.getSpawnLocation(), TeleportCause.END_PORTAL)));
         assertTrue(messages(visitor).isEmpty());
         assertFalse(cancelled(new PlayerPortalEvent(outsider, outsider.getLocation(), arenaWorld.getSpawnLocation(), TeleportCause.NETHER_PORTAL)));

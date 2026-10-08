@@ -153,6 +153,7 @@ modes:
   bridge:
     goal-radius: 2          # blocks across from the goal point that count as in the goal, 0 to 16
     protect-radius: 3       # no blocks placed this close to a spawn or goal, 0 to 16
+    goal-hologram: true     # messages.yml match.goal-hologram above each goal
 
 # Hotbar items in the lobby that open the queues, events, kit editor and history (menus.yml lobby-items).
 # For practice servers: players' own items are never replaced, but the items take hotbar slots.

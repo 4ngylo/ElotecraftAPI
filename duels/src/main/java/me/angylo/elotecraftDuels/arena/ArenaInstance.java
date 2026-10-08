@@ -112,6 +112,11 @@ public final class ArenaInstance {
         return arena.spectatorSpawn(world);
     }
 
+    /** The arena's center, else halfway between its spawns. */
+    public Location middle() {
+        return arena.middle(world);
+    }
+
     public boolean contains(Location location) {
         return world.equals(location.getWorld()) && arena.inBox(location);
     }

@@ -1,5 +1,6 @@
 package me.angylo.elotecraftDuels.match;
 
+import me.angylo.elotecraftAPI.hologram.Hologram;
 import me.angylo.elotecraftDuels.PlayerOptions;
 import me.angylo.elotecraftDuels.arena.Arena;
 import me.angylo.elotecraftDuels.arena.ArenaInstance;
@@ -8,6 +9,7 @@ import me.angylo.elotecraftDuels.kit.KitRule;
 import me.angylo.elotecraftDuels.state.PlayerSnapshot;
 import net.kyori.adventure.bossbar.BossBar;
 import org.bukkit.Location;
+import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitTask;
@@ -108,6 +110,8 @@ public final class Match {
     private int fightSeconds;
     private int maxFightSeconds;
     private BossBar bossBar;
+    /** Bridge: the holograms above the goals, while the fight runs. */
+    private final List<Hologram> goalHolograms = new ArrayList<>();
     private FightBorder border;
     private BukkitTask task;
     private boolean over;
@@ -215,6 +219,10 @@ public final class Match {
         return instance.spectatorSpawn();
     }
 
+    List<Hologram> goalHolograms() {
+        return goalHolograms;
+    }
+
     public Kit kit() {
         return kit;
     }
@@ -314,6 +322,29 @@ public final class Match {
     public boolean inGoal(int team, Location location, int radius) {
         Arena.Position goal = arena().points().goal(team + 1);
         return goal != null && location.getWorld() == instance.world() && near(goal, location, radius, 1);
+    }
+
+    /**
+     * Bridge: whether a fighter of {@code team} at {@code location} scores: in the other side's goal, or in an end
+     * portal nearer the other side's goal than their own (goals are often end portals of any size).
+     */
+    public boolean scoresAt(int team, Location location, int radius) {
+        int other = 1 - team;
+        if (inGoal(other, location, radius)) {
+            return true;
+        }
+        Arena.Position theirs = arena().points().goal(other + 1);
+        Arena.Position ours = arena().points().goal(team + 1);
+        return theirs != null && ours != null && location.getWorld() == instance.world()
+                && location.getBlock().getType() == Material.END_PORTAL
+                && distanceSquared(theirs, location) < distanceSquared(ours, location);
+    }
+
+    private static double distanceSquared(Arena.Position point, Location location) {
+        double dx = point.x() - location.getX();
+        double dy = point.y() - location.getY();
+        double dz = point.z() - location.getZ();
+        return dx * dx + dy * dy + dz * dz;
     }
 
     /** Bridge: whether {@code location} is within {@code radius} blocks of a spawn or goal, where nobody builds. */

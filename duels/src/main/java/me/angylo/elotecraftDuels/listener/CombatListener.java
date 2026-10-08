@@ -13,6 +13,7 @@ import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.attribute.Attribute;
 import org.bukkit.entity.AbstractArrow;
 import org.bukkit.entity.AreaEffectCloud;
 import org.bukkit.entity.EnderPearl;
@@ -208,9 +209,10 @@ public final class CombatListener implements Listener {
             event.setTo(new Location(from.getWorld(), from.getX(), from.getY(), from.getZ(), to.getYaw(), to.getPitch()));
             return;
         }
-        // Bridge: walking into the other side's goal scores.
+        // Bridge: walking into the other side's goal, or an end portal on its side, scores. The only place goals
+        // are counted: the portal itself is cancelled by ProtectionListener, after this move.
         if (event.hasChangedBlock() && match.mode() == Kit.Mode.BRIDGE && match.isFighting(player)
-                && match.inGoal(1 - match.teamOf(player.getUniqueId()), event.getTo(), settings.get().modes().goalRadius())) {
+                && match.scoresAt(match.teamOf(player.getUniqueId()), event.getTo(), settings.get().modes().goalRadius())) {
             matches.score(player);
             return;
         }
@@ -224,9 +226,31 @@ public final class CombatListener implements Listener {
                 return;
             }
             boolean fighter = match.isFighter(player) && player.getGameMode() != GameMode.SPECTATOR;
+            // Kits played over the void let fighters out; they fall and come back from below.
+            if (fighter && !match.kit().flag(KitRule.ARENA_BOUNDS, settings.get())) {
+                return;
+            }
             event.setTo(fighter ? match.spawnOf(player) : match.spectatorSpawn());
             messages.send(player, "match.out-of-bounds");
         }
+    }
+
+    /**
+     * Bridge: a golden apple heals a fighter fully at once, as instant health would, on top of its own effects;
+     * food and saturation are left as the apple leaves them.
+     */
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onGoldenApple(PlayerItemConsumeEvent event) {
+        Player player = event.getPlayer();
+        if (event.getItem().getType() != Material.GOLDEN_APPLE) {
+            return;
+        }
+        matches.matchOf(player).filter(match -> match.mode() == Kit.Mode.BRIDGE && match.isFighting(player)).ifPresent(match -> {
+            double missing = player.getAttribute(Attribute.MAX_HEALTH).getValue() - player.getHealth();
+            if (missing > 0) {
+                player.heal(missing, EntityRegainHealthEvent.RegainReason.MAGIC);
+            }
+        });
     }
 
     /** No item use before the fight or after it ends: no pearls, potions or food. */

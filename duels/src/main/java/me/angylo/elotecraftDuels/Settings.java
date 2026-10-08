@@ -113,9 +113,10 @@ public record Settings(int countdownSeconds, Duration maxDuration, int endDelayS
 
     /**
      * The bridge kit mode: a fighter scores within {@code goalRadius} blocks (across) of the other side's goal point, and
-     * nobody places blocks within {@code protectRadius} blocks of a spawn or goal, so they cannot be walled off.
+     * nobody places blocks within {@code protectRadius} blocks of a spawn or goal, so they cannot be walled off;
+     * {@code goalHologram} shows {@code match.goal-hologram} above each goal.
      */
-    public record Modes(int goalRadius, int protectRadius) {
+    public record Modes(int goalRadius, int protectRadius, boolean goalHologram) {
     }
 
     /**
@@ -241,7 +242,8 @@ public record Settings(int countdownSeconds, Duration maxDuration, int endDelayS
                         integer(config, logger, "custom-kits.slots", 3, 1, MAX_CUSTOM_KITS),
                         config.getString("custom-kits.display-name", "<yellow><player>'s custom kit <slot>")),
                 new Modes(integer(config, logger, "modes.bridge.goal-radius", 2, 0, MAX_MODE_RADIUS),
-                        integer(config, logger, "modes.bridge.protect-radius", 3, 0, MAX_MODE_RADIUS)));
+                        integer(config, logger, "modes.bridge.protect-radius", 3, 0, MAX_MODE_RADIUS),
+                        config.getBoolean("modes.bridge.goal-hologram", true)));
     }
 
     private static Events events(ConfigurationSection config, Logger logger) {

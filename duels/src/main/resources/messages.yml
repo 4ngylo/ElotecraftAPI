@@ -209,6 +209,8 @@ match:
   respawned-title: "<gray>Respawned"
   respawned-subtitle: ""
   scored: "<prefix><gold><bold>GOAL!</bold></gold> <white><player></white> <gray>scored."
+  # Above each bridge goal (modes.bridge.goal-hologram).
+  goal-hologram: "<yellow><bold>JUMP"
   # <team> is the names of the side whose bed broke, <player> who broke it.
   bed-broken: "<prefix><red><bold>BED DESTROYED</bold></red> <gray><white><player></white> broke the bed of <white><team></white>."
   bed-broken-title: "<red><bold>BED DESTROYED"

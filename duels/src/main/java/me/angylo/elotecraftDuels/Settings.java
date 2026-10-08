@@ -32,7 +32,7 @@ public record Settings(int countdownSeconds, Duration maxDuration, int endDelayS
                 Duration rematchWindow, boolean hunger, boolean naturalRegeneration, Set<String> allowedCommands,
                 Reward winReward, Reward lossReward, Title.Times titleTimes, Effects effects,
                 boolean breakArenaBlocks, int regenBlocksPerTick, boolean voidEliminates, String arenasWorld,
-                int pregenSpacing, int maxCopies, int partyMaxSize, Duration partyInviteExpiry, boolean partyFriendlyFire, Duration kitEditorTimeout, Ranked ranked,
+                Pool pool, int partyMaxSize, Duration partyInviteExpiry, boolean partyFriendlyFire, Duration kitEditorTimeout, Ranked ranked,
                 Sidebars sidebars, int hologramLines, LobbyItems lobbyItems, Events events, Cosmetics cosmetics, Bets bets,
                 CustomKitOptions customKits, Modes modes) {
 
@@ -101,6 +101,14 @@ public record Settings(int countdownSeconds, Duration maxDuration, int endDelayS
         public Events {
             schedule = List.copyOf(schedule);
         }
+    }
+
+    /**
+     * Arena copies pasted on demand in the arenas world: {@code spacing} empty blocks between copies, at most
+     * {@code maxCopies} per arena, {@code warm} places kept ready per arena (the arena itself counts while free),
+     * and copies free for {@code idleTimeout} beyond those are removed.
+     */
+    public record Pool(int spacing, int maxCopies, int warm, Duration idleTimeout) {
     }
 
     /**
@@ -202,8 +210,11 @@ public record Settings(int countdownSeconds, Duration maxDuration, int endDelayS
                 integer(config, logger, "regen.blocks-per-tick", 2000, 1, 100_000),
                 config.getBoolean("rules.void-eliminates", true),
                 worldName(config, logger),
-                integer(config, logger, "arenas.pregen-spacing", 64, 16, 1024),
-                integer(config, logger, "arenas.max-copies", 32, 1, 256),
+                new Pool(
+                        integer(config, logger, "arenas.pool.spacing", 64, 16, 1024),
+                        integer(config, logger, "arenas.pool.max-copies", 32, 0, 256),
+                        integer(config, logger, "arenas.pool.warm", 1, 0, 16),
+                        duration(config, logger, "arenas.pool.idle-timeout", Duration.ofMinutes(2), Duration.ofSeconds(10))),
                 integer(config, logger, "parties.max-size", 8, 2, 100),
                 duration(config, logger, "parties.invite-expiry", Duration.ofSeconds(60), Duration.ofSeconds(5)),
                 config.getBoolean("parties.friendly-fire", false),

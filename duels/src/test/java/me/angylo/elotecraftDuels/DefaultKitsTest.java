@@ -28,7 +28,7 @@ class DefaultKitsTest extends DuelsTestBase {
     void aFirstStartInstallsTwentyPlayableKitsThatSurviveAReload() {
         duels.shutdown();
         assertTrue(new File(plugin.getDataFolder(), "kits.yml").delete());
-        duels = Duels.start(plugin);
+        duels = Duels.start(plugin, worldEdit);
         await(duels.ready());
         server.getScheduler().waitAsyncTasksFinished();
 

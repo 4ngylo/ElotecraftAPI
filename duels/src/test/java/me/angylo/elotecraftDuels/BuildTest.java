@@ -378,7 +378,7 @@ class BuildTest extends DuelsTestBase {
         duels.arenas().needsReset(arena.name(), true);
 
         duels.shutdown();
-        duels = Duels.start(plugin);
+        duels = Duels.start(plugin, worldEdit);
         await(duels.ready());
         tickUntil(() -> !duels.matches().isArenaInUse(arena.name()));
 

@@ -30,8 +30,8 @@
         </repository>
     </repositories>
 
-    <!-- All supplied by the server: ElotecraftAPI is required; Vault, PlaceholderAPI and FastAsyncWorldEdit (or
-         WorldEdit, same API) are optional. -->
+    <!-- All supplied by the server: ElotecraftAPI and FastAsyncWorldEdit (or WorldEdit, same API) are required;
+         Vault and PlaceholderAPI are optional. -->
     <dependencies>
         <dependency>
             <groupId>me.angylo</groupId>
@@ -48,7 +48,7 @@
             <artifactId>VaultAPI</artifactId>
             <scope>provided</scope>
         </dependency>
-        <!-- WorldEdit's API through FAWE 2.15.0 (built for Java 21, supports 1.21.11); only hook/WorldEditHook
+        <!-- WorldEdit's API through FAWE 2.15.0 (built for Java 21, supports 1.21.11); only hook/WorldEditBridge
              touches it. Its own libraries come with the server plugin. -->
         <dependency>
             <groupId>com.fastasyncworldedit</groupId>

@@ -7,7 +7,9 @@ import org.bukkit.Material;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.Plugin;
+import org.bukkit.util.BoundingBox;
 
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
@@ -32,14 +34,19 @@ public final class ArenaRegistry {
     /** Names Windows reserves for devices; they are also file names (arena snapshots). */
     private static final Pattern RESERVED = Pattern.compile("con|prn|aux|nul|com[0-9]|lpt[0-9]");
     private static final String ROOT = "arenas";
+    /** Marks an arena entry as a copy made by the old {@code /duels arena pregen}. */
+    private static final String OLD_COPY = "copy-of";
     /** Arenas a build duel changed and that were not put back yet, e.g. after a crash. */
     private static final String NEEDS_RESET = "needs-reset";
+    /** Boxes of the arenas world holding pasted copies, cleared at the next start if still there. */
+    private static final String POOL_BOXES = "pool-boxes";
 
     private final Plugin plugin;
     private final Logger logger;
     private final ConfigFile file;
     private final Map<String, Arena> arenas = new TreeMap<>();
     private final Set<String> needsReset = new TreeSet<>();
+    private final Set<String> poolBoxes = new TreeSet<>();
 
     public ArenaRegistry(Plugin plugin) {
         this.plugin = plugin;
@@ -47,6 +54,8 @@ public final class ArenaRegistry {
         this.file = new ConfigFile(plugin, "arenas.yml");
         load();
         needsReset.addAll(file.get().getStringList(NEEDS_RESET));
+        poolBoxes.addAll(file.get().getStringList(POOL_BOXES));
+        dropOldCopies();
     }
 
     /** Arena and kit names are YAML keys and command arguments, so they are kept simple. */
@@ -65,11 +74,6 @@ public final class ArenaRegistry {
 
     public List<String> names() {
         return List.copyOf(arenas.keySet());
-    }
-
-    /** The pregen copies of {@code base}, sorted by name. */
-    public List<Arena> copiesOf(String base) {
-        return arenas.values().stream().filter(arena -> arena.copy() != null && arena.copy().source().equals(base)).toList();
     }
 
     /**
@@ -127,6 +131,29 @@ public final class ArenaRegistry {
         }
     }
 
+    /** Boxes of the arenas world that hold pasted copies; see {@link #poolBox(BoundingBox, boolean)}. */
+    public List<BoundingBox> poolBoxes() {
+        return poolBoxes.stream().map(ArenaRegistry::box).filter(Objects::nonNull).toList();
+    }
+
+    /**
+     * Marks {@code box} of the arenas world as holding a copy, or as cleared. Saved right away, so copies
+     * a crash or a restart left behind are cleared at the next start.
+     */
+    public void poolBox(BoundingBox box, boolean value) {
+        String key = (int) box.getMinX() + "," + (int) box.getMinY() + "," + (int) box.getMinZ() + ","
+                + (int) box.getMaxX() + "," + (int) box.getMaxY() + "," + (int) box.getMaxZ();
+        if (value ? poolBoxes.add(key) : poolBoxes.remove(key)) {
+            file.get().set(POOL_BOXES, List.copyOf(poolBoxes));
+            if (plugin.isEnabled()) {
+                file.save().exceptionally(error -> {
+                    logger.log(Level.WARNING, "Could not save arenas.yml", error);
+                    return null;
+                });
+            }
+        }
+    }
+
     /**
      * Reloads arenas.yml; on a parse error the arenas in memory are kept and false is returned. Reset marks
      * are kept: a mark whose save is still pending must not be lost.
@@ -152,6 +179,9 @@ public final class ArenaRegistry {
         }
         for (String name : root.getKeys(false)) {
             ConfigurationSection section = root.getConfigurationSection(name);
+            if (section != null && section.isConfigurationSection(OLD_COPY)) {
+                continue;
+            }
             String world = section == null ? null : section.getString("world");
             if (!validName(name) || world == null || world.isBlank()) {
                 logger.warning("Skipping arena '" + name + "' in arenas.yml: it needs a lowercase name and a world");
@@ -162,7 +192,7 @@ public final class ArenaRegistry {
                     position(section, "spawn1"), position(section, "spawn2"), position(section, "spectator"),
                     position(section, "corner1"), position(section, "corner2"), categories(section),
                     position(section, "center"), section.isInt("build-limit") ? section.getInt("build-limit") : null,
-                    copy(section), extraSpawns(section), new Arena.ModePoints(position(section, "goal1"), position(section, "goal2"),
+                    null, extraSpawns(section), new Arena.ModePoints(position(section, "goal1"), position(section, "goal2"),
                     position(section, "bed1"), position(section, "bed2"))));
         }
     }
@@ -197,13 +227,48 @@ public final class ArenaRegistry {
         }
     }
 
-    private Arena.Copy copy(ConfigurationSection arena) {
-        ConfigurationSection section = arena.getConfigurationSection("copy-of");
-        String source = section == null ? null : section.getString("arena");
-        if (source == null) {
+    /**
+     * Copies made by {@code /duels arena pregen} before copies were pasted on demand: their entries go, and
+     * their boxes are cleared like copies a restart left behind.
+     */
+    private void dropOldCopies() {
+        ConfigurationSection root = file.get().getConfigurationSection(ROOT);
+        if (root == null) {
+            return;
+        }
+        List<String> old = root.getKeys(false).stream().filter(name -> root.isConfigurationSection(name + "." + OLD_COPY)).toList();
+        for (String name : old) {
+            ConfigurationSection section = root.getConfigurationSection(name);
+            Position corner1 = position(section, "corner1");
+            Position corner2 = position(section, "corner2");
+            if (corner1 != null && corner2 != null) {
+                poolBox(Arena.create(name, section.getString("world", "")).withCorner(1, corner1).withCorner(2, corner2).bounds(), true);
+            }
+            root.set(name, null);
+            needsReset.remove(name);
+        }
+        if (!old.isEmpty()) {
+            logger.info("Removed " + old.size() + " arena copies made by /duels arena pregen; copies are now pasted when needed");
+            file.get().set(NEEDS_RESET, List.copyOf(needsReset));
+            file.get().set(POOL_BOXES, List.copyOf(poolBoxes));
+            file.save().exceptionally(error -> {
+                logger.log(Level.WARNING, "Could not save arenas.yml", error);
+                return null;
+            });
+        }
+    }
+
+    private static BoundingBox box(String key) {
+        String[] parts = key.split(",");
+        if (parts.length != 6) {
             return null;
         }
-        return new Arena.Copy(source, section.getInt("dx"), section.getInt("dy"), section.getInt("dz"));
+        try {
+            int[] values = Arrays.stream(parts).mapToInt(part -> Integer.parseInt(part.strip())).toArray();
+            return new BoundingBox(values[0], values[1], values[2], values[3], values[4], values[5]);
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 
     private Material icon(ConfigurationSection section) {
@@ -251,12 +316,6 @@ public final class ArenaRegistry {
         }
         if (arena.buildLimit() != null) {
             yaml.set(path + ".build-limit", arena.buildLimit());
-        }
-        if (arena.copy() != null) {
-            yaml.set(path + ".copy-of.arena", arena.copy().source());
-            yaml.set(path + ".copy-of.dx", arena.copy().dx());
-            yaml.set(path + ".copy-of.dy", arena.copy().dy());
-            yaml.set(path + ".copy-of.dz", arena.copy().dz());
         }
     }
 

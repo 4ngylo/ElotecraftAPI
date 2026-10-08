@@ -2,13 +2,16 @@
 
 1v1 duels for Paper 1.21.11, built on ElotecraftAPI: challenges with kit and arena menus, matchmaking
 queues, spectators, rematches, statistics, build kits, Vault rewards and PlaceholderAPI placeholders.
-Several duels run at once, one per arena, and `/duels arena pregen` copies an arena as often as needed.
+Several duels run at once: while an arena is busy, WorldEdit pastes copies of it for the next duels, and
+copies nobody needs any more are cleared.
 Nothing a duel touches can leak out: players are saved before a duel and put back afterwards, and arenas
 are put back after build duels, even after a crash.
 
 ## Install
 
-1. Put `elotecraft-api-<version>.jar` and `elotecraft-duels-<version>.jar` in `plugins/`.
+1. Put `elotecraft-api-<version>.jar` and `elotecraft-duels-<version>.jar` in `plugins/`, with
+   [FastAsyncWorldEdit](https://github.com/IntellectualSites/FastAsyncWorldEdit) (recommended) or WorldEdit:
+   ElotecraftDuels needs one of them to start.
 2. Optional: [Vault](https://www.spigotmc.org/resources/vault.34315/) with an economy plugin for money
    rewards, and [PlaceholderAPI](https://www.spigotmc.org/resources/placeholderapi.6245/) for placeholders.
 3. Start the server once; `plugins/ElotecraftDuels/` gets `config.yml`, `messages.yml` and `menus.yml`.
@@ -33,10 +36,9 @@ Arenas and kits are made in game with `/duels` (operators by default).
    `/duels arena setname desert <gold>Desert`.
 5. `/duels arena info desert` says `ready`, or what is missing.
 
-**Or use the menus:** `/duels arena` lists the arenas built by hand (pregen copies are counted on their
-source) with buttons for a new arena and a schematic import, and `/duels arena desert` opens one arena's
+**Or use the menus:** `/duels arena` lists the arenas (copies are counted on their arena) with buttons for a new arena and a schematic import, and `/duels arena desert` opens one arena's
 settings: status, enabled, spawns, corners, WorldEdit box, spectator, center, FFA spawns, icon, name,
-categories, build limit, teleport, snapshot, pregen copies, reset and delete (reset, delete and clearing
+categories, build limit, teleport, snapshot, copies, reset and delete (reset, delete and clearing
 copies or FFA spawns need shift + right-click). Point buttons use the place you stand when you click; names and numbers are typed in chat. `/duels arena help` lists the commands.
 
 A fighter who falls out of the bottom of the box loses, as in the void (`rules.void-eliminates`); leaving
@@ -66,29 +68,34 @@ invites, with a click to join.
 **Build limit.** `/duels arena buildlimit desert 80` stops fighters placing blocks above Y 80 (`none`
 removes it), so bridges and towers stay low.
 
-**Copies.** One arena hosts one duel at a time; to host more, build it once and copy it:
+**Copies.** An arena hosts one duel at a time. Once it has a snapshot (`/duels arena snapshot desert`, taken
+while the arena is as it should be), a duel that finds it busy gets a copy instead: WorldEdit pastes one in the
+arenas world (`arenas.world`, an empty void world made at start), chest contents, sign text, banners and heads
+included. The fighters wait for the paste ("Preparing a copy of the arena..."), then the duel starts. A copy has
+the arena's spawns, center, goals, beds, categories and build limit, and players see the arena's name.
 
-1. `/duels arena snapshot desert` saves its blocks.
-2. `/duels arena pregen desert 8` pastes `desert-1` to `desert-8` on a grid in the arenas world
-   (`arenas.world`, an empty void world made at start), `arenas.pregen-spacing` blocks apart, a few blocks
-   per tick. Each copy takes duels as soon as it is pasted and has the arena's spawns, center, categories
-   and build limit.
-3. Copies cannot be edited. To change them, change `desert`, snapshot it again, then
-   `/duels arena pregen desert clear` (removes the copies and empties their space) and pregen again.
-   `desert` cannot be deleted while it has copies.
+- `arenas.pool.warm` (default 1) places are kept ready per arena, the arena itself counting while free: while
+  `desert` is busy, one copy is pasted ahead, so the next duel starts at once.
+- A copy free for `arenas.pool.idle-timeout` (default 2 minutes) is cleared, unless it is one of the warm places.
+- `arenas.pool.max-copies` (default 32) caps the copies of one arena; `0` turns copies off. Copies are
+  `arenas.pool.spacing` blocks apart.
+- `/duels arena pool desert` shows how many copies are in use and free; `/duels arena pool desert clear` clears
+  the free ones now.
+- After changing `desert`'s blocks, snapshot it again: free copies of the old snapshot are cleared, copies in use
+  once their duel ends. Changing its corners drops its snapshot.
+- Copies only live while the server runs: a restart clears the copies left in the arenas world.
+- FAWE pastes and clears off the main thread; plain WorldEdit does it on the main thread, which can lag for big
+  arenas.
 
-A restart during a pregen stops it; the copies pasted so far keep working.
+Copies made by `/duels arena pregen` in earlier versions are removed at the first start and their space is
+cleared. An arena with an older snapshot gets the WorldEdit one at that start, from its blocks as they stand.
 
-**With [FastAsyncWorldEdit](https://github.com/IntellectualSites/FastAsyncWorldEdit) or WorldEdit**
-(optional, recommended):
+**WorldEdit tools:**
 
-- Pregen copies the arena as it stands, chest contents, sign text, banners and heads included. FAWE
-  pastes off the main thread; plain WorldEdit pastes each copy at once on the main thread, which can lag
-  for big arenas. Without either, copies are pasted from the snapshot, which keeps blocks only.
 - `/duels arena setbox desert` sets both corners from your WorldEdit selection (`//wand`).
-- `/duels arena import desert desert.schem` pastes `plugins/ElotecraftDuels/schematics/desert.schem` at a
-  free place in the arenas world (lowest layer at Y 64) and makes it arena `desert` with its corners set;
-  set its spawns, then snapshot it.
+- `/duels arena import desert desert.schem` pastes `plugins/ElotecraftDuels/schematics/desert.schem` (the folder
+  is made at start) at a free place in the arenas world (lowest layer at Y 64) and makes it arena `desert` with
+  its corners set; set its spawns, then snapshot it.
 
 The arena must allow PvP: check the world's `pvp` setting and WorldGuard flags. If you use a combat-tag
 or graves plugin, exclude the arena regions; duels never fire death events, but combat tags still apply.
@@ -228,8 +235,8 @@ fight with two sides is won; bridge and bed fight also make the kit a build kit.
   their own), after which that side is out once knocked out. The bed is put back after each round and the duel.
 
 The `/duels arena <arena>` menu has a button for each goal and bed too (for a bed, look at it before opening
-the menu). A bridge kit only uses arenas with both goals, a bed fight kit only arenas with both beds. Set them before
-pregenerating copies (`/duels arena pregen`): copies take the points of their source when they are made.
+the menu). A bridge kit only uses arenas with both goals, a bed fight kit only arenas with both beds. Copies take the
+points of their arena when they are pasted.
 
 ## Build kits
 
@@ -286,7 +293,7 @@ with their arena and limited to 256 x 256 blocks across.
 | `/event join <host>`, `/event leave` | `duels.event` | Join or leave an event that has not started (`/duel leave` works too) |
 | `/event host [kit]` | `duels.event.host` | Host an event (kit menu without a kit), then set it up in its menu |
 | `/event settings\|start\|cancel`, `/event invite <player>` | `duels.event.host` | Run your event; invite players to a private one (`duels.event.host.private` makes it private) |
-| `/duels arena ...` | `duels.admin.arena` | menus: no argument or an arena name; `help`, `create`, `delete`, `setspawn`, `setcorner`, `setgoal`, `setbed`, `setbox`, `import`, `setspectator`, `setcenter`, `seticon`, `setname`, `category`, `buildlimit`, `toggle`, `info`, `tp`, `list`, `snapshot`, `reset`, `pregen` |
+| `/duels arena ...` | `duels.admin.arena` | menus: no argument or an arena name; `help`, `create`, `delete`, `setspawn`, `setcorner`, `setgoal`, `setbed`, `setbox`, `import`, `setspectator`, `setcenter`, `seticon`, `setname`, `category`, `buildlimit`, `toggle`, `info`, `tp`, `list`, `snapshot`, `reset`, `pool` |
 | `/duels kit ...` | `duels.admin.kit` | menus: no argument or a kit name; `help`, `create`, `save`, `load`, `delete`, `seticon`, `setname`, `setpermission`, `build`, `damage`, `mode`, `rule`, `arenas`, `defaults`, `list` |
 | `/duels hologram create <name> <wins\|elo> [kit]`, `delete <name>`, `list` | `duels.admin.hologram` | [Leaderboard holograms](#leaderboard-holograms) where you stand |
 | `/duels season`, `/duels season end [confirm]` | `duels.admin.season` | The [season](#seasons) running; end it (asks for `confirm` within 30 seconds) |
@@ -326,7 +333,7 @@ cut short by a crash is undone when the player next joins.
 
 - `config.yml`: database, countdown, duration, end delay, boss bar, request expiry and cooldown, rematch
   window, archers seeing the health their arrow left (`match.arrow-health`), hunger, regeneration and void rules, allowed commands, build kit and arena regen rules, the
-  arenas world and pregen spacing, ranked rating and queue range, party size and invite expiry, events,
+  arenas world and arena copies, ranked rating and queue range, party size and invite expiry, events,
   the sidebar, rewards, title timings, sounds and particles.
   Invalid values are logged and replaced by defaults.
 - `messages.yml`: every text players see, in [MiniMessage](https://docs.advntr.dev/minimessage/format.html).
@@ -524,10 +531,10 @@ The automated tests run on MockBukkit, which cannot click menus. Before a releas
   back after the duel and nothing flowed or burned outside the box
 - [ ] `/duels arena snapshot`, break the arena by hand, `/duels arena reset`; `/stop` mid build duel, start
   again: the console says the arena was rebuilt
-- [ ] The arenas world is created empty; `/duels arena pregen` of a real arena, several duels at once on
-  its copies, `pregen clear` empties their space; `/stop` mid build duel on a copy rebuilds the copy
-- [ ] With FAWE: pregen keeps a chest's contents and a sign's text in every copy with no lag spike;
-  `/duels arena setbox` from a `//wand` selection; `/duels arena import` of a `.schem`. Plain WorldEdit too
+- [ ] The arenas world is created empty; with one snapshotted arena, several duels at once get copies of it;
+  2 minutes after they end, the copies are cleared; `/stop` mid duel on a copy, start again: the copy is cleared
+- [ ] With FAWE: copies keep a chest's contents and a sign's text with no lag spike; `/duels arena setbox` from
+  a `//wand` selection; `/duels arena import` of a `.schem`. Plain WorldEdit too
 - [ ] A kit limited to a category only gets those arenas; the build limit stops towering; falling off the
   bottom of the arena loses the duel
 - [ ] Parties: invite by clicking [ACCEPT] in chat, `/party split` (move heads in the team menu, Start),
@@ -582,5 +589,4 @@ The automated tests run on MockBukkit, which cannot click menus. Before a releas
 
 ## Not included
 
-Own-inventory duels. Arenas cannot span worlds, and without WorldEdit copies don't keep
-chest contents or sign text.
+Own-inventory duels. Arenas cannot span worlds.

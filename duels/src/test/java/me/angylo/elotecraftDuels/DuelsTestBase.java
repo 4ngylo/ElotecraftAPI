@@ -45,6 +45,8 @@ abstract class DuelsTestBase {
     protected WorldMock world;
     protected WorldMock arenaWorld;
     protected Duels duels;
+    /** Kept across restarts of the plugin within a test, like the real server's WorldEdit. */
+    protected final FakeWorldEdit worldEdit = new FakeWorldEdit();
 
     @BeforeEach
     void startServer() throws IOException {
@@ -58,7 +60,7 @@ abstract class DuelsTestBase {
         registerPermissions();
         world = server.addSimpleWorld("world");
         arenaWorld = server.addSimpleWorld("arena");
-        duels = Duels.start(plugin);
+        duels = Duels.start(plugin, worldEdit);
         await(duels.ready());
         // MockBukkit cannot show sidebars (ObjectiveMock.numberFormat); SidebarTest checks their layouts.
         setConfig("sidebar.match", false);

@@ -429,14 +429,14 @@ kit-settings:
   back: {slot: 3, material: ARROW, name: "<yellow>« All kits"}
   close: {slot: 5, material: BARRIER, name: "<red>Close"}
 
-# /duels arena: every arena built by hand, for admins (pregen copies are counted on their source).
+# /duels arena: every arena, for admins (copies pasted for duels are counted on their arena).
 # Buttons run the /duels arena commands, so the same checks and messages apply.
 arena-admin:
   title: "<gradient:#4facfe:#00f2fe><bold>⚙ Arenas"
   rows: 4
   filler: {material: BLACK_STAINED_GLASS_PANE, name: " "}
   # One button per arena, shown with its icon. <arena>, <id>, <world>, <status>, <categories> and
-  # <copies> (pregen copies) are filled in.
+  # <copies> (copies pasted for duels right now) are filled in.
   arena:
     name: "<aqua><bold><arena>"
     lore:
@@ -555,15 +555,15 @@ arena-settings:
   snapshot:
     material: WRITABLE_BOOK
     name: "<green><bold>Save snapshot"
-    lore: ["<gray>Save its blocks, to rebuild", "<gray>it after a crash", "", "<yellow>▶ Click to save"]
+    lore: ["<gray>Save its blocks: copies are", "<gray>pasted from them, and it is", "<gray>rebuilt from them after a crash", "", "<yellow>▶ Click to save"]
   reset:
     material: TNT
     name: "<red><bold>Reset blocks"
     lore: ["<gray>Put every block back", "<gray>as in the snapshot", "", "<red>▶ Shift + right-click to reset"]
-  pregen:
+  pool:
     material: STRUCTURE_VOID
-    name: "<aqua><bold>Pregen copies"
-    lore: ["<gray>Copies: <white><value>", "<dark_gray>One duel each, in the arenas world", "", "<yellow>▶ Left-click and type how many", "<red>▶ Shift + right-click to remove them"]
+    name: "<aqua><bold>Copies"
+    lore: ["<gray>Copies now: <white><value>", "<dark_gray>Pasted in the arenas world while", "<dark_gray>the arena is busy, cleared when idle", "", "<yellow>▶ Left-click for details", "<red>▶ Shift + right-click to clear the free ones"]
   delete:
     material: LAVA_BUCKET
     name: "<red><bold>Delete arena"

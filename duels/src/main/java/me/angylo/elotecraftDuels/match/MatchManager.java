@@ -150,12 +150,12 @@ public final class MatchManager {
         return 2 * (int) running.stream().filter(match -> match.kit().name().equals(kit)).count();
     }
 
-    /** Whether a duel can start in {@code arena} now: it is ready and free, or has a copy to spare. */
+    /** Whether a duel can start in {@code arena} now: it is ready and free, or a copy of it can be had. */
     public boolean isArenaFree(Arena arena) {
         return instances.available(arena);
     }
 
-    /** Whether any duel uses {@code arena}, or it is still being put back after one. */
+    /** Whether any duel uses {@code arena} or a copy of it, or one is still being put back after a duel. */
     public boolean isArenaInUse(String arena) {
         return instances.inUse(arena) > 0;
     }
@@ -251,13 +251,22 @@ public final class MatchManager {
         }
         running.add(match);
         display.starting(match);
-        saved.whenComplete((ignored, error) -> guarded(match, () -> {
+        if (!instance.ready().isDone()) {
+            fighters.forEach(fighter -> messages.send(fighter, "match.preparing-arena"));
+        }
+        // A copy of the arena may still be pasting; the fighters wait for both.
+        CompletableFuture.allOf(saved, instance.ready()).whenComplete((ignored, error) -> guarded(match, () -> {
             if (match.isOver()) {
                 return;
             }
-            if (error != null) {
+            if (saved.isCompletedExceptionally()) {
                 logger.log(Level.SEVERE, "Could not save " + names + " before their duel, so it was cancelled", error);
                 cancel(match, "general.storage-error");
+                return;
+            }
+            if (error != null) {
+                logger.log(Level.SEVERE, "Could not prepare a copy of arena " + arena.name() + " for " + names, error);
+                cancel(match, "match.arena-failed");
                 return;
             }
             teleportFighters(match);

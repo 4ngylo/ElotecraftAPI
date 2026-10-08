@@ -14,7 +14,7 @@ import java.util.Random;
 import java.util.logging.Level;
 
 /**
- * The empty void world that {@code /duels arena pregen} pastes arena copies into, away from the lobby. No
+ * The empty void world arena copies and imported schematics are pasted into, away from the lobby. No
  * mobs, weather or day cycle, so every duel there looks the same. Main thread only.
  */
 public final class ArenaWorld {
@@ -33,11 +33,11 @@ public final class ArenaWorld {
                 world = new WorldCreator(name).generator(new Empty()).generateStructures(false).createWorld();
             } catch (RuntimeException e) {
                 plugin.getLogger().log(Level.WARNING, "Could not load or create the arenas world " + name
-                        + ", so /duels arena pregen is off", e);
+                        + ", so arenas get no copies and schematics cannot be imported", e);
                 return Optional.empty();
             }
             if (world == null) {
-                plugin.getLogger().warning("Could not load or create the arenas world " + name + ", so /duels arena pregen is off");
+                plugin.getLogger().warning("Could not load or create the arenas world " + name + ", so arenas get no copies and schematics cannot be imported");
                 return Optional.empty();
             }
         }

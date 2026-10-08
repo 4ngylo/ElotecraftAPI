@@ -9,6 +9,7 @@ import me.angylo.elotecraftAPI.util.Text;
 import me.angylo.elotecraftDuels.Effects;
 import me.angylo.elotecraftDuels.Settings;
 import me.angylo.elotecraftDuels.arena.Arena;
+import me.angylo.elotecraftDuels.arena.ArenaPool;
 import me.angylo.elotecraftDuels.arena.ArenaRegistry;
 import net.kyori.adventure.audience.Audience;
 import net.kyori.adventure.text.Component;
@@ -30,7 +31,7 @@ import static me.angylo.elotecraftDuels.menu.MenuLayout.value;
 import static me.angylo.elotecraftDuels.menu.MenuLayout.with;
 
 /**
- * Arena setup in menus: every arena built by hand (pregen copies are counted, not listed), and a settings
+ * Arena setup in menus: every arena (copies are counted, not listed), and a settings
  * menu per arena. Like {@link KitAdminMenu}, each button runs the matching {@code /duels arena} command as
  * the clicking player; points are taken where the player stands. Layouts in menus.yml {@code arena-admin}
  * and {@code arena-settings}.
@@ -42,13 +43,16 @@ public final class ArenaAdminMenu {
     private final ConfigFile menus;
     private final Supplier<Settings> settings;
     private final ArenaRegistry arenas;
+    private final ArenaPool pool;
 
-    public ArenaAdminMenu(Plugin plugin, Messages messages, ConfigFile menus, Supplier<Settings> settings, ArenaRegistry arenas) {
+    public ArenaAdminMenu(Plugin plugin, Messages messages, ConfigFile menus, Supplier<Settings> settings, ArenaRegistry arenas,
+                          ArenaPool pool) {
         this.plugin = plugin;
         this.messages = messages;
         this.menus = menus;
         this.settings = settings;
         this.arenas = arenas;
+        this.pool = pool;
     }
 
     /** "ready", or the arena's problems joined with commas. */
@@ -66,7 +70,7 @@ public final class ArenaAdminMenu {
         try {
             Effects effects = settings.get().effects();
             PaginatedMenu menu = MenuLayout.frame(plugin, section);
-            menu.items(arenas.all().stream().filter(arena -> arena.copy() == null).map(arena -> Button.of(listIcon(viewer, section, arena),
+            menu.items(arenas.all().stream().map(arena -> Button.of(listIcon(viewer, section, arena),
                     MenuLayout.choose(plugin, effects, player -> openSettings(player, arena.name())))).toList());
             MenuLayout.place(menu, section, "create", MenuLayout.choose(plugin, effects, player ->
                     MenuLayout.ask(plugin, messages, player, "admin.arena.prompt-create", new TagResolver[0], text -> {
@@ -102,7 +106,13 @@ public final class ArenaAdminMenu {
                 Placeholder.unparsed("world", arena.world()),
                 Placeholder.component("status", status(messages, viewer, arena)),
                 Placeholder.component("categories", categories(section, arena)),
-                Placeholder.unparsed("copies", String.valueOf(arenas.copiesOf(arena.name()).size()))));
+                Placeholder.unparsed("copies", String.valueOf(copies(arena.name())))));
+    }
+
+    /** Copies of {@code arena}, in use and free. */
+    private int copies(String arena) {
+        ArenaPool.Count count = pool.count(arena);
+        return count.inUse() + count.free();
     }
 
     /** Runs {@code /duels arena <args>} as {@code player}. */
@@ -161,8 +171,8 @@ public final class ArenaAdminMenu {
             buttons.add(Button.of(entry("teleport", arena, Component.empty()), MenuLayout.choose(plugin, effects, player -> run(player, "tp " + name))));
             buttons.add(Button.of(entry("snapshot", arena, Component.empty()), change("snapshot")));
             buttons.add(Button.of(entry("reset", arena, Component.empty()), confirmed(change("reset"))));
-            buttons.add(Button.of(entry("pregen", arena, Component.text(arenas.copiesOf(name).size())),
-                    split(prompt("pregen", "", "admin.arena.prompt-pregen", arena), confirmed(change("pregen", "clear")))));
+            buttons.add(Button.of(entry("pool", arena, Component.text(copies(name))),
+                    split(change("pool"), confirmed(change("pool", "clear")))));
             buttons.add(Button.of(entry("delete", arena, Component.empty()), confirmed(MenuLayout.choose(plugin, effects, player -> {
                 run(player, "delete " + name);
                 openList(player);

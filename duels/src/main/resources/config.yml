@@ -140,6 +140,14 @@ custom-kits:
   # The name duels show; <player> is the builder, <slot> the kit's number.
   display-name: "<yellow><player>'s custom kit <slot>"
 
+# Kit modes (/duels kit mode <kit> bridge|bed-fight). Bridge: walking into the other side's goal (set with
+# /duels arena setgoal) wins a round; knocked-out fighters come back at their spawn, and placed blocks stay
+# between rounds. Bed fight: knocked-out fighters come back while their bed (/duels arena setbed) stands.
+modes:
+  bridge:
+    goal-radius: 2          # blocks across from the goal point that count as in the goal, 0 to 16
+    protect-radius: 3       # no blocks placed this close to a spawn or goal, 0 to 16
+
 # Hotbar items in the lobby that open the queues, events, kit editor and history (menus.yml lobby-items).
 # For practice servers: players' own items are never replaced, but the items take hotbar slots.
 lobby-items:

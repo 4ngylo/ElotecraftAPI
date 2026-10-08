@@ -156,7 +156,7 @@ public final class KitRegistry {
                 ItemStack[] items = ItemStack.deserializeItemsFromBytes(Base64.getDecoder().decode(section.getString("items", "")));
                 kits.put(name, new Kit(name, section.getString("display-name", name), icon(section),
                         permission(section), Arrays.asList(items), section.getBoolean("build", false), arenaCategories(section),
-                        section.getBoolean("damage", true), rules(section), rewards(section), effects(section)));
+                        section.getBoolean("damage", true), rules(section), rewards(section), effects(section), mode(section)));
             } catch (RuntimeException e) {
                 logger.warning("Skipping kit '" + name + "' in kits.yml: its items could not be read (" + e.getMessage() + ")");
             }
@@ -237,6 +237,14 @@ public final class KitRegistry {
         return raw;
     }
 
+    private Kit.Mode mode(ConfigurationSection section) {
+        String raw = section.getString("mode", Kit.Mode.NORMAL.key());
+        return Kit.Mode.byKey(raw).orElseGet(() -> {
+            logger.warning("Kit '" + section.getName() + "' has an unknown mode '" + raw + "'; using " + Kit.Mode.NORMAL.key());
+            return Kit.Mode.NORMAL;
+        });
+    }
+
     private void write(Kit kit) {
         YamlConfiguration yaml = file.get();
         String path = ROOT + "." + kit.name();
@@ -246,6 +254,9 @@ public final class KitRegistry {
         yaml.set(path + ".permission", kit.permission() == null ? "" : kit.permission());
         yaml.set(path + ".build", kit.build());
         yaml.set(path + ".damage", kit.damage());
+        if (kit.mode() != Kit.Mode.NORMAL) {
+            yaml.set(path + ".mode", kit.mode().key());
+        }
         yaml.set(path + ".arena-categories", kit.arenaCategories().stream().sorted().toList());
         for (KitRule rule : KitRule.values()) {
             Object value = kit.rules().get(rule);

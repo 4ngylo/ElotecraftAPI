@@ -34,7 +34,7 @@ public record Settings(int countdownSeconds, Duration maxDuration, int endDelayS
                 boolean breakArenaBlocks, int regenBlocksPerTick, boolean voidEliminates, String arenasWorld,
                 int pregenSpacing, int maxCopies, int partyMaxSize, Duration partyInviteExpiry, boolean partyFriendlyFire, Duration kitEditorTimeout, Ranked ranked,
                 Sidebars sidebars, int hologramLines, LobbyItems lobbyItems, Events events, Cosmetics cosmetics, Bets bets,
-                CustomKitOptions customKits) {
+                CustomKitOptions customKits, Modes modes) {
 
     private static final long MILLIS_PER_TICK = 50;
     private static final int MAX_TITLE_TICKS = 200;
@@ -44,6 +44,7 @@ public record Settings(int countdownSeconds, Duration maxDuration, int endDelayS
     private static final int MAX_EVENT_PLAYERS = 100;
     private static final int MAX_TOURNAMENT_REPLAYS = 10;
     private static final int MAX_CUSTOM_KITS = 9;
+    private static final int MAX_MODE_RADIUS = 16;
     private static final double MAX_BORDER_DAMAGE = 20;
     private static final int MINUTES_PER_DAY = 24 * 60;
     private static final double MIN_BET = 0.01;
@@ -100,6 +101,13 @@ public record Settings(int countdownSeconds, Duration maxDuration, int endDelayS
         public Events {
             schedule = List.copyOf(schedule);
         }
+    }
+
+    /**
+     * The bridge kit mode: a fighter scores within {@code goalRadius} blocks (across) of the other side's goal point, and
+     * nobody places blocks within {@code protectRadius} blocks of a spawn or goal, so they cannot be walled off.
+     */
+    public record Modes(int goalRadius, int protectRadius) {
     }
 
     /**
@@ -220,7 +228,9 @@ public record Settings(int countdownSeconds, Duration maxDuration, int endDelayS
                 bets(config, logger),
                 new CustomKitOptions(config.getString("custom-kits.base-kit", "").strip().toLowerCase(Locale.ROOT),
                         integer(config, logger, "custom-kits.slots", 3, 1, MAX_CUSTOM_KITS),
-                        config.getString("custom-kits.display-name", "<yellow><player>'s custom kit <slot>")));
+                        config.getString("custom-kits.display-name", "<yellow><player>'s custom kit <slot>")),
+                new Modes(integer(config, logger, "modes.bridge.goal-radius", 2, 0, MAX_MODE_RADIUS),
+                        integer(config, logger, "modes.bridge.protect-radius", 3, 0, MAX_MODE_RADIUS)));
     }
 
     private static Events events(ConfigurationSection config, Logger logger) {

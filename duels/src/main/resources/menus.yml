@@ -354,6 +354,9 @@ kit-settings:
     vanilla: "<gray>vanilla"
     set: "<green>set for this kit"
     default: "<gray>default"
+    mode-normal: "<white>normal"
+    mode-bridge: "<white>bridge"
+    mode-bed-fight: "<white>bed fight"
   build:
     material: BRICKS
     name: "<gold><bold>Building"
@@ -390,6 +393,11 @@ kit-settings:
     material: LAVA_BUCKET
     name: "<red><bold>Delete kit"
     lore: ["<gray>Removes the kit for good", "", "<red>▶ Shift + right-click to delete"]
+  # Bridge: goals win rounds; bed fight: fighters respawn while their bed stands. Both make it a build kit.
+  mode:
+    material: RED_BED
+    name: "<gold><bold>Mode"
+    lore: ["<gray>Now: <value>", "<dark_gray>Arenas need goals or beds", "", "<yellow>▶ Click to switch"]
   # One button per game rule. <rule>, <value> and <state> (set or default) are filled in.
   # The material shows the value: flag-on, flag-off, seconds for a number of seconds, or number.
   rule:
@@ -506,6 +514,24 @@ arena-settings:
     material: ARMOR_STAND
     name: "<aqua><bold>FFA spawns"
     lore: ["<gray>Spawns: <white><value>", "<dark_gray>One per player in party FFAs", "", "<yellow>▶ Click to add where you stand", "<red>▶ Shift + right-click to clear"]
+  # Bridge and bed fight kits (/duels kit mode): side 1 starts at spawn 1. A bed is the one you looked at
+  # when you opened this menu.
+  goal-1:
+    material: RED_BANNER
+    name: "<aqua><bold>Bridge goal 1"
+    lore: ["<gray>At: <white><value>", "<dark_gray>Side 2 scores by walking in", "", "<yellow>▶ Click to set where you stand"]
+  goal-2:
+    material: BLUE_BANNER
+    name: "<aqua><bold>Bridge goal 2"
+    lore: ["<gray>At: <white><value>", "<dark_gray>Side 1 scores by walking in", "", "<yellow>▶ Click to set where you stand"]
+  bed-1:
+    material: RED_BED
+    name: "<aqua><bold>Bed 1"
+    lore: ["<gray>At: <white><value>", "<dark_gray>Bed fight: side 1 respawns while it stands", "", "<yellow>▶ Look at the bed, open this menu, click"]
+  bed-2:
+    material: BLUE_BED
+    name: "<aqua><bold>Bed 2"
+    lore: ["<gray>At: <white><value>", "<dark_gray>Bed fight: side 2 respawns while it stands", "", "<yellow>▶ Look at the bed, open this menu, click"]
   # Shown with the arena's icon; the material here is not used.
   icon:
     name: "<aqua><bold>Icon"

@@ -29,6 +29,8 @@ final class DefaultKits {
     private static final int SUMO_ROUNDS = 2;
     /** Boxing: the first to land 100 hits wins, as on most practice servers. */
     private static final int BOXING_HITS = 100;
+    /** Bridge: the first to score 5 goals wins, as on most practice servers. */
+    private static final int BRIDGE_GOALS = 5;
 
     private DefaultKits() {
     }
@@ -122,7 +124,17 @@ final class DefaultKits {
                         .armor("DIAMOND", 3).slot(0, ench(Material.DIAMOND_SPEAR, Enchantment.LUNGE, 3))
                         .slot(1, ench(Material.DIAMOND_SWORD, Enchantment.SHARPNESS, 3)).slot(2, item(Material.GOLDEN_APPLE, 16))
                         .slot(3, item(Material.ENDER_PEARL, 8)).slot(8, item(Material.COOKED_BEEF, 64))
-                        .slot(OFF_HAND, item(Material.SHIELD, 1))));
+                        .slot(OFF_HAND, item(Material.SHIELD, 1))),
+                kit("bridge", "<blue>Bridge", Material.BLUE_TERRACOTTA, true, Set.of("bridge"), new Loadout()
+                        .armor("LEATHER", 0).slot(0, item(Material.IRON_SWORD, 1)).slot(1, item(Material.BOW, 1))
+                        .slot(2, ench(Material.DIAMOND_PICKAXE, Enchantment.EFFICIENCY, 2)).slot(3, item(Material.BLUE_TERRACOTTA, 64))
+                        .slot(4, item(Material.BLUE_TERRACOTTA, 64)).slot(5, item(Material.GOLDEN_APPLE, 8)).slot(8, item(Material.ARROW, 8)))
+                        .withMode(Kit.Mode.BRIDGE).withRule(KitRule.ROUNDS_TO_WIN, BRIDGE_GOALS),
+                kit("bedfight", "<red>Bed Fight", Material.RED_BED, true, Set.of("bedfight"), new Loadout()
+                        .armor("LEATHER", 0).slot(0, item(Material.STONE_SWORD, 1)).slot(1, item(Material.WOODEN_PICKAXE, 1))
+                        .slot(2, item(Material.SHEARS, 1)).slot(3, item(Material.WHITE_WOOL, 64)).slot(4, item(Material.WHITE_WOOL, 64))
+                        .slot(5, item(Material.GOLDEN_APPLE, 4)).slot(8, item(Material.COOKED_BEEF, 64)))
+                        .withMode(Kit.Mode.BED_FIGHT));
     }
 
     /** NoDebuff: healing splash potions fill the inventory; Debuff adds poison and slowness to throw. */

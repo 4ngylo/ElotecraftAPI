@@ -19,7 +19,9 @@ import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.Tag;
 import org.bukkit.World;
+import org.bukkit.block.Block;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.event.player.PlayerTeleportEvent.TeleportCause;
@@ -48,6 +50,7 @@ import java.util.regex.Pattern;
 public final class AdminCommand {
 
     private static final List<String> NUMBERS = List.of("1", "2");
+    private static final int BED_REACH = 5;
     private static final List<String> ADD_REMOVE = List.of("add", "remove");
     private static final String NONE = "none";
     private static final String CLEAR = "clear";
@@ -92,6 +95,8 @@ public final class AdminCommand {
                         .sub("delete", null, (sender, args) -> withEditableArena(sender, args, this::deleteArena), arenaNames)
                         .playerSub("setspawn", null, (player, args) -> setPoint(player, args, true), arenaNumber)
                         .playerSub("setcorner", null, (player, args) -> setPoint(player, args, false), arenaNumber)
+                        .playerSub("setgoal", null, (player, args) -> setModePoint(player, args, false), arenaNumber)
+                        .playerSub("setbed", null, (player, args) -> setModePoint(player, args, true), arenaNumber)
                         .playerSub("setspectator", null, (player, args) -> withEditableArena(player, args, (arena, rest) ->
                                 inWorld(player, arena, () -> save(player, arenas.update(arena.withSpectator(Arena.Position.of(player.getLocation()))),
                                         "admin.arena.spectator-set", arenaTags(arena)))), arenaNames)
@@ -182,6 +187,35 @@ public final class AdminCommand {
             inWorld(player, arena, () -> save(player, arenas.update(changed),
                     spawn ? "admin.arena.spawn-set" : "admin.arena.corner-set",
                     with(arenaTags(arena), Placeholder.unparsed("number", number))));
+        });
+    }
+
+    /**
+     * {@code setgoal <arena> <1|2>}: side 1 or 2's bridge goal where the player stands. {@code setbed <arena> <1|2>}:
+     * the bed fight bed the player looks at.
+     */
+    private void setModePoint(Player player, String[] args, boolean bed) {
+        withEditableArena(player, args, (arena, rest) -> {
+            String number = Args.get(rest, 0);
+            if (!NUMBERS.contains(number)) {
+                messages.send(player, "admin.use-number");
+                return;
+            }
+            int side = Integer.parseInt(number);
+            Arena.Position position;
+            if (bed) {
+                Block target = player.getTargetBlockExact(BED_REACH);
+                if (target == null || !Tag.BEDS.isTagged(target.getType())) {
+                    messages.send(player, "admin.arena.not-a-bed");
+                    return;
+                }
+                position = Arena.Position.of(target.getLocation());
+            } else {
+                position = Arena.Position.of(player.getLocation());
+            }
+            Arena.ModePoints points = bed ? arena.points().withBed(side, position) : arena.points().withGoal(side, position);
+            inWorld(player, arena, () -> save(player, arenas.update(arena.withPoints(points)),
+                    bed ? "admin.arena.bed-set" : "admin.arena.goal-set", with(arenaTags(arena), Placeholder.unparsed("number", number))));
         });
     }
 

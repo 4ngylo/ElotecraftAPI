@@ -96,6 +96,9 @@ final class KitAdminCommand {
                     Kit changed = kit.withDamage(!kit.damage());
                     admin.save(sender, kits.update(changed), changed.damage() ? "admin.kit.damage-on" : "admin.kit.damage-off", kitTags(kit));
                 }), kitNames)
+                .sub("mode", null, (sender, args) -> withKit(sender, args, (kit, rest) -> mode(sender, kit, rest)),
+                        (sender, args) -> args.length == 1 ? Args.filter(kits.names(), args)
+                                : args.length == 2 ? Args.filter(Arrays.stream(Kit.Mode.values()).map(Kit.Mode::key).toList(), args) : List.of())
                 .sub("effect", null, (sender, args) -> withKit(sender, args, (kit, rest) -> effect(sender, kit, rest)),
                         (sender, args) -> args.length == 1 ? Args.filter(kits.names(), args)
                                 : args.length == 2 ? Args.filter(Registry.MOB_EFFECT.stream().map(type -> type.getKey().getKey()).sorted().toList(), args)
@@ -111,6 +114,19 @@ final class KitAdminCommand {
                         (sender, args) -> args.length == 1 ? Args.filter(kits.names(), args)
                                 : Args.filter(args.length == 2 ? withAny(admin.categories()) : admin.categories(), args))
                 .sub("list", null, (sender, args) -> listKits(sender));
+    }
+
+    /** {@code mode <kit> [mode]}: sets the mode, or the next one without it. Bridge and bed fight make it a build kit. */
+    private void mode(CommandSender sender, Kit kit, String[] rest) {
+        Kit.Mode mode = rest.length == 0 ? Kit.Mode.values()[(kit.mode().ordinal() + 1) % Kit.Mode.values().length]
+                : Kit.Mode.byKey(rest[0]).orElse(null);
+        if (mode == null) {
+            messages.send(sender, "admin.kit.mode-usage");
+            return;
+        }
+        Kit changed = kit.withMode(mode).withBuild(kit.build() || mode != Kit.Mode.NORMAL);
+        admin.save(sender, kits.update(changed), "admin.kit.mode-set",
+                with(kitTags(kit), Placeholder.component("mode", messages.get(sender, "admin.kit.modes." + mode.key()))));
     }
 
     private void createKit(Player player, String[] args) {

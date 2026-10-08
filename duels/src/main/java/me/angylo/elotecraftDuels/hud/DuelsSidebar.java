@@ -27,6 +27,7 @@ import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityRegainHealthEvent;
 import org.bukkit.plugin.Plugin;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -109,8 +110,9 @@ public final class DuelsSidebar implements Listener {
     public Layout layoutFor(Player player) {
         Optional<Match> match = matches.matchOf(player);
         if (match.isPresent()) {
-            return new Layout(messages.get(player, "sidebar.match-title"),
-                    messages.lines(player, matchKey(match.get(), player), matchTags(match.get(), player)));
+            List<Component> lines = new ArrayList<>(messages.lines(player, matchKey(match.get(), player), matchTags(match.get(), player)));
+            modeLine(match.get(), player).ifPresent(line -> lines.add(Math.min(1, lines.size()), line));
+            return new Layout(messages.get(player, "sidebar.match-title"), lines);
         }
         return new Layout(messages.get(player, "sidebar.lobby-title"), messages.lines(player, "sidebar.lobby", lobbyTags(player)));
     }
@@ -210,6 +212,32 @@ public final class DuelsSidebar implements Listener {
         return match.isRanked() ? "sidebar.ranked-duel" : "sidebar.duel";
     }
 
+    /**
+     * Bridge: the goals of each side. Bed fight: whether each side's bed stands. From the viewer's side for a fighter,
+     * side 1 then side 2 for a spectator. Shown under the first line.
+     */
+    private Optional<Component> modeLine(Match match, Player viewer) {
+        Kit.Mode mode = match.mode();
+        if (mode == Kit.Mode.NORMAL) {
+            return Optional.empty();
+        }
+        int own = match.teamOf(viewer.getUniqueId());
+        boolean fighter = own >= 0;
+        int first = fighter ? own : 0;
+        int second = 1 - first;
+        String key = (mode == Kit.Mode.BRIDGE ? "sidebar.goals" : "sidebar.beds") + (fighter ? "" : "-spectating");
+        return Optional.of(messages.get(viewer, key,
+                Placeholder.unparsed("goals", String.valueOf(match.roundWins(first))),
+                Placeholder.unparsed("opponent_goals", String.valueOf(match.roundWins(second))),
+                Placeholder.unparsed("to_win", String.valueOf(match.roundsToWin())),
+                Placeholder.component("bed", bed(viewer, match.hasBed(first))),
+                Placeholder.component("opponent_bed", bed(viewer, match.hasBed(second)))));
+    }
+
+    private Component bed(Player viewer, boolean standing) {
+        return messages.get(viewer, standing ? "sidebar.bed-standing" : "sidebar.bed-broken");
+    }
+
     private TagResolver[] matchTags(Match match, Player viewer) {
         int team = match.teamOf(viewer.getUniqueId());
         Player opponent = match.isDuel() && team >= 0 ? match.opponentOf(viewer) : null;
@@ -221,7 +249,9 @@ public final class DuelsSidebar implements Listener {
                 Placeholder.unparsed("score", match.score(team)));
         return new TagResolver[]{
                 round,
-                Placeholder.component("rounds", match.roundsToWin() > 1 ? messages.get(viewer, "sidebar.rounds", round) : Component.empty()),
+                // Bridge rounds are goals, on their own line.
+                Placeholder.component("rounds", match.roundsToWin() > 1 && match.mode() != Kit.Mode.BRIDGE
+                        ? messages.get(viewer, "sidebar.rounds", round) : Component.empty()),
                 Placeholder.component("kit", Text.mm(match.kit().displayName())),
                 Placeholder.component("arena", Text.mm(match.arena().displayName())),
                 Placeholder.unparsed("time", clock(match.timeLeftSeconds())),

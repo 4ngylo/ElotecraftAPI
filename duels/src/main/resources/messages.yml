@@ -63,6 +63,7 @@ command:
     <yellow>/duels arena create <name></yellow> <dark_gray>-</dark_gray> <gray>new arena in your world
     <yellow>/duels arena setspawn <name> <1|2></yellow> <dark_gray>-</dark_gray> <gray>where each fighter starts
     <yellow>/duels arena setcorner <name> <1|2></yellow> <dark_gray>-</dark_gray> <gray>opposite corners around the whole arena
+    <yellow>/duels arena setgoal|setbed <name> <1|2></yellow> <dark_gray>-</dark_gray> <gray>a side's bridge goal where you stand, or the bed you look at
     <yellow>/duels arena setbox <name></yellow> <dark_gray>-</dark_gray> <gray>both corners from your WorldEdit selection
     <yellow>/duels arena import <name> <file.schem></yellow> <dark_gray>-</dark_gray> <gray>new arena from a schematic in the arenas world
     <yellow>/duels arena setspectator <name></yellow> <dark_gray>-</dark_gray> <gray>where spectators appear (optional)
@@ -93,6 +94,7 @@ command:
     <yellow>/duels kit setpermission <name> <permission|none></yellow> <dark_gray>-</dark_gray> <gray>who may use it
     <yellow>/duels kit build <name></yellow> <dark_gray>-</dark_gray> <gray>let fighters place blocks, or stop it
     <yellow>/duels kit damage <name></yellow> <dark_gray>-</dark_gray> <gray>knockback-only hits (Sumo), or normal again
+    <yellow>/duels kit mode <name> [normal|bridge|bed-fight]</yellow> <dark_gray>-</dark_gray> <gray>goals or beds decide fights
     <yellow>/duels kit effect <name> [effect level]</yellow> <dark_gray>-</dark_gray> <gray>potion effects for the whole fight (level 0 removes)
     <yellow>/duels kit rule <name> [rule] [value|default]</yellow> <dark_gray>-</dark_gray> <gray>game rules: hunger, regeneration, pearl cooldown...
     <yellow>/duels kit defaults</yellow> <dark_gray>-</dark_gray> <gray>add the default kits that are missing
@@ -203,6 +205,15 @@ match:
   result-rounds: "<prefix><white><winner></white> <gray>defeated</gray> <white><loser></white> <white><score></white> <dark_gray>(<red><health>❤</red> left · <kit>)"
   # After a round that did not decide the fight: <winner>, <round> that ended, <score> as the winner sees it.
   round-won: "<prefix><white><winner></white> <gray>won round <round> <dark_gray>(<white><score></white>)"
+  # Bridge and bed fight kits (/duels kit mode): knocked-out fighters come back at their spawn.
+  respawned-title: "<gray>Respawned"
+  respawned-subtitle: ""
+  scored: "<prefix><gold><bold>GOAL!</bold></gold> <white><player></white> <gray>scored."
+  # <team> is the names of the side whose bed broke, <player> who broke it.
+  bed-broken: "<prefix><red><bold>BED DESTROYED</bold></red> <gray><white><player></white> broke the bed of <white><team></white>."
+  bed-broken-title: "<red><bold>BED DESTROYED"
+  bed-broken-subtitle: "<gray>You will no longer respawn"
+  own-bed: "<prefix><red>You can't break your own bed."
   round-won-title: "<gradient:#f7971e:#ffd200><bold>ROUND <round>"
   # <score> here is the score as the fighter seeing the title sees it.
   round-won-subtitle: "<white><winner></white> <gray>won it <dark_gray>·</dark_gray> <white><score>"
@@ -472,6 +483,10 @@ admin:
     wrong-world: "<prefix><red><arena> is in world <world>; go there first."
     spawn-set: "<prefix><green>Set spawn <white><number></white> of <white><arena></white>."
     corner-set: "<prefix><green>Set corner <white><number></white> of <white><arena></white>."
+    # Bridge and bed fight kit modes: side <number> starts at spawn <number>.
+    goal-set: "<prefix><green>Set the bridge goal of side <white><number></white> of <white><arena></white> where you stand."
+    bed-set: "<prefix><green>Set the bed of side <white><number></white> of <white><arena></white>."
+    not-a-bed: "<prefix><red>Look at a bed within 5 blocks."
     spectator-set: "<prefix><green>Set the spectator spawn of <white><arena></white>."
     icon-set: "<prefix><green>Set the icon of <white><arena></white>."
     name-set: "<prefix><green>Arena <white><id></white> is now shown as <white><arena></white>."
@@ -564,6 +579,13 @@ admin:
     build-on: "<prefix><green>Fighters with <white><kit></white> can now place blocks; arenas are put back after each duel."
     build-off: "<prefix><green>Fighters with <white><kit></white> can no longer place blocks."
     damage-on: "<prefix><green>Hits with <white><kit></white> hurt again."
+    # /duels kit mode <kit> [mode]; bridge and bed fight also make it a build kit.
+    mode-set: "<prefix><green><white><kit></white> is now <white><mode></white>."
+    mode-usage: "<prefix><red>Use /duels kit mode <kit> [normal|bridge|bed-fight]."
+    modes:
+      normal: "a normal kit"
+      bridge: "a bridge kit (goals win rounds, fighters respawn)"
+      bed-fight: "a bed fight kit (fighters respawn while their bed stands)"
     damage-off: "<prefix><green>Hits with <white><kit></white> only knock back now; falling off the arena loses."
     defaults-added: "<prefix><green>Added <white><count></white> default kits; existing kits were kept."
     arenas-usage: "<prefix><red>Use /duels kit arenas <name> <category...> or any; categories use lowercase letters, digits, - and _."
@@ -600,6 +622,14 @@ sidebar:
   # Match sidebars may use <round> and <score> (the viewer's rounds against the opponent's), or <rounds>:
   # this line in a kit with rounds-to-win, nothing otherwise.
   rounds: "<dark_gray> · <gray>Round <white><round></white> <white><score>"
+  # Bridge and bed fight kits add one of these under the first line. <goals> and <bed> are the viewer's side,
+  # <opponent_goals> and <opponent_bed> the other; spectators see side 1 then side 2. <to_win> goals win.
+  goals: "<gray>Goals: <green><goals></green> <dark_gray>-</dark_gray> <red><opponent_goals></red> <dark_gray>(to <to_win>)"
+  goals-spectating: "<gray>Goals: <white><goals> <dark_gray>-</dark_gray> <white><opponent_goals> <dark_gray>(to <to_win>)"
+  beds: "<gray>Your bed: <bed> <dark_gray>·</dark_gray> <gray>Enemy: <opponent_bed>"
+  beds-spectating: "<gray>Beds: <bed> <dark_gray>vs</dark_gray> <opponent_bed>"
+  bed-standing: "<green>✔"
+  bed-broken: "<red>✘"
   match-title: "<gradient:#ff416c:#ff4b2b><bold>⚔ DUEL"
   lobby-title: "<gradient:#ff416c:#ff4b2b><bold>⚔ DUELS"
   duel: |-

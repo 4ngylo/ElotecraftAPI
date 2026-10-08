@@ -127,9 +127,10 @@ permission, rewards and effects. Custom kits are for challenges and party fights
 events or bets. A custom kit holding an item the base kit no longer has is not offered until it is built
 again. They are stored with the kit layouts.
 
-**Default kits.** A first start (no `kits.yml` yet) adds 18 kits after the most played practice modes:
+**Default kits.** A first start (no `kits.yml` yet) adds 20 kits after the most played practice modes:
 NoDebuff, Debuff, Gapple, BuildUHC, Classic, Archer, Sumo, Boxing, Combo, Vanilla (crystals and anchors), UHC,
-Pot, NethOP, SMP, Sword, Axe, Mace and Spear. BuildUHC, Vanilla and UHC are build kits. Sumo hits only knock back
+Pot, NethOP, SMP, Sword, Axe, Mace, Spear, Bridge and Bed Fight (see [kit modes](#kit-modes); their arena
+categories are `bridge` and `bedfight`). BuildUHC, Vanilla and UHC are build kits. Sumo hits only knock back
 (`/duels kit damage <kit>` toggles that for any kit): falling off the arena loses a round of a best of 3, so give
 it a small platform arena in category `sumo` (`/duels arena category <arena> add sumo`). Boxing hits only knock
 back too: the first to land 100 hits wins. Combo has no hit delay. Edit them like any kit;
@@ -210,6 +211,26 @@ given back when the server starts again (logged), once the economy plugin is the
 `bets.max` limit each stake, and `bets.enabled: false` turns bets off. Bets are for challenges only, not
 queues, party fights or events.
 
+## Kit modes
+
+`/duels kit mode <kit> [normal|bridge|bed-fight]` (or the Mode button in `/duels kit <kit>`) changes how a
+fight with two sides is won; bridge and bed fight also make the kit a build kit. Fights with more sides
+(a party FFA) play them as normal kits.
+
+- **Bridge.** Each side has a goal: `/duels arena setgoal <arena> <1|2>` where you stand (side 1 starts at
+  spawn 1). Walking into the other side's goal (`modes.bridge.goal-radius` blocks across, 2 by default) wins
+  the round; the kit rule `rounds-to-win` is the number of goals to win (5 for the default Bridge kit).
+  Knocked-out fighters come back at their spawn with the kit at once. Blocks placed stay from round to
+  round and are put back when the duel ends, and nobody can place blocks within
+  `modes.bridge.protect-radius` (3) of a spawn or goal.
+- **Bed fight.** Each side has a bed: look at it and run `/duels arena setbed <arena> <1|2>`. Knocked-out
+  fighters come back at their spawn while their bed stands; fighters may break the other side's bed (not
+  their own), after which that side is out once knocked out. The bed is put back after each round and the duel.
+
+The `/duels arena <arena>` menu has a button for each goal and bed too (for a bed, look at it before opening
+the menu). A bridge kit only uses arenas with both goals, a bed fight kit only arenas with both beds. Set them before
+pregenerating copies (`/duels arena pregen`): copies take the points of their source when they are made.
+
 ## Build kits
 
 `/duels kit build <kit>` turns a kit into a build kit (run it again to undo): while fighting, its
@@ -265,8 +286,8 @@ with their arena and limited to 256 x 256 blocks across.
 | `/event join <host>`, `/event leave` | `duels.event` | Join or leave an event that has not started (`/duel leave` works too) |
 | `/event host [kit]` | `duels.event.host` | Host an event (kit menu without a kit), then set it up in its menu |
 | `/event settings\|start\|cancel`, `/event invite <player>` | `duels.event.host` | Run your event; invite players to a private one (`duels.event.host.private` makes it private) |
-| `/duels arena ...` | `duels.admin.arena` | menus: no argument or an arena name; `help`, `create`, `delete`, `setspawn`, `setcorner`, `setbox`, `import`, `setspectator`, `setcenter`, `seticon`, `setname`, `category`, `buildlimit`, `toggle`, `info`, `tp`, `list`, `snapshot`, `reset`, `pregen` |
-| `/duels kit ...` | `duels.admin.kit` | menus: no argument or a kit name; `help`, `create`, `save`, `load`, `delete`, `seticon`, `setname`, `setpermission`, `build`, `damage`, `rule`, `arenas`, `defaults`, `list` |
+| `/duels arena ...` | `duels.admin.arena` | menus: no argument or an arena name; `help`, `create`, `delete`, `setspawn`, `setcorner`, `setgoal`, `setbed`, `setbox`, `import`, `setspectator`, `setcenter`, `seticon`, `setname`, `category`, `buildlimit`, `toggle`, `info`, `tp`, `list`, `snapshot`, `reset`, `pregen` |
+| `/duels kit ...` | `duels.admin.kit` | menus: no argument or a kit name; `help`, `create`, `save`, `load`, `delete`, `seticon`, `setname`, `setpermission`, `build`, `damage`, `mode`, `rule`, `arenas`, `defaults`, `list` |
 | `/duels hologram create <name> <wins\|elo> [kit]`, `delete <name>`, `list` | `duels.admin.hologram` | [Leaderboard holograms](#leaderboard-holograms) where you stand |
 | `/duels season`, `/duels season end [confirm]` | `duels.admin.season` | The [season](#seasons) running; end it (asks for `confirm` within 30 seconds) |
 | `/duels stop <player>` | `duels.admin.stop` | End a duel without a result |
@@ -380,7 +401,9 @@ With `sidebar.health-below-name` (on by default), the fight sidebar also shows e
 their name, in health points (20 is full) followed by `sidebar.health-below-name` in messages.yml; players
 who turned the sidebar off don't see it. Layouts are in `messages.yml` under `sidebar`, one row per line, at most 15. Match layouts may use
 `<round>` and `<score>`, or `<rounds>`, which is `sidebar.rounds` in a kit with `rounds-to-win` and empty
-otherwise.
+otherwise. In a [bridge or bed fight](#kit-modes), one more line goes under the first: the goals of each side
+(`sidebar.goals`, which takes the place of `<rounds>`) or whether each bed stands (`sidebar.beds`), from the
+fighter's side, or side 1 then side 2 for spectators (`goals-spectating`, `beds-spectating`).
 
 A sidebar gives the player their own scoreboard while it shows, so other plugins' sidebars and nametag
 teams (TAB, nametag colours) disappear for them; leave `sidebar.lobby` off if you use such a plugin. A
@@ -513,6 +536,9 @@ The automated tests run on MockBukkit, which cannot click menus. Before a releas
   own items back; the leader quitting mid-fight hands the party over
 - [ ] `/duel editkit`: rearrange, [SAVE], the next duel uses the layout; [CANCEL] and `/stop` while
   editing give your own items back
+- [ ] Kit modes in an arena with goals and beds: a bridge goal wins the round and placed blocks stay, `/kill`
+  brings a fighter back at their spawn with the kit; in a bed fight your own bed can't be broken, the enemy's
+  can (both halves come back after the duel), and that side is out the next time
 - [ ] Custom kits (`custom-kits.base-kit` set): `/duel customkit`, build kit 1 from the items menu, take one out
   with a click below, [SAVE]; `/duel <player> custom:1` gives both fighters those items; `... bet 100` is refused
 - [ ] Kit rules on a real client: `hit-delay false` combos, `pearl-cooldown 15` shows the cooldown on the

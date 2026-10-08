@@ -186,7 +186,8 @@ public final class CombatListener implements Listener {
             return;
         }
         matches.matchOf(player).ifPresent(match -> {
-            event.setRespawnLocation(match.spectatorSpawn());
+            // Bridge and bed fight fighters still in the fight come back at their spawn.
+            event.setRespawnLocation(match.isFighting(player) ? match.spawnOf(player) : match.spectatorSpawn());
             Tasks.later(plugin, () -> matches.respawned(player), RESPAWN_DELAY_TICKS);
         });
     }
@@ -207,12 +208,19 @@ public final class CombatListener implements Listener {
             event.setTo(new Location(from.getWorld(), from.getX(), from.getY(), from.getZ(), to.getYaw(), to.getPitch()));
             return;
         }
+        // Bridge: walking into the other side's goal scores.
+        if (event.hasChangedBlock() && match.mode() == Kit.Mode.BRIDGE && match.isFighting(player)
+                && match.inGoal(1 - match.teamOf(player.getUniqueId()), event.getTo(), settings.get().modes().goalRadius())) {
+            matches.score(player);
+            return;
+        }
         if (event.hasChangedBlock() && !match.contains(event.getTo())) {
             // Falling out of the bottom loses the fight, like the void; any other way out is undone.
             if (match.kit().flag(KitRule.VOID_ELIMINATES, settings.get()) && match.isFighting(player)
                     && event.getTo().getY() < match.arena().bounds().getMinY()) {
                 matches.eliminate(player);
-                event.setTo(match.spectatorSpawn());
+                // Bridge and bed fight fighters come back at their spawn.
+                event.setTo(match.isFighting(player) ? match.spawnOf(player) : match.spectatorSpawn());
                 return;
             }
             boolean fighter = match.isFighter(player) && player.getGameMode() != GameMode.SPECTATOR;

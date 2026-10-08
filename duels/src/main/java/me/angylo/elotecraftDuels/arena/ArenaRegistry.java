@@ -162,7 +162,8 @@ public final class ArenaRegistry {
                     position(section, "spawn1"), position(section, "spawn2"), position(section, "spectator"),
                     position(section, "corner1"), position(section, "corner2"), categories(section),
                     position(section, "center"), section.isInt("build-limit") ? section.getInt("build-limit") : null,
-                    copy(section), extraSpawns(section)));
+                    copy(section), extraSpawns(section), new Arena.ModePoints(position(section, "goal1"), position(section, "goal2"),
+                    position(section, "bed1"), position(section, "bed2"))));
         }
     }
 
@@ -241,6 +242,10 @@ public final class ArenaRegistry {
             yaml.set(path + ".categories", arena.categories().stream().sorted().toList());
         }
         writePosition(yaml, path + ".center", arena.center());
+        writePosition(yaml, path + ".goal1", arena.points().goal1());
+        writePosition(yaml, path + ".goal2", arena.points().goal2());
+        writePosition(yaml, path + ".bed1", arena.points().bed1());
+        writePosition(yaml, path + ".bed2", arena.points().bed2());
         for (int i = 0; i < arena.extraSpawns().size(); i++) {
             writePosition(yaml, path + ".extra-spawns." + (i + 1), arena.extraSpawns().get(i));
         }

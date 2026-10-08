@@ -41,15 +41,39 @@ import java.util.Set;
  * @param rules       the game rules this kit sets, each value fitting its {@link KitRule}; unset ones use their default
  * @param rewards     paid for a won duel with this kit on top of config.yml's {@code rewards}
  * @param effects     potion effects fighters have for the whole fight, without particles
+ * @param mode        how a duel is won: knockouts, or the bridge and bed fight modes (two sides, build kits only)
  */
 public record Kit(String name, String displayName, Material icon, String permission, List<ItemStack> items, boolean build,
                   Set<String> arenaCategories, boolean damage, Map<KitRule, Object> rules, Rewards rewards,
-                  List<PotionEffect> effects) {
+                  List<PotionEffect> effects, Mode mode) {
 
     public static final Material DEFAULT_ICON = Material.IRON_SWORD;
     /** The name of every player's custom kit ({@link CustomKits}); admin kits cannot use it. */
     public static final String CUSTOM = "custom";
     public static final int MAX_EFFECT_LEVEL = 10;
+
+    /**
+     * How a fight with two sides is won. {@code BRIDGE}: knocked-out fighters come back at their spawn, and walking into
+     * the other side's goal wins the round; placed blocks stay between rounds. {@code BED_FIGHT}: knocked-out fighters
+     * come back while their side's bed stands, and an enemy may break it. Both need the arena's goals or beds.
+     */
+    public enum Mode {
+        NORMAL, BRIDGE, BED_FIGHT;
+
+        /** Lower case with -, for kits.yml, commands and messages.yml. */
+        public String key() {
+            return name().toLowerCase(Locale.ROOT).replace('_', '-');
+        }
+
+        public static Optional<Mode> byKey(String key) {
+            for (Mode mode : values()) {
+                if (mode.key().equalsIgnoreCase(key)) {
+                    return Optional.of(mode);
+                }
+            }
+            return Optional.empty();
+        }
+    }
 
     /** The extra money and commands for the winner and the loser of a duel with a kit; set in kits.yml only. */
     public record Rewards(Reward win, Reward loss) {
@@ -67,6 +91,13 @@ public record Kit(String name, String displayName, Material icon, String permiss
         });
         rules = Map.copyOf(rules);
         effects = List.copyOf(effects);
+        mode = mode == null ? Mode.NORMAL : mode;
+    }
+
+    /** A normal kit. */
+    public Kit(String name, String displayName, Material icon, String permission, List<ItemStack> items, boolean build,
+               Set<String> arenaCategories, boolean damage, Map<KitRule, Object> rules, Rewards rewards, List<PotionEffect> effects) {
+        this(name, displayName, icon, permission, items, build, arenaCategories, damage, rules, rewards, effects, Mode.NORMAL);
     }
 
     /** A kit without effects. */
@@ -92,7 +123,7 @@ public record Kit(String name, String displayName, Material icon, String permiss
      */
     static Kit custom(Kit base, String displayName, List<ItemStack> items) {
         return new Kit(CUSTOM, displayName, base.icon, base.permission, items, base.build, base.arenaCategories, base.damage,
-                base.rules, base.rewards, base.effects);
+                base.rules, base.rewards, base.effects, base.mode);
     }
 
     /** Whether this is a player's custom kit, which no registry holds. */
@@ -100,9 +131,17 @@ public record Kit(String name, String displayName, Material icon, String permiss
         return CUSTOM.equals(name);
     }
 
-    /** Whether duels with this kit may use {@code arena}: the kit takes any arena, or they share a category. */
+    /**
+     * Whether duels with this kit may use {@code arena}: the kit takes any arena, or they share a category; and the
+     * arena has the goals or beds the kit's mode needs.
+     */
     public boolean accepts(Arena arena) {
-        return arenaCategories.isEmpty() || !Collections.disjoint(arenaCategories, arena.categories());
+        boolean points = switch (mode) {
+            case NORMAL -> true;
+            case BRIDGE -> arena.points().hasGoals();
+            case BED_FIGHT -> arena.points().hasBeds();
+        };
+        return points && (arenaCategories.isEmpty() || !Collections.disjoint(arenaCategories, arena.categories()));
     }
 
     @Override
@@ -160,37 +199,41 @@ public record Kit(String name, String displayName, Material icon, String permiss
     }
 
     public Kit withItems(PlayerInventory inventory) {
-        return new Kit(name, displayName, icon, permission, Arrays.asList(inventory.getContents()), build, arenaCategories, damage, rules, rewards, effects);
+        return new Kit(name, displayName, icon, permission, Arrays.asList(inventory.getContents()), build, arenaCategories, damage, rules, rewards, effects, mode);
+    }
+
+    public Kit withMode(Mode newMode) {
+        return new Kit(name, displayName, icon, permission, items, build, arenaCategories, damage, rules, rewards, effects, newMode);
     }
 
     public Kit withIcon(Material newIcon) {
-        return new Kit(name, displayName, newIcon, permission, items, build, arenaCategories, damage, rules, rewards, effects);
+        return new Kit(name, displayName, newIcon, permission, items, build, arenaCategories, damage, rules, rewards, effects, mode);
     }
 
     public Kit withDisplayName(String newDisplayName) {
-        return new Kit(name, newDisplayName, icon, permission, items, build, arenaCategories, damage, rules, rewards, effects);
+        return new Kit(name, newDisplayName, icon, permission, items, build, arenaCategories, damage, rules, rewards, effects, mode);
     }
 
     /** @param newPermission null for everyone */
     public Kit withPermission(String newPermission) {
-        return new Kit(name, displayName, icon, newPermission, items, build, arenaCategories, damage, rules, rewards, effects);
+        return new Kit(name, displayName, icon, newPermission, items, build, arenaCategories, damage, rules, rewards, effects, mode);
     }
 
     public Kit withBuild(boolean newBuild) {
-        return new Kit(name, displayName, icon, permission, items, newBuild, arenaCategories, damage, rules, rewards, effects);
+        return new Kit(name, displayName, icon, permission, items, newBuild, arenaCategories, damage, rules, rewards, effects, mode);
     }
 
     public Kit withDamage(boolean newDamage) {
-        return new Kit(name, displayName, icon, permission, items, build, arenaCategories, newDamage, rules, rewards, effects);
+        return new Kit(name, displayName, icon, permission, items, build, arenaCategories, newDamage, rules, rewards, effects, mode);
     }
 
     /** @param newCategories empty for any arena */
     public Kit withArenaCategories(Set<String> newCategories) {
-        return new Kit(name, displayName, icon, permission, items, build, newCategories, damage, rules, rewards, effects);
+        return new Kit(name, displayName, icon, permission, items, build, newCategories, damage, rules, rewards, effects, mode);
     }
 
     public Kit withRewards(Rewards newRewards) {
-        return new Kit(name, displayName, icon, permission, items, build, arenaCategories, damage, rules, newRewards, effects);
+        return new Kit(name, displayName, icon, permission, items, build, arenaCategories, damage, rules, newRewards, effects, mode);
     }
 
     /**
@@ -205,7 +248,7 @@ public record Kit(String name, String displayName, Material icon, String permiss
         } else {
             changed.put(rule, value);
         }
-        return new Kit(name, displayName, icon, permission, items, build, arenaCategories, damage, changed, rewards, effects);
+        return new Kit(name, displayName, icon, permission, items, build, arenaCategories, damage, changed, rewards, effects, mode);
     }
 
     /**
@@ -220,7 +263,7 @@ public record Kit(String name, String displayName, Material icon, String permiss
         if (level > 0) {
             changed.add(effect(type, level));
         }
-        return new Kit(name, displayName, icon, permission, items, build, arenaCategories, damage, rules, rewards, changed);
+        return new Kit(name, displayName, icon, permission, items, build, arenaCategories, damage, rules, rewards, changed, mode);
     }
 
     /** The effect called {@code name}, e.g. {@code speed} or {@code minecraft:jump_boost}. */

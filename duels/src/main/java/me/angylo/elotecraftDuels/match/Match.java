@@ -8,6 +8,7 @@ import me.angylo.elotecraftDuels.kit.KitRule;
 import me.angylo.elotecraftDuels.state.PlayerSnapshot;
 import net.kyori.adventure.bossbar.BossBar;
 import org.bukkit.Location;
+import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitTask;
 
@@ -20,6 +21,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Stream;
 
 /**
  * One fight between teams of players, with its spectators: a duel is two teams of one. Fighters who are
@@ -94,6 +96,8 @@ public final class Match {
     private final FightStats fightStats = new FightStats();
     /** Rounds won by each team, for {@link KitRule#ROUNDS_TO_WIN} duels. */
     private final int[] roundWins;
+    /** Bed fight: the teams whose bed was broken this round. */
+    private final Set<Integer> bedsBroken = new HashSet<>();
     private int round = 1;
     /** The id of this fight's kept inventories once it ended with a result, for the links sent when it is over. */
     private UUID resultsId;
@@ -289,7 +293,64 @@ public final class Match {
 
     /** Rounds a team must win to win the fight: the kit's {@link KitRule#ROUNDS_TO_WIN} in a duel, else 1. */
     public int roundsToWin() {
-        return isDuel() ? Math.max(1, kit.number(KitRule.ROUNDS_TO_WIN).orElse(1)) : 1;
+        return isDuel() || mode() != Kit.Mode.NORMAL ? Math.max(1, kit.number(KitRule.ROUNDS_TO_WIN).orElse(1)) : 1;
+    }
+
+    /** The kit's mode, which only fights of two sides play; others play {@code NORMAL}. */
+    public Kit.Mode mode() {
+        return teams.size() == 2 ? kit.mode() : Kit.Mode.NORMAL;
+    }
+
+    /** Whether {@code team}'s knocked-out fighters come back: always in bridge, while their bed stands in a bed fight. */
+    public boolean respawns(int team) {
+        return switch (mode()) {
+            case NORMAL -> false;
+            case BRIDGE -> true;
+            case BED_FIGHT -> !bedsBroken.contains(team);
+        };
+    }
+
+    /** Bridge: whether {@code location} is in the goal of {@code team}, within {@code radius} blocks across and 1 up or down. */
+    public boolean inGoal(int team, Location location, int radius) {
+        Arena.Position goal = arena().points().goal(team + 1);
+        return goal != null && location.getWorld() == instance.world() && near(goal, location, radius, 1);
+    }
+
+    /** Bridge: whether {@code location} is within {@code radius} blocks of a spawn or goal, where nobody builds. */
+    public boolean nearSpawnOrGoal(Location location, int radius) {
+        if (location.getWorld() != instance.world()) {
+            return false;
+        }
+        Arena.ModePoints points = arena().points();
+        return Stream.of(Arena.Position.of(instance.spawn(1)), Arena.Position.of(instance.spawn(2)), points.goal1(), points.goal2())
+                .anyMatch(point -> point != null && near(point, location, radius, radius));
+    }
+
+    /** Bed fight: the team whose bed {@code block} is part of (either half), or -1. */
+    public int bedAt(Block block) {
+        for (int team = 0; team < 2; team++) {
+            Arena.Position bed = arena().points().bed(team + 1);
+            if (bed != null && block.getWorld() == instance.world() && block.getY() == (int) Math.floor(bed.y())
+                    && Math.abs(block.getX() - (int) Math.floor(bed.x())) + Math.abs(block.getZ() - (int) Math.floor(bed.z())) <= 1) {
+                return team;
+            }
+        }
+        return -1;
+    }
+
+    private static boolean near(Arena.Position point, Location location, int across, int vertical) {
+        return Math.abs(location.getBlockX() - (int) Math.floor(point.x())) <= across
+                && Math.abs(location.getBlockZ() - (int) Math.floor(point.z())) <= across
+                && Math.abs(location.getBlockY() - (int) Math.floor(point.y())) <= vertical;
+    }
+
+    /** Bed fight: whether {@code team}'s bed still stands this round. */
+    public boolean hasBed(int team) {
+        return !bedsBroken.contains(team);
+    }
+
+    void breakBed(int team) {
+        bedsBroken.add(team);
     }
 
     /** The round being fought, from 1. */
@@ -326,6 +387,7 @@ public final class Match {
     /** Brings everyone back into the fight for the next round; fight counts carry over, kill credit does not. */
     void nextRound() {
         round++;
+        bedsBroken.clear();
         knockedOut.clear();
         hitsTaken.clear();
         finals.clear();

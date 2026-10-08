@@ -25,8 +25,11 @@ class KitAdminMenuTest extends DuelsTestBase {
     private static final int BUILD = 0;
     private static final int DAMAGE = 1;
     private static final int DELETE = 8;
-    private static final int HUNGER = 9 + KitRule.HUNGER.ordinal();
-    private static final int PEARL_COOLDOWN = 9 + KitRule.PEARL_COOLDOWN.ordinal();
+    private static final int MODE = 9;
+    /** The first rule button. */
+    private static final int RULES = 10;
+    private static final int HUNGER = RULES + KitRule.HUNGER.ordinal();
+    private static final int PEARL_COOLDOWN = RULES + KitRule.PEARL_COOLDOWN.ordinal();
 
     private TestPlayer admin;
 
@@ -78,7 +81,7 @@ class KitAdminMenuTest extends DuelsTestBase {
         server.dispatchCommand(admin, "duels kit sword");
 
         KitRule last = KitRule.values()[KitRule.values().length - 1];
-        assertEquals(last.key(), Text.plain(top().getItem(9 + last.ordinal()).getItemMeta().displayName()));
+        assertEquals(last.key(), Text.plain(top().getItem(RULES + last.ordinal()).getItemMeta().displayName()));
     }
 
     @Test
@@ -92,6 +95,17 @@ class KitAdminMenuTest extends DuelsTestBase {
         assertTrue(sword().build());
         assertFalse(sword().damage());
         assertTrue(lore(BUILD).contains("Fighters may place blocks: On"));
+    }
+
+    @Test
+    void theModeButtonCyclesTheModeAndMakesItABuildKit() {
+        server.dispatchCommand(admin, "duels kit sword");
+
+        click(MODE, ClickType.LEFT);
+
+        assertEquals(Kit.Mode.BRIDGE, sword().mode());
+        assertTrue(sword().build());
+        assertTrue(lore(MODE).contains("Now: bridge"));
     }
 
     @Test

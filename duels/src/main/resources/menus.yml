@@ -354,6 +354,9 @@ kit-settings:
     vanilla: "<gray>vanilla"
     set: "<green>set for this kit"
     default: "<gray>default"
+    mode-normal: "<white>normal"
+    mode-bridge: "<white>bridge"
+    mode-bed-fight: "<white>bed fight"
   build:
     material: BRICKS
     name: "<gold><bold>Building"
@@ -390,6 +393,11 @@ kit-settings:
     material: LAVA_BUCKET
     name: "<red><bold>Delete kit"
     lore: ["<gray>Removes the kit for good", "", "<red>▶ Shift + right-click to delete"]
+  # Bridge: goals win rounds; bed fight: fighters respawn while their bed stands. Both make it a build kit.
+  mode:
+    material: RED_BED
+    name: "<gold><bold>Mode"
+    lore: ["<gray>Now: <value>", "<dark_gray>Arenas need goals or beds", "", "<yellow>▶ Click to switch"]
   # One button per game rule. <rule>, <value> and <state> (set or default) are filled in.
   # The material shows the value: flag-on, flag-off, seconds for a number of seconds, or number.
   rule:

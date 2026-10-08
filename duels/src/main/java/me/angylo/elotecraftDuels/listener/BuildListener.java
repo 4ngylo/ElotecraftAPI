@@ -5,11 +5,13 @@ import me.angylo.elotecraftDuels.arena.Arena;
 import me.angylo.elotecraftDuels.arena.ArenaInstance;
 import me.angylo.elotecraftDuels.arena.ArenaInstances;
 import me.angylo.elotecraftDuels.arena.ArenaRegistry;
+import me.angylo.elotecraftDuels.kit.Kit;
 import me.angylo.elotecraftDuels.kit.KitRule;
 import me.angylo.elotecraftDuels.match.Match;
 import me.angylo.elotecraftDuels.match.MatchManager;
 import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.Tag;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.block.BlockState;
@@ -86,7 +88,8 @@ public final class BuildListener implements Listener {
         ArenaInstance instance = buildable(player, event.getBlock());
         List<BlockState> replaced = event instanceof BlockMultiPlaceEvent multi
                 ? multi.getReplacedBlockStates() : List.of(event.getBlockReplacedState());
-        if (instance == null || !replaced.stream().allMatch(state -> instance.allowsPlacingAt(state.getLocation()))) {
+        if (instance == null || !replaced.stream().allMatch(state -> instance.allowsPlacingAt(state.getLocation()))
+                || bridgeProtects(player, replaced)) {
             event.setCancelled(true);
             return;
         }
@@ -125,8 +128,19 @@ public final class BuildListener implements Listener {
         }
     }
 
+    /** Bridge: nobody builds near a spawn or goal, so neither can be walled off. */
+    private boolean bridgeProtects(Player player, List<BlockState> replaced) {
+        Match match = matches.matchOf(player).orElse(null);
+        int radius = settings.get().modes().protectRadius();
+        return match != null && match.mode() == Kit.Mode.BRIDGE
+                && replaced.stream().anyMatch(state -> match.nearSpawnOrGoal(state.getLocation(), radius));
+    }
+
     @EventHandler(priority = EventPriority.LOW, ignoreCancelled = true)
     public void onBreak(BlockBreakEvent event) {
+        if (breaksBed(event)) {
+            return;
+        }
         if (!removeBlock(event.getPlayer(), event.getBlock(), event)) {
             return;
         }
@@ -136,6 +150,31 @@ public final class BuildListener implements Listener {
         if (!drops) {
             event.setDropItems(false);
         }
+    }
+
+    /**
+     * Bed fight: a fighter breaks a side's bed, an arena block, which is put back with the arena. Their own bed
+     * stays.
+     *
+     * @return whether the block was a side's bed
+     */
+    private boolean breaksBed(BlockBreakEvent event) {
+        Player player = event.getPlayer();
+        Block block = event.getBlock();
+        Match match = matches.matchOf(player).orElse(null);
+        if (match == null || match.mode() != Kit.Mode.BED_FIGHT || !Tag.BEDS.isTagged(block.getType())
+                || !match.instance().isBuild() || match.bedAt(block) < 0) {
+            return false;
+        }
+        if (!matches.breakBed(player, match.bedAt(block))) {
+            event.setCancelled(true);
+            return true;
+        }
+        match.instance().changes().record(block);
+        recordNeighbours(match.instance(), block);
+        event.setDropItems(false);
+        event.setExpToDrop(0);
+        return true;
     }
 
     /** Items from blocks broken in a build duel stay in it: see {@link ProtectionListener}. */

@@ -291,12 +291,15 @@ public final class MatchManager {
         }
     }
 
-    /** One tick after a player in a match respawned at its spectator spawn. */
+    /** One tick after a player in a match respawned: at its spectator spawn, or a fighter still in it at their spawn. */
     public void respawned(Player player) {
         Match match = byPlayer.get(player.getUniqueId());
         if (match != null && (match.isSpectator(player) || match.state() == State.ENDING
                 || (match.isFighter(player) && !match.isAlive(player)))) {
             player.setGameMode(GameMode.SPECTATOR);
+        } else if (match != null && match.isFighting(player)) {
+            // A bridge or bed fight fighter who really died is back at their spawn.
+            equip(match, player, settings.get());
         }
     }
 
@@ -524,12 +527,7 @@ public final class MatchManager {
     private void beginCountdown(Match match) {
         Settings current = settings.get();
         for (Player fighter : match.fighters()) {
-            PlayerSnapshot.resetForDuel(fighter);
-            if (!match.kit().flag(KitRule.HIT_DELAY, current)) {
-                fighter.setMaximumNoDamageTicks(COMBO_NO_DAMAGE_TICKS);
-            }
-            layouts.apply(fighter, match.kit());
-            match.kit().applyStatus(fighter, current);
+            equip(match, fighter, current);
         }
         match.state(State.COUNTDOWN);
         match.secondsLeft(current.countdownSeconds());
@@ -539,6 +537,16 @@ public final class MatchManager {
         if (match.task() == null) {
             match.task(Tasks.timer(plugin, () -> tick(match), SECOND_TICKS, SECOND_TICKS));
         }
+    }
+
+    /** Heals {@code fighter} and gives them the kit, its rules and its effects. */
+    private void equip(Match match, Player fighter, Settings current) {
+        PlayerSnapshot.resetForDuel(fighter);
+        if (!match.kit().flag(KitRule.HIT_DELAY, current)) {
+            fighter.setMaximumNoDamageTicks(COMBO_NO_DAMAGE_TICKS);
+        }
+        layouts.apply(fighter, match.kit());
+        match.kit().applyStatus(fighter, current);
     }
 
     private void tick(Match match) {
@@ -592,6 +600,11 @@ public final class MatchManager {
      * rounds a knockout wins the round, and the fight once a team has won enough of them.
      */
     private void knockOut(Match match, Player fighter, EndReason reason) {
+        if (reason == EndReason.ELIMINATED && match.isFighting(fighter) && match.respawns(match.teamOf(fighter.getUniqueId()))) {
+            display.knockedOut(match, fighter, killer(match, fighter), true);
+            respawn(match, fighter);
+            return;
+        }
         match.recordFinal(fighter);
         match.knockOut(fighter);
         if (match.isParticipant(fighter) && !fighter.isDead()) {
@@ -608,6 +621,59 @@ public final class MatchManager {
         } else {
             end(match, left, reason);
         }
+    }
+
+    /**
+     * Bridge and bed fight: a knocked-out fighter whose side still respawns is healed, given the kit again and sent
+     * back to their spawn, a tick later as this may run inside a move event.
+     */
+    private void respawn(Match match, Player fighter) {
+        display.respawned(match, fighter);
+        // A real death (e.g. /kill): they respawn at their spawn, and respawned() equips them.
+        if (fighter.isDead()) {
+            return;
+        }
+        equip(match, fighter, settings.get());
+        Tasks.later(plugin, () -> {
+            if (match.isFighting(fighter)) {
+                fighter.teleportAsync(match.spawnOf(fighter), TeleportCause.PLUGIN);
+            }
+        }, 1);
+    }
+
+    /** Bridge: {@code scorer} walked into the other side's goal, so their side wins the round, or the fight. */
+    public void score(Player scorer) {
+        Match match = byPlayer.get(scorer.getUniqueId());
+        if (match == null || !match.isFighting(scorer) || match.mode() != Kit.Mode.BRIDGE) {
+            return;
+        }
+        int team = match.teamOf(scorer.getUniqueId());
+        display.scored(match, scorer);
+        if (match.winRound(team) < match.roundsToWin()) {
+            roundOver(match, team);
+        } else {
+            end(match, List.of(team), EndReason.ELIMINATED);
+        }
+    }
+
+    /**
+     * Bed fight: {@code breaker} breaks the bed of {@code team}. Their own side's bed is refused; an enemy bed breaks,
+     * and that side's knocked-out fighters no longer come back this round.
+     *
+     * @return whether the bed may break
+     */
+    public boolean breakBed(Player breaker, int team) {
+        Match match = byPlayer.get(breaker.getUniqueId());
+        if (match == null || !match.isFighting(breaker) || match.mode() != Kit.Mode.BED_FIGHT || !match.hasBed(team)) {
+            return false;
+        }
+        if (match.teamOf(breaker.getUniqueId()) == team) {
+            messages.send(breaker, "match.own-bed");
+            return false;
+        }
+        match.breakBed(team);
+        display.bedBroken(match, team, breaker);
+        return true;
     }
 
     /** The opponent who last hit {@code fighter} this round, if they are still online: they get the kill. */
@@ -628,7 +694,10 @@ public final class MatchManager {
     private void nextRound(Match match) {
         // A fighter killed outright respawned a tick after: round-delay-seconds is at least 1.
         match.nextRound();
-        instances.resetRound(match.instance()).whenComplete((ignored, error) -> guarded(match, () -> {
+        // Bridge keeps the blocks placed so far.
+        CompletableFuture<Void> reset = match.mode() == Kit.Mode.BRIDGE ? CompletableFuture.completedFuture(null)
+                : instances.resetRound(match.instance());
+        reset.whenComplete((ignored, error) -> guarded(match, () -> {
             if (match.isOver() || match.state() != State.ROUND_OVER) {
                 return;
             }

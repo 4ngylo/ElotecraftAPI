@@ -214,6 +214,31 @@ final class MatchDisplay {
         }
     }
 
+    /** Bridge and bed fight: {@code fighter} was knocked out and is back at their spawn. */
+    void respawned(Match match, Player fighter) {
+        title(fighter, "match.respawned-title", "match.respawned-subtitle");
+    }
+
+    /** Bridge: {@code scorer} walked into the other side's goal. */
+    void scored(Match match, Player scorer) {
+        for (Player participant : match.participants()) {
+            messages.send(participant, "match.scored", Placeholder.unparsed("player", scorer.getName()));
+        }
+    }
+
+    /** Bed fight: {@code breaker} broke {@code team}'s bed; that team hears it in a title. */
+    void bedBroken(Match match, int team, Player breaker) {
+        TagResolver[] tags = {Placeholder.unparsed("player", breaker.getName()), Placeholder.unparsed("team", names(match.teams().get(team)))};
+        for (Player participant : match.participants()) {
+            messages.send(participant, "match.bed-broken", tags);
+        }
+        for (Player fighter : match.teams().get(team)) {
+            if (match.isParticipant(fighter)) {
+                title(fighter, "match.bed-broken-title", "match.bed-broken-subtitle", tags);
+            }
+        }
+    }
+
     /**
      * Titles and a summary for a team fight the teams {@code winnerTeams} won. The result of an event goes to
      * the whole server unless config.yml {@code events.broadcast-result} is off.

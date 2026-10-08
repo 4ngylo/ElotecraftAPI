@@ -151,6 +151,7 @@ public final class KitAdminMenu {
                     }).accept(player, click);
                 }
             }));
+            buttons.add(Button.of(entry("mode", kit, MenuLayout.value(section, "mode-" + kit.mode().key())), change("mode")));
             for (KitRule rule : KitRule.values()) {
                 buttons.add(rule(kit, rule));
             }

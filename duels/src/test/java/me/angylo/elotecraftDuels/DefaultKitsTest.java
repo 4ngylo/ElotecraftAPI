@@ -22,10 +22,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class DefaultKitsTest extends DuelsTestBase {
 
     private static final Set<String> DEFAULTS = Set.of("nodebuff", "debuff", "gapple", "builduhc", "classic", "archer", "sumo",
-            "vanilla", "uhc", "pot", "nethop", "smp", "sword", "axe", "mace", "boxing", "combo", "spear");
+            "vanilla", "uhc", "pot", "nethop", "smp", "sword", "axe", "mace", "boxing", "combo", "spear", "bridge", "bedfight");
 
     @Test
-    void aFirstStartInstallsEighteenPlayableKitsThatSurviveAReload() {
+    void aFirstStartInstallsTwentyPlayableKitsThatSurviveAReload() {
         duels.shutdown();
         assertTrue(new File(plugin.getDataFolder(), "kits.yml").delete());
         duels = Duels.start(plugin);
@@ -54,6 +54,11 @@ class DefaultKitsTest extends DuelsTestBase {
         assertEquals(100, boxing.number(KitRule.HITS_TO_WIN).orElseThrow());
         assertFalse(duels.kits().get("combo").orElseThrow().flag(KitRule.HIT_DELAY, duels.settings()));
         assertEquals(Material.DIAMOND_SPEAR, duels.kits().get("spear").orElseThrow().items().get(0).getType());
+        Kit bridge = duels.kits().get("bridge").orElseThrow();
+        assertEquals(Kit.Mode.BRIDGE, bridge.mode());
+        assertTrue(bridge.build());
+        assertEquals(5, bridge.number(KitRule.ROUNDS_TO_WIN).orElseThrow());
+        assertEquals(Kit.Mode.BED_FIGHT, duels.kits().get("bedfight").orElseThrow().mode());
     }
 
     @Test
@@ -62,7 +67,7 @@ class DefaultKitsTest extends DuelsTestBase {
         TestPlayer admin = join("Admin");
         admin.setOp(true);
 
-        assertSays(admin, "duels kit defaults", "Added 17 default kits");
+        assertSays(admin, "duels kit defaults", "Added 19 default kits");
         assertEquals(List.of(ItemStack.of(Material.DIAMOND_SWORD)), duels.kits().get("sword").orElseThrow().items().subList(0, 1));
         assertEquals(mine.displayName(), duels.kits().get("sword").orElseThrow().displayName());
         assertSays(admin, "duels kit defaults", "Added 0 default kits");

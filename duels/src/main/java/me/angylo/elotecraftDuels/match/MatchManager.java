@@ -636,7 +636,8 @@ public final class MatchManager {
         equip(match, fighter, settings.get());
         Tasks.later(plugin, () -> {
             if (match.isFighting(fighter)) {
-                fighter.teleportAsync(match.spawnOf(fighter), TeleportCause.PLUGIN);
+                // Not PLUGIN: Essentials' teleport-invulnerability would stop them hitting or being hit for seconds.
+                fighter.teleportAsync(match.spawnOf(fighter), TeleportCause.UNKNOWN);
             }
         }, 1);
     }

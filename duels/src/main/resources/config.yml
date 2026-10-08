@@ -17,8 +17,6 @@ match:
   max-duration: 5m        # the fight ends in a draw after this
   end-delay-seconds: 4    # 0 to 30; time to celebrate before everyone is sent back
   round-delay-seconds: 3  # 1 to 30; pause after a round of a rounds-to-win kit, before the next countdown
-  boss-bar: true          # show the time left during the fight
-  boss-bar-color: RED     # PINK, BLUE, RED, GREEN, YELLOW, PURPLE or WHITE
   log-results: true       # write every result to the console
   arrow-health: true      # tell archers how much health their arrow left the target
 

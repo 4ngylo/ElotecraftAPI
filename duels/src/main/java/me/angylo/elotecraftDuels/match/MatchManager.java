@@ -422,9 +422,6 @@ public final class MatchManager {
                     return;
                 }
                 spectator.setGameMode(GameMode.SPECTATOR);
-                if (match.bossBar() != null) {
-                    spectator.showBossBar(match.bossBar());
-                }
                 messages.send(spectator, "spectate.started", Placeholder.unparsed("player", match.first().getName()));
                 for (Player fighter : match.fighters()) {
                     if (match.isParticipant(fighter)) {
@@ -456,7 +453,6 @@ public final class MatchManager {
             if (match.task() != null) {
                 match.task().cancel();
             }
-            display.removeBossBar(match);
             for (Player participant : match.participants()) {
                 messages.send(participant, "match.cancelled");
                 // No respawn listener after disable: bring a dead player back now so they can be restored.
@@ -588,7 +584,6 @@ public final class MatchManager {
                 if (left <= 0) {
                     end(match, List.of(), EndReason.TIMEOUT);
                 } else {
-                    display.timeLeft(match, left);
                     if (match.border() != null) {
                         match.border().tick(match, match.fightSeconds());
                     }
@@ -709,7 +704,6 @@ public final class MatchManager {
     /** {@code team} won a round but not the fight yet: a pause, then {@link #nextRound}. */
     private void roundOver(Match match, int team) {
         match.state(State.ROUND_OVER);
-        display.removeBossBar(match);
         display.roundWon(match, team);
         match.secondsLeft(settings.get().roundDelaySeconds());
     }
@@ -748,7 +742,6 @@ public final class MatchManager {
         }
         match.state(State.ENDING);
         match.result(winnerTeams, reason);
-        display.removeBossBar(match);
         outcomes.record(match, winnerTeams, reason);
         match.secondsLeft(settings.get().endDelaySeconds());
         if (match.secondsLeft() <= 0) {
@@ -779,7 +772,6 @@ public final class MatchManager {
         if (match.task() != null) {
             match.task().cancel();
         }
-        display.removeBossBar(match);
         GoalHolograms.remove(match);
         for (Player spectator : match.spectators()) {
             messages.send(spectator, "spectate.ended");
@@ -800,9 +792,6 @@ public final class MatchManager {
     /** Takes {@code player} out of {@code match} and restores their snapshot. */
     private void release(Match match, Player player, boolean teleportNow) {
         byPlayer.remove(player.getUniqueId(), match);
-        if (match.bossBar() != null) {
-            player.hideBossBar(match.bossBar());
-        }
         if (match.border() != null && match.isFighter(player)) {
             FightBorder.hide(player);
         }

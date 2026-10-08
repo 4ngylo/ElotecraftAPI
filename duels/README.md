@@ -342,7 +342,7 @@ cut short by a crash is undone when the player next joins.
 
 ## Configuration
 
-- `config.yml`: database, countdown, duration, end delay, boss bar, request expiry and cooldown, rematch
+- `config.yml`: database, countdown, duration, end delay, request expiry and cooldown, rematch
   window, archers seeing the health their arrow left (`match.arrow-health`), hunger, regeneration and void rules, allowed commands, build kit and arena regen rules, the
   arenas world and arena copies, ranked rating and queue range, party size and invite expiry, events,
   the sidebar, rewards, title timings, sounds and particles.

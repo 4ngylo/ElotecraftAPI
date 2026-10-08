@@ -192,7 +192,6 @@ match:
   round-countdown-subtitle: "<gray>Round <white><round></white> <dark_gray>·</dark_gray> <white><score>"
   fight-title: "<gradient:#ff416c:#ff4b2b><bold>FIGHT!"
   fight-subtitle: "<gray>Good luck"
-  boss-bar: "<gray>Time left <dark_gray>·</dark_gray> <white><time>"
   victory-title: "<gradient:#56ab2f:#a8e063><bold>VICTORY"
   victory-subtitle: "<gray>You defeated <white><opponent>"
   defeat-title: "<gradient:#cb2d3e:#ef473a><bold>DEFEAT"

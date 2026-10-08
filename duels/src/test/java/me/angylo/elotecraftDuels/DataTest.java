@@ -8,7 +8,6 @@ import me.angylo.elotecraftDuels.kit.KitRegistry;
 import me.angylo.elotecraftDuels.kit.KitRule;
 import me.angylo.elotecraftDuels.state.PlayerSnapshot;
 import me.angylo.elotecraftDuels.stats.PlayerStats;
-import net.kyori.adventure.bossbar.BossBar;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -76,7 +75,7 @@ class DataTest extends DuelsTestBase {
 
         YamlConfiguration bad = new YamlConfiguration();
         bad.loadFromString("""
-                match: {countdown-seconds: 99, max-duration: soon, boss-bar-color: CHARTREUSE}
+                match: {countdown-seconds: 99, max-duration: soon}
                 rules: {allowed-commands: ["/MSG"]}
                 rewards: {win: {money: -5}}
                 ranked: {k-factor: 0, range-max: 9999}
@@ -88,7 +87,6 @@ class DataTest extends DuelsTestBase {
 
         assertEquals(5, settings.countdownSeconds());
         assertEquals(Duration.ofMinutes(5), settings.maxDuration());
-        assertEquals(BossBar.Color.RED, settings.bossBarColor());
         assertEquals(Set.of("msg"), settings.allowedCommands());
         assertEquals(0, settings.winReward().money());
         assertEquals(32, settings.ranked().kFactor());

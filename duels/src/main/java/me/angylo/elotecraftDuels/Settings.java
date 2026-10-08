@@ -3,7 +3,6 @@ package me.angylo.elotecraftDuels;
 import me.angylo.elotecraftAPI.util.Durations;
 import me.angylo.elotecraftDuels.event.HostedEvent;
 import me.angylo.elotecraftDuels.stats.Divisions;
-import net.kyori.adventure.bossbar.BossBar;
 import net.kyori.adventure.title.Title;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.MemoryConfiguration;
@@ -27,8 +26,8 @@ import java.util.stream.Stream;
  * Typed view of config.yml, rebuilt on every reload. A bad value is logged with its path and replaced
  * by the built-in default, so a typo never stops the plugin.
  */
-public record Settings(int countdownSeconds, Duration maxDuration, int endDelaySeconds, int roundDelaySeconds, boolean bossBar,
-                BossBar.Color bossBarColor, boolean logResults, boolean arrowHealth, Duration requestExpiry, Duration requestCooldown,
+public record Settings(int countdownSeconds, Duration maxDuration, int endDelaySeconds, int roundDelaySeconds,
+                boolean logResults, boolean arrowHealth, Duration requestExpiry, Duration requestCooldown,
                 Duration rematchWindow, boolean hunger, boolean naturalRegeneration, Set<String> allowedCommands,
                 Reward winReward, Reward lossReward, Title.Times titleTimes, Effects effects,
                 boolean breakArenaBlocks, int regenBlocksPerTick, boolean voidEliminates, String arenasWorld,
@@ -187,8 +186,6 @@ public record Settings(int countdownSeconds, Duration maxDuration, int endDelayS
                 duration(config, logger, "match.max-duration", Duration.ofMinutes(5), Duration.ofSeconds(10)),
                 integer(config, logger, "match.end-delay-seconds", 4, 0, 30),
                 integer(config, logger, "match.round-delay-seconds", 3, 1, 30),
-                config.getBoolean("match.boss-bar", true),
-                bossBarColor(config, logger),
                 config.getBoolean("match.log-results", true),
                 config.getBoolean("match.arrow-health", true),
                 duration(config, logger, "requests.expiry", Duration.ofSeconds(30), Duration.ofSeconds(5)),
@@ -375,15 +372,6 @@ public record Settings(int countdownSeconds, Duration maxDuration, int endDelayS
         return fallback;
     }
 
-    private static BossBar.Color bossBarColor(ConfigurationSection config, Logger logger) {
-        String raw = config.getString("match.boss-bar-color", "RED");
-        try {
-            return BossBar.Color.valueOf(raw.strip().toUpperCase(Locale.ROOT));
-        } catch (IllegalArgumentException e) {
-            logger.warning("config.yml match.boss-bar-color '" + raw + "' is not a boss bar color; using RED");
-            return BossBar.Color.RED;
-        }
-    }
 
     private static Reward reward(ConfigurationSection config, Logger logger, String path) {
         return Reward.load(config, logger, "config.yml", path);

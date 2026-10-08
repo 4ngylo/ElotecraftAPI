@@ -7,7 +7,6 @@ import me.angylo.elotecraftDuels.arena.ArenaInstance;
 import me.angylo.elotecraftDuels.kit.Kit;
 import me.angylo.elotecraftDuels.kit.KitRule;
 import me.angylo.elotecraftDuels.state.PlayerSnapshot;
-import net.kyori.adventure.bossbar.BossBar;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
@@ -109,7 +108,6 @@ public final class Match {
     private int secondsLeft;
     private int fightSeconds;
     private int maxFightSeconds;
-    private BossBar bossBar;
     /** Bridge: the holograms above the goals, while the fight runs. */
     private final List<Hologram> goalHolograms = new ArrayList<>();
     private FightBorder border;
@@ -536,14 +534,6 @@ public final class Match {
 
     void maxFightSeconds(int seconds) {
         maxFightSeconds = seconds;
-    }
-
-    BossBar bossBar() {
-        return bossBar;
-    }
-
-    void bossBar(BossBar bar) {
-        bossBar = bar;
     }
 
     /** The closing border, once the fight started with one; else null. */

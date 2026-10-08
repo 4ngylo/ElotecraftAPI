@@ -15,13 +15,13 @@ import org.bukkit.Material;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Player;
 import org.bukkit.event.inventory.ClickType;
-import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.Plugin;
 
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.logging.Level;
 
@@ -41,6 +41,11 @@ final class MenuLayout {
      * @throws IllegalArgumentException if the section is missing or invalid
      */
     static PaginatedMenu frame(Plugin plugin, ConfigurationSection section, TagResolver... tags) {
+        return frame(section, (rows, title) -> new PaginatedMenu(plugin, rows, title), tags);
+    }
+
+    /** Like {@link #frame(Plugin, ConfigurationSection, TagResolver...)}, with the menu made by {@code create} from rows and title. */
+    static <M extends PaginatedMenu> M frame(ConfigurationSection section, BiFunction<Integer, Component, M> create, TagResolver... tags) {
         if (section == null) {
             throw new IllegalArgumentException("Missing menu section in menus.yml");
         }
@@ -48,7 +53,7 @@ final class MenuLayout {
         if (rows < MIN_ROWS || rows > MAX_ROWS) {
             throw new IllegalArgumentException(section.getCurrentPath() + ".rows must be " + MIN_ROWS + " to " + MAX_ROWS);
         }
-        PaginatedMenu menu = new PaginatedMenu(plugin, rows, Text.mm(section.getString("title", ""), tags));
+        M menu = create.apply(rows, Text.mm(section.getString("title", ""), tags));
         if (section.isConfigurationSection("previous")) {
             menu.previousButton(MenuConfig.item(section.getConfigurationSection("previous")));
         }
@@ -90,7 +95,7 @@ final class MenuLayout {
         return ItemBuilder.of(material)
                 .name(Text.mm(template.getString("name", ""), tags))
                 .lore(template.getStringList(loreKey).stream().map(line -> Text.mm(line, tags)).toArray(Component[]::new))
-                .flags(ItemFlag.HIDE_ATTRIBUTES)
+                .hideDetails()
                 .glint(glint ? Boolean.TRUE : null)
                 .build();
     }
@@ -126,6 +131,16 @@ final class MenuLayout {
     static void menuError(Plugin plugin, Messages messages, Player viewer, String key, IllegalArgumentException e) {
         plugin.getLogger().log(Level.WARNING, "Invalid " + key + " menu in menus.yml: " + e.getMessage());
         messages.send(viewer, "general.menu-error");
+    }
+
+    /** The item material named by {@code template}'s {@code key}. */
+    static Material material(ConfigurationSection template, String key) {
+        String raw = template == null ? "" : template.getString(key, "");
+        Material material = Material.matchMaterial(raw);
+        if (material == null || !material.isItem() || material.isAir()) {
+            throw new IllegalArgumentException((template == null ? key : template.getCurrentPath() + "." + key) + " is not an item: '" + raw + "'");
+        }
+        return material;
     }
 
     /** A text from the section's {@code values}, in MiniMessage. */

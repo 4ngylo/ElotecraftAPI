@@ -4,6 +4,7 @@ import me.angylo.elotecraftAPI.util.Cooldowns;
 import me.angylo.elotecraftAPI.util.Durations;
 import me.angylo.elotecraftAPI.util.Messages;
 import me.angylo.elotecraftAPI.util.Text;
+import me.angylo.elotecraftDuels.PlayerOptions;
 import me.angylo.elotecraftDuels.Settings;
 import me.angylo.elotecraftDuels.arena.Arena;
 import me.angylo.elotecraftDuels.arena.ArenaRegistry;
@@ -18,6 +19,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -28,7 +30,7 @@ import java.util.function.Supplier;
 
 /**
  * Duel requests: a challenge stays open until it is accepted, denied, expires, or either player
- * leaves. Main thread only.
+ * leaves. A challenge may carry a money bet, taken from both when it is accepted ({@link Bets}). Main thread only.
  */
 public final class RequestManager {
 
@@ -38,9 +40,10 @@ public final class RequestManager {
     /**
      * @param arena        null for a random free arena
      * @param expiresAtTick server tick, so the expiry follows game time
+     * @param bet          each player's stake, or 0 for none
      */
     private record Request(UUID sender, String senderName, UUID target, String targetName, String kit, String arena,
-                           long expiresAtTick) {
+                           long expiresAtTick, double bet) {
     }
 
     private final Messages messages;
@@ -48,17 +51,19 @@ public final class RequestManager {
     private final KitRegistry kits;
     private final ArenaRegistry arenas;
     private final MatchManager matches;
+    private final Bets bets;
     private final Cooldowns<UUID> cooldowns = new Cooldowns<>();
     /** Target, then sender, in the order the challenges arrived. */
     private final Map<UUID, Map<UUID, Request>> pending = new HashMap<>();
 
     public RequestManager(Messages messages, Supplier<Settings> settings, KitRegistry kits, ArenaRegistry arenas,
-                          MatchManager matches) {
+                          MatchManager matches, Bets bets) {
         this.messages = messages;
         this.settings = settings;
         this.kits = kits;
         this.arenas = arenas;
         this.matches = matches;
+        this.bets = bets;
     }
 
     /**
@@ -68,12 +73,24 @@ public final class RequestManager {
      * @param rematch skips the cooldown
      */
     public void send(Player sender, Player target, Kit kit, Arena arena, boolean rematch) {
+        send(sender, target, kit, arena, rematch, 0);
+    }
+
+    /**
+     * Like {@link #send(Player, Player, Kit, Arena, boolean)}, with each player's stake.
+     *
+     * @param bet 0 for no bet
+     */
+    public void send(Player sender, Player target, Kit kit, Arena arena, boolean rematch, double bet) {
         if (sender.equals(target)) {
             messages.send(sender, "request.self");
             return;
         }
         if (!target.isOnline()) {
             messages.send(sender, "general.player-not-found", Placeholder.unparsed("player", target.getName()));
+            return;
+        }
+        if (refuses(sender, target)) {
             return;
         }
         if (matches.isBusy(sender)) {
@@ -100,6 +117,9 @@ public final class RequestManager {
             messages.send(sender, "request.already-sent", Placeholder.unparsed("player", target.getName()));
             return;
         }
+        if (bet != 0 && !bets.mayOffer(sender, bet)) {
+            return;
+        }
         if (!rematch && !sender.hasPermission(BYPASS_COOLDOWN)
                 && !cooldowns.tryUse(sender.getUniqueId(), settings.get().requestCooldown())) {
             messages.send(sender, "request.cooldown",
@@ -109,9 +129,11 @@ public final class RequestManager {
         }
         pending.computeIfAbsent(target.getUniqueId(), uuid -> new LinkedHashMap<>()).put(sender.getUniqueId(), new Request(sender.getUniqueId(), sender.getName(), target.getUniqueId(),
                 target.getName(), kit.name(), arena == null ? null : arena.name(),
-                Bukkit.getCurrentTick() + settings.get().requestExpiry().toMillis() / MILLIS_PER_TICK));
+                Bukkit.getCurrentTick() + settings.get().requestExpiry().toMillis() / MILLIS_PER_TICK, bet));
         TagResolver[] setup = {kitTag(kit), arenaTag(target, arena)};
-        messages.send(sender, "request.sent", MatchDisplay.with(setup, Placeholder.unparsed("player", target.getName())));
+        messages.send(sender, "request.sent", MatchDisplay.with(setup, Placeholder.unparsed("player", target.getName()),
+                Placeholder.styling("cancel", ClickEvent.runCommand("/duel cancel " + target.getName()),
+                        HoverEvent.showText(messages.get(sender, "request.cancel-hover")))));
         String answer = " " + sender.getName();
         messages.send(target, "request.received", MatchDisplay.with(setup,
                 Placeholder.unparsed("player", sender.getName()),
@@ -119,10 +141,28 @@ public final class RequestManager {
                         HoverEvent.showText(messages.get(target, "request.accept-hover"))),
                 Placeholder.styling("deny", ClickEvent.runCommand("/duel deny" + answer),
                         HoverEvent.showText(messages.get(target, "request.deny-hover")))));
+        if (bet > 0) {
+            messages.send(sender, "bet.offer-sent", bets.tags(bet));
+            messages.send(target, "bet.offer-received", bets.tags(bet));
+        }
         settings.get().effects().play(target, "request-received");
     }
 
     /** @param senderName empty to accept the only pending challenge */
+    /** Whether {@code target} turned requests off; tells {@code sender} if so. */
+    public boolean refuses(Player sender, Player target) {
+        if (PlayerOptions.REQUESTS.isOn(target)) {
+            return false;
+        }
+        messages.send(sender, "request.disabled", Placeholder.unparsed("player", target.getName()));
+        return true;
+    }
+
+    /** Turns {@code player}'s duel requests off, or back on. */
+    public void toggle(Player player) {
+        messages.send(player, PlayerOptions.REQUESTS.toggle(player) ? "request.toggled-on" : "request.toggled-off");
+    }
+
     public void accept(Player target, String senderName) {
         Optional<Request> found = find(target, senderName);
         if (found.isEmpty()) {
@@ -160,8 +200,26 @@ public final class RequestManager {
             }
             return;
         }
+        Bets.Stake stake = null;
+        if (request.bet() > 0) {
+            // The request stays open if the money cannot be taken, so it can be accepted once it can.
+            stake = bets.take(sender, target, request.bet());
+            if (stake == null) {
+                return;
+            }
+        }
         remove(request);
-        if (matches.start(sender, target, kit.get(), arena.get())) {
+        boolean started = matches.start(sender, target, kit.get(), arena.get());
+        if (stake != null) {
+            // A duel that never got going gives the stakes back now; one that did, once it is over.
+            Match match = matches.matchOf(sender).filter(running -> running.isFighter(sender)).orElse(null);
+            if (started && match != null) {
+                bets.hold(match, stake);
+            } else {
+                bets.refund(stake);
+            }
+        }
+        if (started) {
             messages.send(sender, "request.accepted", Placeholder.unparsed("player", target.getName()));
         }
     }
@@ -177,6 +235,45 @@ public final class RequestManager {
                 settings.get().effects().play(sender, "denied");
             }
         });
+    }
+
+    /** Takes back a challenge {@code sender} sent and tells its target; {@code targetName} empty for their only one. */
+    public void cancel(Player sender, String targetName) {
+        List<Request> sent = sentBy(sender.getUniqueId());
+        if (sent.isEmpty()) {
+            messages.send(sender, "request.none-sent");
+            return;
+        }
+        if (targetName.isEmpty() && sent.size() > 1) {
+            messages.send(sender, "request.choose-cancel");
+            return;
+        }
+        Optional<Request> request = targetName.isEmpty() ? Optional.of(sent.getFirst())
+                : sent.stream().filter(found -> found.targetName().equalsIgnoreCase(targetName)).findFirst();
+        if (request.isEmpty()) {
+            messages.send(sender, "request.none-to", Placeholder.unparsed("player", targetName));
+            return;
+        }
+        remove(request.get());
+        messages.send(sender, "request.you-cancelled", Placeholder.unparsed("player", request.get().targetName()));
+        notify(request.get().target(), "request.cancelled", sender.getName());
+    }
+
+    /** Names of the players {@code sender} challenged, oldest first; for tab completion. */
+    public List<String> targetsOf(Player sender) {
+        return sentBy(sender.getUniqueId()).stream().map(Request::targetName).toList();
+    }
+
+    private List<Request> sentBy(UUID sender) {
+        List<Request> sent = new ArrayList<>();
+        pending.values().forEach(requests -> {
+            Request request = requests.get(sender);
+            if (request != null) {
+                sent.add(request);
+            }
+        });
+        sent.sort(Comparator.comparingLong(Request::expiresAtTick).thenComparing(Request::targetName));
+        return sent;
     }
 
     /** Challenges the last opponent again with the same kit and arena, or accepts their rematch request. */

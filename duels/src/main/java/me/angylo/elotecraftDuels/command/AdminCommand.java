@@ -131,6 +131,8 @@ public final class AdminCommand {
                         .sub("snapshot", null, (sender, args) -> withEditableArena(sender, args, (arena, rest) -> snapshot(sender, arena)), arenaNames)
                         .sub("reset", null, (sender, args) -> withArena(sender, args, (arena, rest) -> reset(sender, arena)), arenaNames))
                 .sub(new KitAdminCommand(this, duels, kitMenu).node())
+                .sub(new HologramAdminCommand(this, duels).node())
+                .sub(new SeasonAdminCommand(duels).node())
                 .sub("reload", "duels.admin.reload", (sender, args) ->
                         messages.send(sender, duels.reload() ? "admin.reloaded" : "admin.reload-failed"))
                 .sub("stop", "duels.admin.stop", this::stop, (sender, args) -> Args.players(args))

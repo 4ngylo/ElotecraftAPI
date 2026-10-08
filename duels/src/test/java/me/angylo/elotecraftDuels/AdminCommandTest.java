@@ -70,16 +70,16 @@ class AdminCommandTest extends DuelsTestBase {
     @Test
     void kitRulesAreSetListedAndReset() {
         assertTrue(said("duels kit rule sword pearl-cooldown 15", "pearl-cooldown of Sword is now 15s"));
-        assertEquals(15, duels.kits().get("sword").orElseThrow().seconds(KitRule.PEARL_COOLDOWN).orElseThrow());
+        assertEquals(15, duels.kits().get("sword").orElseThrow().number(KitRule.PEARL_COOLDOWN).orElseThrow());
         assertTrue(said("duels kit rule sword natural-regeneration false", "is now false"));
         assertTrue(said("duels kit rule sword", "natural-regeneration: false"));
 
         assertTrue(said("duels kit rule sword pearl-cooldown soon", "number of seconds from 0 to 60"));
         assertTrue(said("duels kit rule sword flying true", "Rules:"));
         assertTrue(said("duels kit rule sword pearl-cooldown default", "is now vanilla"));
-        assertTrue(duels.kits().get("sword").orElseThrow().seconds(KitRule.PEARL_COOLDOWN).isEmpty());
+        assertTrue(duels.kits().get("sword").orElseThrow().number(KitRule.PEARL_COOLDOWN).isEmpty());
         Command duelsCommand = server.getCommandMap().getCommand("duels");
-        assertEquals(List.of("hunger", "hit-delay"), duelsCommand.tabComplete(admin, "duels", new String[]{"kit", "rule", "sword", "h"}));
+        assertEquals(List.of("hunger", "hit-delay", "hits-to-win"), duelsCommand.tabComplete(admin, "duels", new String[]{"kit", "rule", "sword", "h"}));
         assertEquals(List.of("0", "15", "default"), duelsCommand.tabComplete(admin, "duels", new String[]{"kit", "rule", "sword", "pearl-cooldown", ""}));
     }
 
@@ -89,7 +89,7 @@ class AdminCommandTest extends DuelsTestBase {
         Command duelsCommand = server.getCommandMap().getCommand("duels");
 
         assertEquals(List.of("help", "create", "save", "load", "delete", "seticon", "setname", "setpermission", "build", "damage",
-                "rule", "defaults", "arenas", "list", "sword"), duelsCommand.tabComplete(admin, "duels", new String[]{"kit", ""}));
+                "effect", "rule", "defaults", "arenas", "list", "sword"), duelsCommand.tabComplete(admin, "duels", new String[]{"kit", ""}));
         assertEquals(List.of("none", "duels.kit.sword"), duelsCommand.tabComplete(admin, "duels", new String[]{"kit", "setpermission", "sword", ""}));
         assertEquals(List.of("sumo", "any"), duelsCommand.tabComplete(admin, "duels", new String[]{"kit", "arenas", "sword", ""}));
         assertEquals(List.of("sumo"), duelsCommand.tabComplete(admin, "duels", new String[]{"kit", "arenas", "sword", "sumo", ""}));

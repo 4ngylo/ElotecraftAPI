@@ -12,9 +12,9 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * The 15 kits a fresh install starts with, after the most played practice modes: the classic ones
- * (NoDebuff, Debuff, Gapple, BuildUHC, Classic, Archer, Sumo) and the MCTiers ones (Vanilla, UHC, Pot,
- * NethOP, SMP, Sword, Axe, Mace). Admins edit them like any kit.
+ * The 18 kits a fresh install starts with, after the most played practice modes: the classic ones
+ * (NoDebuff, Debuff, Gapple, BuildUHC, Classic, Archer, Sumo, Boxing, Combo), the MCTiers ones (Vanilla,
+ * UHC, Pot, NethOP, SMP, Sword, Axe, Mace) and Spear. Admins edit them like any kit.
  */
 final class DefaultKits {
 
@@ -25,6 +25,10 @@ final class DefaultKits {
     private static final int OFF_HAND = 40;
     /** Seconds between ender pearls in the potion kits, as on most practice servers. */
     private static final int PRACTICE_PEARL_COOLDOWN = 15;
+    /** Sumo is a best of 3. */
+    private static final int SUMO_ROUNDS = 2;
+    /** Boxing: the first to land 100 hits wins, as on most practice servers. */
+    private static final int BOXING_HITS = 100;
 
     private DefaultKits() {
     }
@@ -56,7 +60,7 @@ final class DefaultKits {
                         .slot(1, potion(Material.POTION, PotionType.STRONG_SWIFTNESS)).slot(2, potion(Material.POTION, PotionType.STRONG_SWIFTNESS))
                         .slot(8, item(Material.COOKED_BEEF, 64)).slot(9, item(Material.ARROW, 1))),
                 kit("sumo", "<yellow>Sumo", Material.SLIME_BALL, false, Set.of("sumo"), new Loadout()
-                        .slot(8, item(Material.COOKED_BEEF, 64))).withDamage(false),
+                        .slot(8, item(Material.COOKED_BEEF, 64))).withDamage(false).withRule(KitRule.ROUNDS_TO_WIN, SUMO_ROUNDS),
                 kit("vanilla", "<dark_purple>Vanilla", Material.END_CRYSTAL, true, Set.of(), new Loadout()
                         .armor("NETHERITE", 4).slot(0, ench(Material.NETHERITE_SWORD, Enchantment.SHARPNESS, 5))
                         .slot(1, item(Material.END_CRYSTAL, 64)).slot(2, item(Material.OBSIDIAN, 64))
@@ -105,7 +109,20 @@ final class DefaultKits {
                         .armor("DIAMOND", 3).slot(0, ench(Material.MACE, Enchantment.DENSITY, 4, Enchantment.WIND_BURST, 1))
                         .slot(1, ench(Material.DIAMOND_SWORD, Enchantment.SHARPNESS, 4)).slot(2, item(Material.WIND_CHARGE, 64))
                         .slot(3, item(Material.GOLDEN_APPLE, 16)).slot(4, item(Material.ENDER_PEARL, 16))
-                        .slot(8, item(Material.COOKED_BEEF, 64)).slot(OFF_HAND, item(Material.SHIELD, 1))));
+                        .slot(8, item(Material.COOKED_BEEF, 64)).slot(OFF_HAND, item(Material.SHIELD, 1))),
+                kit("boxing", "<red>Boxing", Material.LEATHER, false, Set.of(), new Loadout()
+                        .slot(0, ench(Material.DIAMOND_SWORD, Enchantment.SHARPNESS, 1)).slot(8, item(Material.COOKED_BEEF, 64)))
+                        .withDamage(false).withRule(KitRule.HITS_TO_WIN, BOXING_HITS),
+                kit("combo", "<blue>Combo", Material.PUFFERFISH, false, Set.of(), new Loadout()
+                        .armor("DIAMOND", 3).slot(0, ench(Material.DIAMOND_SWORD, Enchantment.SHARPNESS, 3, Enchantment.UNBREAKING, 3))
+                        .slot(1, item(Material.ENCHANTED_GOLDEN_APPLE, 64)).slot(2, potion(Material.POTION, PotionType.STRONG_SWIFTNESS))
+                        .slot(3, potion(Material.POTION, PotionType.STRONG_STRENGTH)).slot(8, item(Material.COOKED_BEEF, 64)))
+                        .withRule(KitRule.HIT_DELAY, false),
+                kit("spear", "<dark_aqua>Spear", Material.DIAMOND_SPEAR, false, Set.of(), new Loadout()
+                        .armor("DIAMOND", 3).slot(0, ench(Material.DIAMOND_SPEAR, Enchantment.LUNGE, 3))
+                        .slot(1, ench(Material.DIAMOND_SWORD, Enchantment.SHARPNESS, 3)).slot(2, item(Material.GOLDEN_APPLE, 16))
+                        .slot(3, item(Material.ENDER_PEARL, 8)).slot(8, item(Material.COOKED_BEEF, 64))
+                        .slot(OFF_HAND, item(Material.SHIELD, 1))));
     }
 
     /** NoDebuff: healing splash potions fill the inventory; Debuff adds poison and slowness to throw. */

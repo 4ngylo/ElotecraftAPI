@@ -5,14 +5,17 @@ import me.angylo.elotecraftDuels.arena.Arena;
 import me.angylo.elotecraftDuels.arena.ArenaInstance;
 import me.angylo.elotecraftDuels.arena.ArenaInstances;
 import me.angylo.elotecraftDuels.arena.ArenaRegistry;
+import me.angylo.elotecraftDuels.kit.KitRule;
 import me.angylo.elotecraftDuels.match.Match;
 import me.angylo.elotecraftDuels.match.MatchManager;
 import org.bukkit.Location;
+import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.block.BlockState;
 import org.bukkit.entity.FallingBlock;
 import org.bukkit.entity.Player;
+import org.bukkit.entity.TNTPrimed;
 import org.bukkit.event.Cancellable;
 import org.bukkit.event.Event;
 import org.bukkit.event.EventHandler;
@@ -22,6 +25,7 @@ import org.bukkit.event.block.Action;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockBurnEvent;
 import org.bukkit.event.block.BlockDispenseEvent;
+import org.bukkit.event.block.BlockDropItemEvent;
 import org.bukkit.event.block.BlockExplodeEvent;
 import org.bukkit.event.block.BlockFadeEvent;
 import org.bukkit.event.block.BlockFormEvent;
@@ -48,7 +52,7 @@ import java.util.function.Supplier;
 /**
  * Blocks in duels. Fighters with a build kit may place blocks inside their arena while fighting, and break
  * the ones placed during the duel (any block with {@code build.break-arena-blocks}); everyone else in a duel
- * changes nothing. Every block a build duel changes, by players, fluids, fire, falling blocks or
+ * changes nothing. Broken blocks drop their item only with the kit's {@link KitRule#BLOCK_DROPS}. Every block a build duel changes, by players, fluids, fire, falling blocks or
  * explosions, is recorded so the arena can be put back, and nothing flows, burns, falls or blows up out of
  * the arena. Pistons, dispensers, trees and sponges do not work in it. Explosions never break other arena
  * blocks.
@@ -90,6 +94,19 @@ public final class BuildListener implements Listener {
         replaced.forEach(state -> recordNeighbours(instance, state.getBlock()));
     }
 
+    /** {@link KitRule#AUTO_IGNITE_TNT}: placed TNT is lit at once, as if its placer lit it. */
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onPlaceTnt(BlockPlaceEvent event) {
+        Block block = event.getBlockPlaced();
+        Player player = event.getPlayer();
+        if (block.getType() != Material.TNT || !matches.matchOf(player)
+                .filter(match -> match.kit().flag(KitRule.AUTO_IGNITE_TNT, settings.get())).isPresent()) {
+            return;
+        }
+        block.setType(Material.AIR);
+        block.getWorld().spawn(block.getLocation().toCenterLocation(), TNTPrimed.class, tnt -> tnt.setSource(player));
+    }
+
     /**
      * Build fighters use blocks normally in their arena ({@link ProtectionListener} lets them, as denying
      * it would stop block placing too); what they click (doors, levers, both halves) is put back afterwards.
@@ -113,8 +130,20 @@ public final class BuildListener implements Listener {
         if (!removeBlock(event.getPlayer(), event.getBlock(), event)) {
             return;
         }
-        event.setDropItems(false);
         event.setExpToDrop(0);
+        boolean drops = matches.matchOf(event.getPlayer())
+                .map(match -> match.kit().flag(KitRule.BLOCK_DROPS, settings.get())).orElse(false);
+        if (!drops) {
+            event.setDropItems(false);
+        }
+    }
+
+    /** Items from blocks broken in a build duel stay in it: see {@link ProtectionListener}. */
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onBlockDrop(BlockDropItemEvent event) {
+        if (matches.isRestricted(event.getPlayer())) {
+            event.getItems().forEach(ProtectionListener::markDuelDrop);
+        }
     }
 
     @EventHandler(priority = EventPriority.LOW, ignoreCancelled = true)

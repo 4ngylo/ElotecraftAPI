@@ -2,6 +2,7 @@ package me.angylo.elotecraftDuels;
 
 import me.angylo.elotecraftDuels.arena.Arena;
 import me.angylo.elotecraftDuels.match.Match;
+import me.angylo.elotecraftDuels.match.RequestManager;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -56,6 +57,30 @@ class CommandTest extends DuelsTestBase {
         assertTrue(anyMessage(alex, "Steve denied your duel."));
         server.dispatchCommand(steve, "duel accept");
         assertTrue(anyMessage(steve, "Nobody has challenged you."));
+    }
+
+    @Test
+    void cancelTakesBackASentChallenge() {
+        TestPlayer third = join("Third");
+        alex.addAttachment(plugin, RequestManager.BYPASS_COOLDOWN, true);
+        server.dispatchCommand(alex, "duel cancel");
+        assertTrue(anyMessage(alex, "You haven't challenged anyone."));
+        server.dispatchCommand(alex, "duel Steve sword");
+        server.dispatchCommand(alex, "duel Third sword");
+
+        server.dispatchCommand(alex, "duel cancel");
+        assertTrue(anyMessage(alex, "You challenged several players"));
+        Command duel = server.getCommandMap().getCommand("duel");
+        assertEquals(List.of("Steve", "Third"), duel.tabComplete(alex, "duel", new String[]{"cancel", ""}));
+
+        server.dispatchCommand(alex, "duel cancel steve");
+        assertTrue(anyMessage(alex, "You took back your challenge to Steve."));
+        assertTrue(anyMessage(steve, "Alex took back their duel request."));
+        server.dispatchCommand(steve, "duel accept");
+        assertTrue(anyMessage(steve, "Nobody has challenged you."));
+
+        server.dispatchCommand(alex, "duel cancel");
+        assertTrue(anyMessage(third, "Alex took back their duel request."));
     }
 
     @Test
@@ -135,8 +160,8 @@ class CommandTest extends DuelsTestBase {
         server.dispatchCommand(alex, "duel top");
         tickUntil(() -> !messages(alex).isEmpty());
 
-        duels.stats().recordResult(steve, alex, 16);
-        tickUntil(() -> !await(duels.stats().topByElo(1)).isEmpty());
+        duels.stats().recordResult(steve, alex, "sword", 16);
+        tickUntil(() -> !await(duels.stats().topByElo("sword", 1)).isEmpty());
         server.dispatchCommand(steve, "duel top elo");
         List<String> lines = new ArrayList<>();
         tickUntil(() -> {
@@ -154,7 +179,9 @@ class CommandTest extends DuelsTestBase {
         assertTrue(first.containsAll(List.of("accept", "queue", "Steve")));
         assertFalse(first.contains("Alex"));
         assertEquals(List.of("sword"), duel.tabComplete(alex, "duel", new String[]{"Steve", ""}));
-        assertEquals(List.of("pit"), duel.tabComplete(alex, "duel", new String[]{"Steve", "sword", ""}));
+        assertEquals(List.of("bet", "pit"), duel.tabComplete(alex, "duel", new String[]{"Steve", "sword", ""}));
+        assertEquals(List.of("bet"), duel.tabComplete(alex, "duel", new String[]{"Steve", "sword", "pit", ""}));
+        assertEquals(List.of(), duel.tabComplete(alex, "duel", new String[]{"Steve", "sword", "bet", ""}));
     }
 
     @Test

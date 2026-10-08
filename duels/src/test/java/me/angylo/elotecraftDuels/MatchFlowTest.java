@@ -90,6 +90,22 @@ class MatchFlowTest extends DuelsTestBase {
     }
 
     @Test
+    void aFighterWhoQuitsOnTheWayBackIsNotLeftInTheArena() {
+        assertTrue(duels.matches().start(alex, steve, kit, arena));
+        Match match = duels.matches().matchOf(alex).orElseThrow();
+        tickUntil(() -> match.state() == Match.State.COUNTDOWN);
+        steve.holdTeleports(true);
+
+        // Cancels the duel: Steve's way back is an async teleport, and he quits before it arrives.
+        alex.disconnect();
+        assertEquals(arenaWorld, steve.getWorld());
+        steve.disconnect();
+
+        assertEquals(world, steve.getWorld());
+        assertTrue(steve.getInventory().contains(Material.COBBLESTONE, 7));
+    }
+
+    @Test
     void deadPlayersCannotBeStarted() {
         steve.setHealth(0);
 

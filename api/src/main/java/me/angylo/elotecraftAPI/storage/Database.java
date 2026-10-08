@@ -25,8 +25,10 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Pooled SQLite or MySQL access that never blocks the main thread.
@@ -46,6 +48,7 @@ public final class Database implements AutoCloseable {
 
     private static final int DEFAULT_MYSQL_POOL_SIZE = 10;
     private static final long CLOSE_TIMEOUT_SECONDS = 10;
+    private static final long CLOSE_POLL_MILLIS = 10;
 
     /** Reads one row of a {@link ResultSet}; do not call {@code next()} yourself. */
     @FunctionalInterface
@@ -62,6 +65,10 @@ public final class Database implements AutoCloseable {
     private final Plugin plugin;
     private final HikariDataSource dataSource;
     private final ExecutorService executor;
+    /** Completions waiting for the main thread, in the order their queries finished. */
+    private final LinkedBlockingQueue<Runnable> mainThreadCompletions = new LinkedBlockingQueue<>();
+    /** Futures returned but not completed yet, counting completions still queued for the main thread. */
+    private final AtomicInteger inFlight = new AtomicInteger();
 
     private Database(Plugin plugin, HikariConfig config, int poolSize) {
         if (poolSize < 1) {
@@ -225,14 +232,23 @@ public final class Database implements AutoCloseable {
     }
 
     /**
-     * Waits up to 10 seconds for queued queries to finish, then closes the pool. Call in {@code onDisable};
-     * queries submitted afterwards fail with {@link IllegalStateException}.
+     * Waits up to 10 seconds for queued queries to finish, then closes the pool. Call in {@code onDisable}:
+     * results still queued for the main thread complete here, since the server cannot run them while it
+     * waits, and work their callbacks submit (e.g. a delete chained after a save) still runs. Queries
+     * submitted afterwards fail with {@link IllegalStateException}.
      */
     @Override
     public void close() {
-        executor.shutdown();
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(CLOSE_TIMEOUT_SECONDS);
         try {
-            if (!executor.awaitTermination(CLOSE_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
+            while (inFlight.get() > 0 && System.nanoTime() < deadline) {
+                Runnable completion = mainThreadCompletions.poll(CLOSE_POLL_MILLIS, TimeUnit.MILLISECONDS);
+                if (completion != null) {
+                    completion.run();
+                }
+            }
+            executor.shutdown();
+            if (!executor.awaitTermination(Math.max(0, deadline - System.nanoTime()), TimeUnit.NANOSECONDS)) {
                 plugin.getLogger().warning("Database queries still running after " + CLOSE_TIMEOUT_SECONDS + "s; closing anyway");
                 executor.shutdownNow();
             }
@@ -240,11 +256,13 @@ public final class Database implements AutoCloseable {
             Thread.currentThread().interrupt();
             executor.shutdownNow();
         }
+        runMainThreadCompletions();
         dataSource.close();
     }
 
     private <T> CompletableFuture<T> submit(SqlWork<T> work) {
         CompletableFuture<T> result = new CompletableFuture<>();
+        inFlight.incrementAndGet();
         try {
             executor.execute(() -> {
                 try (Connection connection = dataSource.getConnection()) {
@@ -255,21 +273,40 @@ public final class Database implements AutoCloseable {
                 }
             });
         } catch (RejectedExecutionException e) {
+            inFlight.decrementAndGet();
             result.completeExceptionally(new IllegalStateException("Database is closed", e));
         }
         return result;
     }
 
     private void completeOnMain(Runnable completion) {
-        if (plugin.isEnabled()) {
+        // Counted down after the callbacks ran, so work they submit is counted before this leaves.
+        Runnable counted = () -> {
             try {
-                Tasks.sync(plugin, completion);
+                completion.run();
+            } finally {
+                inFlight.decrementAndGet();
+            }
+        };
+        if (plugin.isEnabled()) {
+            mainThreadCompletions.add(counted);
+            try {
+                Tasks.sync(plugin, this::runMainThreadCompletions);
                 return;
             } catch (IllegalPluginAccessException e) {
                 // Plugin disabled between the check and scheduling; complete here instead.
             }
+            runMainThreadCompletions();
+            return;
         }
-        completion.run();
+        counted.run();
+    }
+
+    private void runMainThreadCompletions() {
+        Runnable completion;
+        while ((completion = mainThreadCompletions.poll()) != null) {
+            completion.run();
+        }
     }
 
     private static void bind(PreparedStatement statement, Object[] params) throws SQLException {

@@ -1,6 +1,5 @@
 package me.angylo.elotecraftDuels.match;
 
-import me.angylo.elotecraftAPI.util.Durations;
 import me.angylo.elotecraftAPI.util.Messages;
 import me.angylo.elotecraftAPI.util.Tasks;
 import me.angylo.elotecraftDuels.Settings;
@@ -16,7 +15,7 @@ import me.angylo.elotecraftDuels.match.Match.State;
 import me.angylo.elotecraftDuels.match.Match.Type;
 import me.angylo.elotecraftDuels.state.PlayerSnapshot;
 import me.angylo.elotecraftDuels.state.SnapshotStore;
-import me.angylo.elotecraftDuels.stats.PlayerStats;
+import me.angylo.elotecraftDuels.stats.MatchHistory;
 import me.angylo.elotecraftDuels.stats.StatsService;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver;
@@ -27,10 +26,9 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.player.PlayerTeleportEvent.TeleportCause;
 import org.bukkit.plugin.Plugin;
 
-import java.time.Duration;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -38,6 +36,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.logging.Level;
@@ -52,7 +51,6 @@ import java.util.logging.Logger;
 public final class MatchManager {
 
     private static final long SECOND_TICKS = 20;
-    private static final long MILLIS_PER_TICK = 50;
     /** Hit delay of combo kits (vanilla 20): hits land almost every tick. Reset by {@link PlayerSnapshot}. */
     private static final int COMBO_NO_DAMAGE_TICKS = 2;
 
@@ -71,21 +69,23 @@ public final class MatchManager {
     private final ArenaRegistry arenas;
     private final ArenaInstances instances;
     private final SnapshotStore snapshots;
-    private final StatsService stats;
     private final KitLayouts layouts;
     /** Players busy outside matches under match rules, such as in the kit editor. */
     private Predicate<Player> busyElsewhere = player -> false;
     /** Players waiting for something else, such as an event: busy, but free to do anything else. */
     private Predicate<Player> waitingElsewhere = player -> false;
-    private final Rewards rewards;
+    /** Told about every match once it is over and everyone was sent back, such as a tournament's fights. */
+    private final List<Consumer<Match>> finished = new ArrayList<>();
     private final MatchDisplay display;
     /** Fighters and spectators; read by placeholders from other threads. */
     private final Map<UUID, Match> byPlayer = new ConcurrentHashMap<>();
     private final Set<Match> running = ConcurrentHashMap.newKeySet();
-    private final Map<UUID, Rematch> rematches = new HashMap<>();
+    /** Stats, ratings, rewards, rematches and kept inventories of fights with a result. */
+    private final MatchResults outcomes;
 
     public MatchManager(Plugin plugin, Messages messages, Supplier<Settings> settings, ArenaRegistry arenas,
-                        ArenaInstances instances, SnapshotStore snapshots, StatsService stats, KitLayouts layouts) {
+                        ArenaInstances instances, SnapshotStore snapshots, StatsService stats, MatchHistory history,
+                        KitLayouts layouts) {
         this.plugin = plugin;
         this.logger = plugin.getLogger();
         this.messages = messages;
@@ -93,10 +93,9 @@ public final class MatchManager {
         this.arenas = arenas;
         this.instances = instances;
         this.snapshots = snapshots;
-        this.stats = stats;
         this.layouts = layouts;
-        this.rewards = new Rewards(plugin, messages, settings);
         this.display = new MatchDisplay(messages, settings);
+        this.outcomes = new MatchResults(logger, settings, stats, history, new Rewards(plugin, messages, settings), display);
     }
 
     /** Whether {@code player} is fighting, spectating, editing a kit or waiting for an event. */
@@ -120,6 +119,11 @@ public final class MatchManager {
     /** Players {@code waiting} names are busy, but not {@link #isRestricted restricted}. */
     public void waitingElsewhere(Predicate<Player> waiting) {
         this.waitingElsewhere = waiting;
+    }
+
+    /** {@code listener} hears of every match once it is over, with or without a result; not on shutdown. */
+    public void onFinish(Consumer<Match> listener) {
+        finished.add(listener);
     }
 
     public Optional<Match> matchOf(Player player) {
@@ -169,16 +173,17 @@ public final class MatchManager {
 
     /** {@code player}'s last opponent, while the rematch window is open. */
     public Optional<Rematch> rematchOf(Player player) {
-        Rematch rematch = rematches.get(player.getUniqueId());
-        if (rematch == null || rematch.expired()) {
-            rematches.remove(player.getUniqueId());
-            return Optional.empty();
-        }
-        return Optional.of(rematch);
+        return outcomes.rematchOf(player);
     }
 
-    public void purgeExpiredRematches() {
-        rematches.values().removeIf(Rematch::expired);
+    /** Drops rematch offers and fight inventories whose time is up. */
+    public void purgeExpired() {
+        outcomes.purgeExpired();
+    }
+
+    /** A fighter of a fight that ended in the last few minutes, by the id in its result message. */
+    public Optional<FighterResult> fightResult(String id, String name) {
+        return outcomes.fightResult(id, name);
     }
 
     /** Starts an unranked duel; see {@link #start(Player, Player, Kit, Arena, boolean)}. */
@@ -303,14 +308,19 @@ public final class MatchManager {
         }
         State state = match.state();
         boolean fighter = match.isFighter(player);
+        boolean betweenRounds = match.betweenRounds();
         release(match, player, true);
         if (!fighter) {
+            return;
+        }
+        if (betweenRounds) {
+            leftBetweenRounds(match, player, EndReason.QUIT);
             return;
         }
         switch (state) {
             case STARTING, COUNTDOWN -> cancel(match, "match.cancelled-quit", Placeholder.unparsed("player", player.getName()));
             case FIGHTING -> knockOut(match, player, EndReason.QUIT);
-            case ENDING -> { }
+            case ROUND_OVER, ENDING -> { }
         }
     }
 
@@ -329,6 +339,10 @@ public final class MatchManager {
             messages.send(player, "spectate.stopped");
             return true;
         }
+        if (match.betweenRounds()) {
+            leftBetweenRounds(match, player, EndReason.FORFEIT);
+            return true;
+        }
         switch (match.state()) {
             case STARTING, COUNTDOWN -> cancel(match, "match.cancelled");
             // A fighter already out of a team fight just goes home.
@@ -339,7 +353,7 @@ public final class MatchManager {
                     release(match, player, false);
                 }
             }
-            case ENDING -> release(match, player, false);
+            case ROUND_OVER, ENDING -> release(match, player, false);
         }
         return true;
     }
@@ -441,7 +455,7 @@ public final class MatchManager {
         }
         byPlayer.clear();
         running.clear();
-        rematches.clear();
+        outcomes.clear();
     }
 
     private void teleportFighters(Match match) {
@@ -454,7 +468,8 @@ public final class MatchManager {
         CompletableFuture.allOf(teleports.toArray(CompletableFuture[]::new))
                 .thenApply(ignored -> teleports.stream().allMatch(CompletableFuture::join))
                 .whenComplete((arrived, error) -> guarded(match, () -> {
-            if (match.isOver()) {
+            // Over, or a fighter left between rounds.
+            if (match.isOver() || match.state() == State.ENDING) {
                 return;
             }
             if (error != null || !arrived) {
@@ -514,12 +529,16 @@ public final class MatchManager {
                 fighter.setMaximumNoDamageTicks(COMBO_NO_DAMAGE_TICKS);
             }
             layouts.apply(fighter, match.kit());
+            match.kit().applyStatus(fighter, current);
         }
         match.state(State.COUNTDOWN);
         match.secondsLeft(current.countdownSeconds());
         match.maxFightSeconds((int) Math.min(Integer.MAX_VALUE, current.maxDuration().toSeconds()));
         display.countdown(match, match.secondsLeft());
-        match.task(Tasks.timer(plugin, () -> tick(match), SECOND_TICKS, SECOND_TICKS));
+        // Later rounds keep the timer of the first.
+        if (match.task() == null) {
+            match.task(Tasks.timer(plugin, () -> tick(match), SECOND_TICKS, SECOND_TICKS));
+        }
     }
 
     private void tick(Match match) {
@@ -551,6 +570,13 @@ public final class MatchManager {
                     }
                 }
             }
+            case ROUND_OVER -> {
+                // Below 0 while the arena is put back and the fighters brought in.
+                match.secondsLeft(match.secondsLeft() - 1);
+                if (match.secondsLeft() == 0) {
+                    nextRound(match);
+                }
+            }
             case ENDING -> {
                 match.secondsLeft(match.secondsLeft() - 1);
                 if (match.secondsLeft() <= 0) {
@@ -561,18 +587,65 @@ public final class MatchManager {
         }
     }
 
-    /** Takes {@code fighter} out of the fight; once only as many teams as win are left, they win. */
+    /**
+     * Takes {@code fighter} out of the fight; once only as many teams as win are left, they win. In a fight of
+     * rounds a knockout wins the round, and the fight once a team has won enough of them.
+     */
     private void knockOut(Match match, Player fighter, EndReason reason) {
+        match.recordFinal(fighter);
         match.knockOut(fighter);
         if (match.isParticipant(fighter) && !fighter.isDead()) {
             fighter.setGameMode(GameMode.SPECTATOR);
         }
         List<Integer> left = match.teamsLeft();
-        if (left.size() <= match.options().winners()) {
-            end(match, left, reason);
-        } else {
-            display.knockedOut(match, fighter);
+        boolean fightGoesOn = left.size() > match.options().winners();
+        display.knockedOut(match, fighter, reason == EndReason.ELIMINATED ? killer(match, fighter) : null, fightGoesOn);
+        if (fightGoesOn) {
+            return;
         }
+        if (reason == EndReason.ELIMINATED && left.size() == 1 && match.winRound(left.getFirst()) < match.roundsToWin()) {
+            roundOver(match, left.getFirst());
+        } else {
+            end(match, left, reason);
+        }
+    }
+
+    /** The opponent who last hit {@code fighter} this round, if they are still online: they get the kill. */
+    private static Player killer(Match match, Player fighter) {
+        return match.fightStats().lastHitBy(fighter).map(Bukkit::getPlayer)
+                .filter(killer -> match.isFighter(killer) && !match.sameTeam(killer, fighter)).orElse(null);
+    }
+
+    /** {@code team} won a round but not the fight yet: a pause, then {@link #nextRound}. */
+    private void roundOver(Match match, int team) {
+        match.state(State.ROUND_OVER);
+        display.removeBossBar(match);
+        display.roundWon(match, team);
+        match.secondsLeft(settings.get().roundDelaySeconds());
+    }
+
+    /** Puts the arena back, then brings the fighters in again, healed and re-kitted, for the next countdown. */
+    private void nextRound(Match match) {
+        // A fighter killed outright respawned a tick after: round-delay-seconds is at least 1.
+        match.nextRound();
+        instances.resetRound(match.instance()).whenComplete((ignored, error) -> guarded(match, () -> {
+            if (match.isOver() || match.state() != State.ROUND_OVER) {
+                return;
+            }
+            if (error != null) {
+                logger.log(Level.SEVERE, "Could not put arena " + match.arena().name() + " back between rounds", error);
+                cancel(match, "match.cancelled");
+                return;
+            }
+            teleportFighters(match);
+        }));
+    }
+
+    /** A fighter quit or forfeited between rounds: the other fighter wins the duel. */
+    private void leftBetweenRounds(Match match, Player fighter, EndReason reason) {
+        match.recordFinal(fighter);
+        int team = match.teamOf(fighter.getUniqueId());
+        end(match, List.of(team == 0 ? 1 : 0), reason);
     }
 
     /** @param winnerTeams empty for a draw */
@@ -581,92 +654,16 @@ public final class MatchManager {
             return;
         }
         match.state(State.ENDING);
+        match.result(winnerTeams, reason);
         display.removeBossBar(match);
-        if (winnerTeams.isEmpty()) {
-            display.draw(match);
-        } else if (match.isDuel()) {
-            endDuel(match, match.teams().get(winnerTeams.getFirst()).getFirst(), reason);
-        } else {
-            display.teamResult(match, winnerTeams);
-            // Like duels, only a real fight pays out: not an event the last opponents quit or forfeited.
-            if (match.type() == Type.EVENT && reason == EndReason.ELIMINATED) {
-                winnerTeams.forEach(team -> match.teams().get(team).stream().filter(match::isParticipant)
-                        .forEach(winner -> rewards.giveEvent(winner, match)));
-            }
-        }
-        offerRematch(match);
-        logResult(match, winnerTeams, reason);
+        outcomes.record(match, winnerTeams, reason);
         match.secondsLeft(settings.get().endDelaySeconds());
         if (match.secondsLeft() <= 0) {
             finish(match);
         }
     }
 
-    /** Stats, rating, rewards and the result of a duel {@code winner} won. */
-    private void endDuel(Match match, Player winner, EndReason reason) {
-        Player loser = match.opponentOf(winner);
-        // Forfeits and quits move the rating too, so leaving a losing ranked duel does not save it.
-        int eloChange = match.isRanked() ? PlayerStats.eloChange(stats.elo(winner.getUniqueId()),
-                stats.elo(loser.getUniqueId()), settings.get().ranked().kFactor()) : 0;
-        stats.recordResult(winner, loser, eloChange);
-        // Only a real fight pays out, so two accounts cannot farm rewards by forfeiting to each other.
-        if (reason == EndReason.ELIMINATED) {
-            rewards.give(winner, loser, match);
-        }
-        display.result(match, winner, loser, reason);
-        if (match.isRanked()) {
-            display.eloChange(match, winner, loser, eloChange,
-                    stats.elo(winner.getUniqueId()), stats.elo(loser.getUniqueId()));
-        }
-        if (match.isParticipant(loser) && !loser.isDead()) {
-            loser.setGameMode(GameMode.SPECTATOR);
-        }
-    }
-
-    private void offerRematch(Match match) {
-        if (!match.isDuel()) {
-            return;
-        }
-        Player first = match.first();
-        Player second = match.second();
-        if (!match.isParticipant(first) || !match.isParticipant(second)) {
-            return;
-        }
-        long expiresAt = Bukkit.getCurrentTick() + settings.get().rematchWindow().toMillis() / MILLIS_PER_TICK;
-        for (Player player : List.of(first, second)) {
-            Player opponent = match.opponentOf(player);
-            rematches.put(player.getUniqueId(), new Rematch(opponent.getUniqueId(), opponent.getName(),
-                    match.kit().name(), match.arena().name(), expiresAt));
-            display.rematchOffer(player, opponent);
-        }
-    }
-
-    private void logResult(Match match, List<Integer> winnerTeams, EndReason reason) {
-        if (!settings.get().logResults()) {
-            return;
-        }
-        String details = " (" + match.kit().name() + ", " + match.arena().name() + ", "
-                + Durations.format(Duration.ofSeconds(match.fightSeconds())) + ")";
-        String how = " by " + reason.name().toLowerCase(Locale.ROOT) + details;
-        String fight = switch (match.type()) {
-            case DUEL -> "Duel";
-            case PARTY -> "Party fight";
-            case EVENT -> match.options().host() + "'s event";
-        };
-        if (winnerTeams.isEmpty()) {
-            logger.info(fight + " " + names(match.fighters(), " vs ") + " was a draw" + details);
-        } else if (match.isDuel()) {
-            Player winner = match.teams().get(winnerTeams.getFirst()).getFirst();
-            logger.info(winner.getName() + " beat " + match.opponentOf(winner).getName() + how);
-        } else {
-            List<Player> winners = winnerTeams.stream().flatMap(team -> match.teams().get(team).stream()).toList();
-            List<Player> losers = match.fighters().stream().filter(fighter -> !winners.contains(fighter)).toList();
-            logger.info(names(winners, ", ") + " won " + (match.type() == Type.EVENT ? fight : "a party fight")
-                    + " against " + names(losers, ", ") + how);
-        }
-    }
-
-    private static String names(List<Player> players, String separator) {
+    static String names(List<Player> players, String separator) {
         return String.join(separator, players.stream().map(Player::getName).toList());
     }
 
@@ -693,11 +690,17 @@ public final class MatchManager {
         for (Player spectator : match.spectators()) {
             messages.send(spectator, "spectate.ended");
         }
-        for (Player participant : match.participants()) {
+        List<Player> participants = match.participants();
+        for (Player participant : participants) {
             release(match, participant, false);
+        }
+        if (match.resultsId() != null && !match.isDuel()) {
+            display.inventories(participants.stream().filter(Player::isOnline).toList(), match.resultsId(),
+                    outcomes.kept(match.resultsId()));
         }
         running.remove(match);
         instances.release(match.instance());
+        finished.forEach(listener -> listener.accept(match));
     }
 
     /** Takes {@code player} out of {@code match} and restores their snapshot. */

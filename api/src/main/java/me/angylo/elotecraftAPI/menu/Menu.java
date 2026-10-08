@@ -6,6 +6,7 @@ import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.HumanEntity;
 import org.bukkit.entity.Player;
+import org.bukkit.event.inventory.ClickType;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
@@ -138,9 +139,10 @@ public class Menu implements InventoryHolder {
         buttons.remove(slot);
     }
 
+    /** Runs the clicked button. A double click already ran it twice as two clicks, so its DOUBLE_CLICK is dropped. */
     void handleClick(InventoryClickEvent event) {
         Button button = buttons.get(event.getRawSlot());
-        if (button == null || !(event.getWhoClicked() instanceof Player player)) {
+        if (button == null || event.getClick() == ClickType.DOUBLE_CLICK || !(event.getWhoClicked() instanceof Player player)) {
             return;
         }
         try {

@@ -39,6 +39,8 @@ public final class Sidebar {
     private final Player player;
     private final Scoreboard scoreboard;
     private final Objective objective;
+    /** Health under names, see {@link #healthBelowName}; null when hidden. */
+    private Objective health;
     private Component title;
     /** The lines on screen, so unchanged ones are not sent again. */
     private List<Component> shown = List.of();
@@ -112,6 +114,48 @@ public final class Sidebar {
         }
         shown = List.copyOf(lines);
         return this;
+    }
+
+    /**
+     * Shows each player's health (in health points, 20 for full, absorption included) under their name to this
+     * sidebar's player, followed by {@code suffix}, e.g. {@code <red>❤}; null hides it. It starts from every
+     * online player's health now; call {@link #updateHealth} when a player's health changes. Sends nothing if
+     * the suffix is unchanged.
+     */
+    public Sidebar healthBelowName(Component suffix) {
+        if (suffix == null) {
+            if (health != null) {
+                health.unregister();
+                health = null;
+            }
+            return this;
+        }
+        if (health == null) {
+            // Not Criteria.HEALTH: the server sends those only when health changes, and they cannot be set.
+            health = scoreboard.registerNewObjective("health", Criteria.DUMMY, suffix);
+            health.setDisplaySlot(DisplaySlot.BELOW_NAME);
+            Bukkit.getOnlinePlayers().forEach(online -> health.getScore(online.getName()).setScore(healthOf(online)));
+        } else if (!suffix.equals(health.displayName())) {
+            health.displayName(suffix);
+        }
+        return this;
+    }
+
+    /** Sets {@code player}'s health under their name on every sidebar showing health; sends nothing if unchanged. */
+    public static void updateHealth(Player player) {
+        int value = healthOf(player);
+        for (Sidebar sidebar : SHOWN.values()) {
+            if (sidebar.health != null) {
+                Score score = sidebar.health.getScore(player.getName());
+                if (!score.isScoreSet() || score.getScore() != value) {
+                    score.setScore(value);
+                }
+            }
+        }
+    }
+
+    private static int healthOf(Player player) {
+        return (int) Math.ceil(player.getHealth() + player.getAbsorptionAmount());
     }
 
     /** Removes the sidebar and gives the player the server's main scoreboard back. */

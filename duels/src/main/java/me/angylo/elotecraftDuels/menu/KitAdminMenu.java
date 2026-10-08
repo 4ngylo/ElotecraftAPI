@@ -161,26 +161,27 @@ public final class KitAdminMenu {
             return MenuConfig.item(section.getConfigurationSection(key), with(kitTags(kit), Placeholder.component("value", value)));
         }
 
-        /** Flags: left-click flips the value, right-click resets it. Seconds: left-click asks for a number. */
+        /** Flags: left-click flips the value, right-click resets it. Numbers: left-click asks for one. */
         private Button rule(Kit kit, KitRule rule) {
             ConfigurationSection template = section.getConfigurationSection("rule");
             boolean flagOn = rule.isFlag() && kit.flag(rule, settings.get());
-            OptionalInt seconds = kit.seconds(rule);
+            OptionalInt number = kit.number(rule);
             Component value = rule.isFlag() ? onOff(flagOn)
-                    : seconds.isPresent() ? Component.text(seconds.getAsInt() + "s") : value(section, "vanilla");
+                    : number.isPresent() ? Component.text(rule.format(number.getAsInt())) : value(section, "vanilla");
             boolean set = kit.rules().containsKey(rule);
-            ItemStack icon = MenuLayout.icon(material(template, !rule.isFlag() ? "seconds" : flagOn ? "flag-on" : "flag-off"), template,
-                    rule.isFlag() ? "flag-lore" : "seconds-lore", set, with(kitTags(kit), Placeholder.unparsed("rule", rule.key()),
+            String kind = rule.isFlag() ? (flagOn ? "flag-on" : "flag-off") : rule.isSeconds() ? "seconds" : "number";
+            ItemStack icon = MenuLayout.icon(material(template, kind), template,
+                    rule.isFlag() ? "flag-lore" : kind + "-lore", set, with(kitTags(kit), Placeholder.unparsed("rule", rule.key()),
                             Placeholder.component("value", value), Placeholder.component("state", value(section, set ? "set" : "default"))));
-            BiConsumer<Player, ClickType> secondsPrompt = prompt("rule", rule.key(), "admin.kit.prompt-seconds", kit,
-                    Placeholder.unparsed("rule", rule.key()), Placeholder.unparsed("max", String.valueOf(KitRule.MAX_SECONDS)));
+            BiConsumer<Player, ClickType> numberPrompt = prompt("rule", rule.key(), "admin.kit.prompt-" + kind, kit,
+                    Placeholder.unparsed("rule", rule.key()), Placeholder.unparsed("max", String.valueOf(rule.max())));
             return Button.of(icon, (player, click) -> {
                 if (click.isRightClick()) {
                     change("rule", rule.key() + " default").accept(player, click);
                 } else if (rule.isFlag()) {
                     change("rule", rule.key() + " " + !flagOn).accept(player, click);
                 } else {
-                    secondsPrompt.accept(player, click);
+                    numberPrompt.accept(player, click);
                 }
             });
         }

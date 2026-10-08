@@ -14,9 +14,11 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver;
 import org.bukkit.Material;
+import org.bukkit.Registry;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.PlayerInventory;
+import org.bukkit.potion.PotionEffectType;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -94,6 +96,10 @@ final class KitAdminCommand {
                     Kit changed = kit.withDamage(!kit.damage());
                     admin.save(sender, kits.update(changed), changed.damage() ? "admin.kit.damage-on" : "admin.kit.damage-off", kitTags(kit));
                 }), kitNames)
+                .sub("effect", null, (sender, args) -> withKit(sender, args, (kit, rest) -> effect(sender, kit, rest)),
+                        (sender, args) -> args.length == 1 ? Args.filter(kits.names(), args)
+                                : args.length == 2 ? Args.filter(Registry.MOB_EFFECT.stream().map(type -> type.getKey().getKey()).sorted().toList(), args)
+                                : args.length == 3 ? Args.filter(List.of("1", "2", "0"), args) : List.of())
                 .sub("rule", null, (sender, args) -> withKit(sender, args, (kit, rest) -> kitRule(sender, kit, rest)),
                         (sender, args) -> args.length == 1 ? Args.filter(kits.names(), args)
                                 : args.length == 2 ? Args.filter(KitRule.keys(), args)
@@ -170,8 +176,9 @@ final class KitAdminCommand {
             try {
                 value = rule.get().parse(rest[1]);
             } catch (IllegalArgumentException e) {
-                messages.send(sender, rule.get().isFlag() ? "admin.kit.rule-flag-usage" : "admin.kit.rule-seconds-usage",
-                        Placeholder.unparsed("rule", rule.get().key()), Placeholder.unparsed("max", String.valueOf(KitRule.MAX_SECONDS)));
+                messages.send(sender, rule.get().isFlag() ? "admin.kit.rule-flag-usage"
+                                : rule.get().isSeconds() ? "admin.kit.rule-seconds-usage" : "admin.kit.rule-number-usage",
+                        Placeholder.unparsed("rule", rule.get().key()), Placeholder.unparsed("max", String.valueOf(rule.get().max())));
                 return;
             }
         }
@@ -180,17 +187,38 @@ final class KitAdminCommand {
                 Placeholder.component("value", ruleValue(sender, changed, rule.get()))));
     }
 
-    /** true or false, a number of seconds, or vanilla for an unset cooldown. */
+    /** {@code effect <kit> [effect level]}: lists the kit's potion effects, or sets one; level 0 removes it. */
+    private void effect(CommandSender sender, Kit kit, String[] rest) {
+        if (rest.length == 0) {
+            messages.send(sender, "admin.kit.effects", with(kitTags(kit), Placeholder.unparsed("effects", kit.effects().isEmpty() ? "-"
+                    : String.join(", ", kit.effects().stream().map(effect -> effect.getType().getKey().getKey() + " " + (effect.getAmplifier() + 1)).toList()))));
+            return;
+        }
+        Optional<PotionEffectType> type = Kit.effectType(rest[0]);
+        OptionalInt level = rest.length == 2 ? Args.integer(rest[1], 0, Kit.MAX_EFFECT_LEVEL) : OptionalInt.empty();
+        if (type.isEmpty() || level.isEmpty() || level.getAsInt() < 0 || level.getAsInt() > Kit.MAX_EFFECT_LEVEL) {
+            messages.send(sender, "admin.kit.effect-usage", Placeholder.unparsed("max", String.valueOf(Kit.MAX_EFFECT_LEVEL)));
+            return;
+        }
+        admin.save(sender, kits.update(kit.withEffect(type.get(), level.getAsInt())),
+                level.getAsInt() == 0 ? "admin.kit.effect-removed" : "admin.kit.effect-set",
+                with(kitTags(kit), Placeholder.unparsed("effect", type.get().getKey().getKey()),
+                        Placeholder.unparsed("level", String.valueOf(level.getAsInt()))));
+    }
+
+    /** true or false, a number, or vanilla for an unset number. */
     private Component ruleValue(CommandSender viewer, Kit kit, KitRule rule) {
         if (rule.isFlag()) {
             return Component.text(kit.flag(rule, duels.settings()));
         }
-        OptionalInt seconds = kit.seconds(rule);
-        return seconds.isPresent() ? Component.text(seconds.getAsInt() + "s") : messages.get(viewer, "admin.kit.rule-vanilla");
+        OptionalInt number = kit.number(rule);
+        return number.isPresent() ? Component.text(rule.format(number.getAsInt())) : messages.get(viewer, "admin.kit.rule-vanilla");
     }
 
     private static List<String> ruleValues(KitRule rule) {
-        return rule.isFlag() ? List.of("true", "false", DEFAULT) : List.of("0", "15", DEFAULT);
+        return rule.isFlag() ? List.of("true", "false", DEFAULT)
+                : rule.isSeconds() ? List.of("0", "15", DEFAULT)
+                : List.of("0", rule == KitRule.ROUNDS_TO_WIN ? "2" : "100", DEFAULT);
     }
 
     private static List<String> withAny(List<String> categories) {

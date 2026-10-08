@@ -8,6 +8,7 @@ import java.util.EnumMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -18,10 +19,29 @@ import java.util.UUID;
  */
 public final class HostedEvent {
 
-    /** Everyone for themselves, or two teams. */
+    /**
+     * Everyone for themselves, two teams, or a tournament of 1v1 fights: single elimination with all fights of a
+     * round at once, or (sumo) one fight at a time while the others watch, or double elimination (out after two losses).
+     */
     public enum Mode {
-        FFA, TEAMS
+        FFA, TEAMS, TOURNAMENT, SUMO, DOUBLE;
+
+        /** Lower case, for config.yml, messages.yml ({@code event.mode-<key>}) and menus.yml. */
+        public String key() {
+            return name().toLowerCase(Locale.ROOT);
+        }
+
+        public boolean isTournament() {
+            return this == TOURNAMENT || this == SUMO || this == DOUBLE;
+        }
+
+        Mode next() {
+            return values()[(ordinal() + 1) % values().length];
+        }
     }
+
+    /** The host of events config.yml {@code events.schedule} starts: nobody plays for it. */
+    public static final UUID SERVER = new UUID(0, 0);
 
     private final UUID host;
     private final String hostName;
@@ -40,13 +60,16 @@ public final class HostedEvent {
     private int secondsLeft;
     private int secondsToAnnounce;
 
+    /** @param host {@link #SERVER} for a scheduled event, which the host does not join */
     HostedEvent(UUID host, String hostName, String kit, int secondsLeft, int secondsToAnnounce) {
         this.host = host;
         this.hostName = hostName;
         this.kit = kit;
         this.secondsLeft = secondsLeft;
         this.secondsToAnnounce = secondsToAnnounce;
-        players.add(host);
+        if (!host.equals(SERVER)) {
+            players.add(host);
+        }
     }
 
     public UUID host() {
@@ -88,9 +111,9 @@ public final class HostedEvent {
         return mode;
     }
 
-    /** How many players win a free-for-all; a team event always has one winning team. */
+    /** How many players win a free-for-all; other events have one winning team or champion. */
     public int winners() {
-        return mode == Mode.TEAMS ? 1 : winners;
+        return mode == Mode.FFA ? winners : 1;
     }
 
     /** Public: announced and listed in {@code /event}; private: invited players only. */

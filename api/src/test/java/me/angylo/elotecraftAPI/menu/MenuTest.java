@@ -62,6 +62,20 @@ class MenuTest {
     }
 
     @Test
+    void doubleClickRunsTheButtonTwiceNotThrice() {
+        Menu menu = new Menu(plugin, 1, "Test").set(0, Button.of(new ItemStack(Material.STONE),
+                (clicker, click) -> clicks.add(click.name())));
+        menu.open(player);
+
+        // A client double click arrives as LEFT, LEFT, then DOUBLE_CLICK.
+        menu.handleClick(player.simulateInventoryClick(player.getOpenInventory(), ClickType.LEFT, 0));
+        menu.handleClick(player.simulateInventoryClick(player.getOpenInventory(), ClickType.LEFT, 0));
+        menu.handleClick(player.simulateInventoryClick(player.getOpenInventory(), ClickType.DOUBLE_CLICK, 0));
+
+        assertEquals(List.of(ClickType.LEFT.name(), ClickType.LEFT.name()), clicks);
+    }
+
+    @Test
     void displayItemReplacesButton() {
         Menu menu = new Menu(plugin, 1, "Test")
                 .set(0, Button.of(new ItemStack(Material.STONE), (clicker, click) -> clicks.add("stone")))

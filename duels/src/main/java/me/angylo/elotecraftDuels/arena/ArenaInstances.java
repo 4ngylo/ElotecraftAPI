@@ -101,6 +101,39 @@ public final class ArenaInstances {
         }
     }
 
+    /**
+     * Puts a duel's arena back between rounds, keeping it reserved: leftovers go at once, then a build
+     * duel's changed blocks come back over the next ticks. Completes once a whole tick passed with nothing
+     * left to put back, so water still flowing is caught too, or once the duel ended. The reset mark stays:
+     * the next round changes the arena again.
+     */
+    public CompletableFuture<Void> resetRound(ArenaInstance instance) {
+        clearLeftovers(instance);
+        CompletableFuture<Void> done = new CompletableFuture<>();
+        if (instance.isBuild()) {
+            restoreRound(instance, done, false);
+        } else {
+            done.complete(null);
+        }
+        return done;
+    }
+
+    private void restoreRound(ArenaInstance instance, CompletableFuture<Void> done, boolean emptyLastTick) {
+        boolean empty = instance.changes().size() == 0;
+        if (instance.isClosing() || (empty && emptyLastTick)) {
+            done.complete(null);
+            return;
+        }
+        try {
+            instance.changes().restore(settings.get().regenBlocksPerTick());
+        } catch (RuntimeException e) {
+            done.completeExceptionally(e);
+            return;
+        }
+        boolean emptyNow = instance.changes().size() == 0;
+        Tasks.later(plugin, () -> restoreRound(instance, done, emptyNow), NEXT_TICK);
+    }
+
     /** The duel (running or being put back) whose arena holds {@code location}. */
     public Optional<ArenaInstance> at(Location location) {
         for (ArenaInstance instance : active) {

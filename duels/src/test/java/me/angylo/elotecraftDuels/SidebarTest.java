@@ -100,7 +100,7 @@ class SidebarTest extends DuelsTestBase {
 
     @Test
     void statsNotLoadedYetShowLoadingAndTheRankComesFromTheLeaderboard() {
-        duels.stats().recordResult(alex, steve, 16);
+        duels.stats().recordResult(alex, steve, "sword", 16);
         server.getScheduler().waitAsyncTasksFinished();
         await(duels.sidebar().refreshRanks());
 

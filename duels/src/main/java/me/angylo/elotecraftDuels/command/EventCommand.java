@@ -10,12 +10,10 @@ import me.angylo.elotecraftDuels.event.HostedEvent;
 import me.angylo.elotecraftDuels.kit.Kit;
 import me.angylo.elotecraftDuels.menu.EventMenu;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
-import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 
 import java.util.List;
-import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -95,8 +93,7 @@ public final class EventCommand {
     }
 
     private List<String> suggestHosts(String[] args) {
-        return Args.filter(events.openEvents().stream().map(HostedEvent::host).map(Bukkit::getPlayer)
-                .filter(Objects::nonNull).map(Player::getName).toList(), args);
+        return Args.filter(events.openEvents().stream().map(HostedEvent::hostName).toList(), args);
     }
 
     private List<String> suggestKits(CommandSender sender, String[] args) {

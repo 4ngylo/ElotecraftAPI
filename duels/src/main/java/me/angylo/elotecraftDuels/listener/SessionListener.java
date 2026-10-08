@@ -92,6 +92,7 @@ public final class SessionListener implements Listener {
     public void onQuit(PlayerQuitEvent event) {
         Player player = event.getPlayer();
         matches.handleQuit(player);
+        snapshots.finishReturn(player);
         requests.handleQuit(player);
         queues.handleQuit(player);
         snapshots.forget(player.getUniqueId());

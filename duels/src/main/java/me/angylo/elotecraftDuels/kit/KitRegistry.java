@@ -1,6 +1,7 @@
 package me.angylo.elotecraftDuels.kit;
 
 import me.angylo.elotecraftAPI.util.ConfigFile;
+import me.angylo.elotecraftDuels.Settings.Reward;
 import me.angylo.elotecraftDuels.arena.ArenaRegistry;
 import org.bukkit.Material;
 import org.bukkit.configuration.ConfigurationSection;
@@ -8,8 +9,11 @@ import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
 import org.bukkit.plugin.Plugin;
+import org.bukkit.potion.PotionEffect;
+import org.bukkit.potion.PotionEffectType;
 
 import java.io.File;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.EnumMap;
@@ -146,7 +150,7 @@ public final class KitRegistry {
                 ItemStack[] items = ItemStack.deserializeItemsFromBytes(Base64.getDecoder().decode(section.getString("items", "")));
                 kits.put(name, new Kit(name, section.getString("display-name", name), icon(section),
                         permission(section), Arrays.asList(items), section.getBoolean("build", false), arenaCategories(section),
-                        section.getBoolean("damage", true), rules(section)));
+                        section.getBoolean("damage", true), rules(section), rewards(section), effects(section)));
             } catch (RuntimeException e) {
                 logger.warning("Skipping kit '" + name + "' in kits.yml: its items could not be read (" + e.getMessage() + ")");
             }
@@ -194,6 +198,27 @@ public final class KitRegistry {
         return rules;
     }
 
+    /** {@code effects: ["speed 2", "jump_boost 1"]}: an effect name and its level. */
+    private List<PotionEffect> effects(ConfigurationSection section) {
+        List<PotionEffect> effects = new ArrayList<>();
+        for (String raw : section.getStringList("effects")) {
+            String[] parts = raw.strip().split("\\s+");
+            Optional<PotionEffectType> type = Kit.effectType(parts[0]);
+            int level = parts.length == 2 && parts[1].matches("\\d{1,2}") ? Integer.parseInt(parts[1]) : -1;
+            if (type.isEmpty() || level < 1 || level > Kit.MAX_EFFECT_LEVEL) {
+                logger.warning("Kit '" + section.getName() + "' has an invalid effect '" + raw + "' (use e.g. \"speed 2\"); skipping it");
+                continue;
+            }
+            effects.add(Kit.effect(type.get(), level));
+        }
+        return effects;
+    }
+
+    private Kit.Rewards rewards(ConfigurationSection section) {
+        return new Kit.Rewards(Reward.load(section, logger, "kits.yml", "rewards.win"),
+                Reward.load(section, logger, "kits.yml", "rewards.loss"));
+    }
+
     private String permission(ConfigurationSection section) {
         String raw = section.getString("permission", "").strip().toLowerCase(Locale.ROOT);
         if (raw.isEmpty()) {
@@ -222,6 +247,22 @@ public final class KitRegistry {
                 yaml.set(path + ".rules." + rule.key(), value);
             }
         }
+        if (!kit.effects().isEmpty()) {
+            yaml.set(path + ".effects", kit.effects().stream()
+                    .map(effect -> effect.getType().getKey().getKey() + " " + (effect.getAmplifier() + 1)).toList());
+        }
+        writeReward(yaml, path + ".rewards.win", kit.rewards().win());
+        writeReward(yaml, path + ".rewards.loss", kit.rewards().loss());
         yaml.set(path + ".items", Base64.getEncoder().encodeToString(ItemStack.serializeItemsAsBytes(kit.items())));
+    }
+
+    /** Writes only what {@code reward} sets, so kits without rewards have no {@code rewards} section. */
+    private static void writeReward(YamlConfiguration yaml, String path, Reward reward) {
+        if (reward.money() > 0) {
+            yaml.set(path + ".money", reward.money());
+        }
+        if (!reward.commands().isEmpty()) {
+            yaml.set(path + ".commands", reward.commands());
+        }
     }
 }

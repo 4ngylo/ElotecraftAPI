@@ -17,6 +17,10 @@ import me.angylo.elotecraftDuels.command.PartyCommand;
 import me.angylo.elotecraftDuels.hook.PlaceholderHook;
 import me.angylo.elotecraftDuels.hook.WorldEditHook;
 import me.angylo.elotecraftDuels.hud.DuelsSidebar;
+import me.angylo.elotecraftDuels.hud.LeaderboardHolograms;
+import me.angylo.elotecraftDuels.hud.LobbyItems;
+import me.angylo.elotecraftDuels.hud.WatchItem;
+import me.angylo.elotecraftDuels.hud.LobbyVisibility;
 import me.angylo.elotecraftDuels.kit.KitEditor;
 import me.angylo.elotecraftDuels.kit.KitLayouts;
 import me.angylo.elotecraftDuels.kit.KitRegistry;
@@ -24,18 +28,29 @@ import me.angylo.elotecraftDuels.listener.BuildListener;
 import me.angylo.elotecraftDuels.listener.CombatListener;
 import me.angylo.elotecraftDuels.listener.ProtectionListener;
 import me.angylo.elotecraftDuels.listener.SessionListener;
+import me.angylo.elotecraftDuels.hook.VaultEconomy;
+import me.angylo.elotecraftDuels.match.Bets;
 import me.angylo.elotecraftDuels.match.MatchManager;
 import me.angylo.elotecraftDuels.match.QueueManager;
 import me.angylo.elotecraftDuels.match.RequestManager;
+import me.angylo.elotecraftDuels.match.Rewards;
 import me.angylo.elotecraftDuels.menu.ArenaMenu;
+import me.angylo.elotecraftDuels.menu.CosmeticsMenu;
+import me.angylo.elotecraftDuels.menu.FightInventoryMenu;
+import me.angylo.elotecraftDuels.menu.HistoryMenu;
 import me.angylo.elotecraftDuels.menu.ArenaAdminMenu;
 import me.angylo.elotecraftDuels.menu.EventMenu;
 import me.angylo.elotecraftDuels.menu.KitAdminMenu;
 import me.angylo.elotecraftDuels.menu.KitMenu;
+import me.angylo.elotecraftDuels.menu.OptionsMenu;
+import me.angylo.elotecraftDuels.menu.PartyMenu;
+import me.angylo.elotecraftDuels.menu.SpectateMenu;
 import me.angylo.elotecraftDuels.menu.TeamMenu;
 import me.angylo.elotecraftDuels.party.PartyFights;
 import me.angylo.elotecraftDuels.party.PartyManager;
 import me.angylo.elotecraftDuels.state.SnapshotStore;
+import me.angylo.elotecraftDuels.stats.MatchHistory;
+import me.angylo.elotecraftDuels.stats.Seasons;
 import me.angylo.elotecraftDuels.stats.StatsService;
 import org.bukkit.Bukkit;
 import org.bukkit.World;
@@ -56,7 +71,6 @@ public final class Duels {
 
     private static final long SECOND_TICKS = 20;
     private static final int SECONDS_PER_RETRY = 60;
-    private static final long SHUTDOWN_WAIT_SECONDS = 5;
 
     private final Plugin plugin;
     private final ConfigFile config;
@@ -66,6 +80,8 @@ public final class Duels {
     private final ArenaRegistry arenas;
     private final KitRegistry kits;
     private final StatsService stats;
+    private final MatchHistory history;
+    private final Seasons seasons;
     private final SnapshotStore snapshots;
     private final KitLayouts layouts;
     private final KitEditor editor;
@@ -74,12 +90,17 @@ public final class Duels {
     private final ArenaPregen pregen;
     private final MatchManager matches;
     private final RequestManager requests;
+    private final Bets bets;
     private final QueueManager queues;
     private final PartyManager parties;
     private final PartyFights partyFights;
     private final EventManager events;
     private final SessionListener sessions;
     private final DuelsSidebar sidebar;
+    private final LobbyItems lobbyItems;
+    private final WatchItem watchItem;
+    private final LeaderboardHolograms holograms;
+    private final LobbyVisibility visibility;
     private final PlaceholderHook placeholders;
     private final BukkitTask ticker;
     private volatile Settings settings;
@@ -95,6 +116,8 @@ public final class Duels {
         this.arenas = new ArenaRegistry(plugin);
         this.kits = new KitRegistry(plugin);
         this.stats = new StatsService(plugin, database);
+        this.history = new MatchHistory(plugin, database);
+        this.seasons = new Seasons(plugin, database, stats.ready());
         this.snapshots = new SnapshotStore(plugin, database);
         this.layouts = new KitLayouts(plugin, database);
         // Loaded before arenas are rebuilt after a crash: pregen copies live there.
@@ -102,27 +125,37 @@ public final class Duels {
         this.instances = new ArenaInstances(plugin, this::settings, arenas);
         this.worldEdit = WorldEditHook.detect(plugin).orElse(null);
         this.pregen = new ArenaPregen(plugin, this::settings, arenas, arenasWorld, worldEdit);
-        this.matches = new MatchManager(plugin, messages, this::settings, arenas, instances, snapshots, stats, layouts);
+        this.matches = new MatchManager(plugin, messages, this::settings, arenas, instances, snapshots, stats, history, layouts);
         this.editor = new KitEditor(plugin, messages, this::settings, snapshots, layouts, matches::isBusy);
-        this.requests = new RequestManager(messages, this::settings, kits, arenas, matches);
+        this.bets = new Bets(plugin.getLogger(), messages, this::settings, database, new VaultEconomy(plugin.getLogger()));
+        matches.onFinish(bets::finished);
+        this.requests = new RequestManager(messages, this::settings, kits, arenas, matches, bets);
         this.queues = new QueueManager(messages, this::settings, kits, matches, stats);
-        this.events = new EventManager(messages, this::settings, kits, arenas, matches, queues);
+        this.events = new EventManager(plugin.getLogger(), messages, this::settings, kits, arenas, matches, queues, snapshots,
+                new Rewards(plugin, messages, this::settings));
         matches.busyElsewhere(editor::isEditing);
         matches.waitingElsewhere(events::isWaiting);
-        KitMenu kitMenu = new KitMenu(plugin, messages, menus, this::settings, kits, matches, queues);
+        KitMenu kitMenu = new KitMenu(plugin, messages, menus, this::settings, kits, matches, queues, stats);
         ArenaMenu arenaMenu = new ArenaMenu(plugin, messages, menus, this::settings, arenas, matches);
 
-        this.parties = new PartyManager(messages, this::settings);
+        this.parties = new PartyManager(plugin, messages, this::settings);
         TeamMenu teamMenu = new TeamMenu(plugin, messages, menus, this::settings);
         this.partyFights = new PartyFights(messages, this::settings, kits, arenas, matches, queues, parties, teamMenu);
-        Command duel = new DuelCommand(this, kitMenu, arenaMenu).register();
+        SpectateMenu spectateMenu = new SpectateMenu(plugin, messages, menus, this::settings, matches);
+        Command duel = new DuelCommand(this, kitMenu, arenaMenu, new FightInventoryMenu(plugin, messages, menus),
+                new HistoryMenu(plugin, messages, menus, this::settings, kits),
+                new OptionsMenu(plugin, messages, menus, this::settings),
+                new CosmeticsMenu(plugin, messages, menus, this::settings),
+                spectateMenu).register();
         new AdminCommand(this, new ArenaAdminMenu(plugin, messages, menus, this::settings, arenas),
                 new KitAdminMenu(plugin, messages, menus, this::settings, kits)).register();
-        new PartyCommand(this, kitMenu).register();
+        new PartyCommand(this, kitMenu, new PartyMenu(plugin, messages, menus, this::settings, parties)).register();
         new EventCommand(this, new EventMenu(plugin, messages, menus, this::settings, events, kits, arenas, matches,
                 kitMenu, arenaMenu, teamMenu)).register();
         this.sessions = new SessionListener(plugin, messages, stats, snapshots, matches, requests, queues);
-        for (Listener listener : List.of(sessions, parties, layouts, editor, events,
+        this.lobbyItems = new LobbyItems(plugin, this::settings, menus, matches, queues);
+        this.watchItem = new WatchItem(plugin, menus, matches, spectateMenu);
+        for (Listener listener : List.of(sessions, parties, layouts, editor, events, lobbyItems, watchItem,
                 new CombatListener(plugin, messages, this::settings, matches, snapshots),
                 new ProtectionListener(messages, this::settings, matches, duel),
                 new BuildListener(this::settings, matches, instances, arenas))) {
@@ -133,7 +166,11 @@ public final class Duels {
         layouts.loadOnline();
         this.placeholders = PlaceholderHook.register(this);
         this.sidebar = new DuelsSidebar(plugin, messages, this::settings, stats, kits, matches, queues, parties);
+        plugin.getServer().getPluginManager().registerEvents(sidebar, plugin);
+        this.holograms = new LeaderboardHolograms(plugin, messages, this::settings, stats, kits);
+        this.visibility = new LobbyVisibility(plugin, this::settings, matches, parties);
         this.ticker = Tasks.timer(plugin, this::tick, SECOND_TICKS, SECOND_TICKS);
+        warnMissingKillMessages();
         plugin.getLogger().info("Loaded " + arenas.all().size() + " arenas (" + arenas.all().stream().filter(Arena::isReady).count()
                 + " ready) and " + kits.all().size() + " kits" + (placeholders.registered() ? "; PlaceholderAPI hooked" : "")
                 + (worldEdit != null ? "; " + worldEdit.name() + " pastes arena copies" : ""));
@@ -175,8 +212,16 @@ public final class Duels {
         return kits;
     }
 
+    public MatchHistory history() {
+        return history;
+    }
+
     public StatsService stats() {
         return stats;
+    }
+
+    public Seasons seasons() {
+        return seasons;
     }
 
     public SnapshotStore snapshots() {
@@ -204,6 +249,10 @@ public final class Duels {
         return requests;
     }
 
+    public Bets bets() {
+        return bets;
+    }
+
     public QueueManager queues() {
         return queues;
     }
@@ -228,9 +277,14 @@ public final class Duels {
         return sidebar;
     }
 
+    public LeaderboardHolograms holograms() {
+        return holograms;
+    }
+
     /** Completes once the database tables exist. */
     public CompletableFuture<Void> ready() {
-        return CompletableFuture.allOf(stats.ready(), snapshots.ready(), layouts.ready());
+        return CompletableFuture.allOf(stats.ready(), history.ready(), snapshots.ready(), layouts.ready(), seasons.ready(),
+                bets.ready());
     }
 
     /**
@@ -246,6 +300,7 @@ public final class Duels {
         ok &= arenas.reload();
         ok &= kits.reload();
         settings = Settings.load(config.get(), plugin.getLogger());
+        warnMissingKillMessages();
         return ok;
     }
 
@@ -254,11 +309,16 @@ public final class Duels {
         ticker.cancel();
         placeholders.unregister();
         sidebar.hideAll();
+        holograms.shutdown();
+        visibility.showAll();
         editor.shutdown();
         matches.shutdown();
+        // After the matches put players' own inventories back, lobby items included.
+        lobbyItems.stripAll();
         instances.shutdown();
-        snapshots.awaitSaves(SHUTDOWN_WAIT_SECONDS);
         requests.clear();
+        // After the matches: their stakes stay stored and are given back next start.
+        bets.clear();
         queues.clear();
         parties.clear();
         partyFights.clear();
@@ -270,12 +330,25 @@ public final class Duels {
         database.close();
     }
 
+    /** Kill messages of config.yml without a text in messages.yml are not offered. */
+    private void warnMissingKillMessages() {
+        settings.cosmetics().killMessages().stream().map(Cosmetics.Cosmetic::id)
+                .filter(id -> !messages.has("kill-messages." + id))
+                .forEach(id -> plugin.getLogger().warning("config.yml cosmetics.kill-messages." + id
+                        + " has no text in messages.yml kill-messages." + id + "; it is not offered"));
+    }
+
     private void tick() {
-        matches.purgeExpiredRematches();
+        matches.purgeExpired();
         requests.tick();
+        bets.tick();
         queues.tick();
         events.tick();
         sidebar.tick();
+        holograms.tick();
+        visibility.tick();
+        lobbyItems.tick();
+        watchItem.tick();
         if (++seconds % SECONDS_PER_RETRY == 0) {
             stats.retryFailed();
             snapshots.retryFailedDeletes();

@@ -16,9 +16,6 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -48,6 +45,8 @@ public final class SnapshotStore {
     private final CompletableFuture<Integer> schema;
     /** Players whose duel ended while they were dead; restored when they respawn. */
     private final Map<UUID, PlayerSnapshot> awaitingRespawn = new ConcurrentHashMap<>();
+    /** Players an async teleport is sending back, and where; their snapshot is already deleted. */
+    private final Map<UUID, Location> returning = new ConcurrentHashMap<>();
     /** Snapshot ids whose delete failed, retried by {@link #retryFailedDeletes()}. */
     private final Map<UUID, UUID> failedDeletes = new ConcurrentHashMap<>();
     private final Map<UUID, CompletableFuture<Void>> savesInFlight = new ConcurrentHashMap<>();
@@ -114,9 +113,33 @@ public final class SnapshotStore {
         if (teleportNow) {
             player.teleport(location, TeleportCause.PLUGIN);
         } else {
-            player.teleportAsync(location, TeleportCause.PLUGIN);
+            UUID uuid = player.getUniqueId();
+            returning.put(uuid, location);
+            player.teleportAsync(location, TeleportCause.PLUGIN).whenComplete((arrived, error) -> {
+                returning.remove(uuid, location);
+                if ((error != null || !Boolean.TRUE.equals(arrived)) && player.isOnline()) {
+                    logger.log(Level.WARNING, "Could not send " + player.getName() + " back after a duel; teleporting at once", error);
+                    player.teleport(location, TeleportCause.PLUGIN);
+                }
+            });
         }
         delete(player.getUniqueId(), snapshot.id());
+    }
+
+    /**
+     * Call when {@code player} quits: one still on the way back from a duel is put there at once, before the
+     * server saves them, since their snapshot is gone and they would otherwise stay in the arena.
+     */
+    public void finishReturn(Player player) {
+        Location location = returning.remove(player.getUniqueId());
+        if (location != null) {
+            player.teleport(location, TeleportCause.PLUGIN);
+        }
+    }
+
+    /** Whether {@code player} is still on the way back from a fight, or waits to respawn for it. */
+    public boolean isReturning(UUID player) {
+        return returning.containsKey(player) || awaitingRespawn.containsKey(player);
     }
 
     /** Where to respawn {@code player} if their duel ended while they were dead. */
@@ -159,24 +182,6 @@ public final class SnapshotStore {
     /** Like {@link #findBlocking} without blocking; for players already online. */
     public CompletableFuture<Optional<String>> find(UUID player) {
         return schema.thenCompose(ignored -> db.queryOne(FIND, row -> row.getString("data"), player));
-    }
-
-    /**
-     * Waits (up to {@code timeoutSeconds}) for saves still being written, so the deletes chained after them
-     * reach the database before it closes. For {@code onDisable}, where results complete on database threads.
-     */
-    public void awaitSaves(long timeoutSeconds) {
-        CompletableFuture<?>[] pending = savesInFlight.values().toArray(CompletableFuture[]::new);
-        if (pending.length == 0) {
-            return;
-        }
-        try {
-            CompletableFuture.allOf(pending).get(timeoutSeconds, TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        } catch (ExecutionException | TimeoutException e) {
-            logger.log(Level.WARNING, "Duel snapshots still saving at shutdown; they are restored on next join", e);
-        }
     }
 
     /** Retries deletes that failed, so a restored snapshot is not applied a second time. */

@@ -98,6 +98,18 @@ public final class ItemBuilder {
         return this;
     }
 
+    /**
+     * Hides what vanilla adds under the name and lore: attributes (a sword's attack damage and speed) and
+     * item details (a potion's effects or "No Effects", banner patterns, book authors). For menu icons.
+     */
+    // ItemFlag.HIDE_ADDITIONAL_TOOLTIP is deprecated for Paper's data component API (TooltipDisplay), which
+    // is experimental in 1.21.11; switch to it once it is stable.
+    @SuppressWarnings("deprecation")
+    public ItemBuilder hideDetails() {
+        meta.addItemFlags(ItemFlag.HIDE_ATTRIBUTES, ItemFlag.HIDE_ADDITIONAL_TOOLTIP);
+        return this;
+    }
+
     public ItemBuilder unbreakable(boolean unbreakable) {
         meta.setUnbreakable(unbreakable);
         return this;

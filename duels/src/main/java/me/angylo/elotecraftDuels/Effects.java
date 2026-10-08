@@ -2,10 +2,12 @@ package me.angylo.elotecraftDuels;
 
 import net.kyori.adventure.key.Key;
 import net.kyori.adventure.sound.Sound;
+import org.bukkit.Location;
 import org.bukkit.Particle;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Player;
 
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -49,18 +51,39 @@ public final class Effects {
         return new Effects(loaded);
     }
 
-    /** Plays {@code name} to {@code player}; its particles appear around them for everyone nearby. */
+    /**
+     * Plays {@code name} to {@code player}, without the sound if they turned sounds off; its particles appear
+     * around them for everyone nearby.
+     */
     public void play(Player player, String name) {
         Effect effect = effects.get(name);
         if (effect == null) {
             return;
         }
-        if (effect.sound() != null) {
+        if (effect.sound() != null && PlayerOptions.SOUNDS.isOn(player)) {
             player.playSound(effect.sound());
         }
         if (effect.particle() != null) {
             player.getWorld().spawnParticle(effect.particle(), player.getLocation().add(0, 1, 0), effect.count(),
                     0.4, 0.8, 0.4, 0.05);
+        }
+    }
+
+    /**
+     * Plays {@code name} at {@code location}: its sound to each of {@code listeners} who has sounds on, its
+     * particles for everyone nearby.
+     */
+    public void playAt(Location location, Collection<Player> listeners, String name) {
+        Effect effect = effects.get(name);
+        if (effect == null) {
+            return;
+        }
+        if (effect.sound() != null) {
+            listeners.stream().filter(PlayerOptions.SOUNDS::isOn)
+                    .forEach(listener -> listener.playSound(effect.sound(), location.getX(), location.getY(), location.getZ()));
+        }
+        if (effect.particle() != null) {
+            location.getWorld().spawnParticle(effect.particle(), location.clone().add(0, 1, 0), effect.count(), 0.4, 0.8, 0.4, 0.05);
         }
     }
 

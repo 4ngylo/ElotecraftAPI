@@ -6,7 +6,8 @@ kits:
   title: "<gradient:#ff416c:#ff4b2b><bold>⚔ Choose a kit"
   rows: 4
   filler: {material: BLACK_STAINED_GLASS_PANE, name: " "}
-  # One button per kit, shown with the kit's icon. <kit>, <type>, <queued> and <dueling> are filled in.
+  # Challenges and the kit editor. One button per kit, shown with the kit's icon. <kit>, <queued> (in either
+  # queue) and <dueling> are filled in. The queues have their own menus: ranked-queue and unranked-queue.
   kit:
     name: "<gradient:#f7971e:#ffd200><bold><kit>"
     # <building> says whether fighters may place blocks with the kit.
@@ -16,23 +17,199 @@ kits:
       - "<dark_gray>▪ <building>"
       - ""
       - "<yellow>▶ Click to choose"
+      - "<gray>▶ Right-click to preview"
     edit-lore:                  # in /duel editkit
       - "<dark_gray>▪ <building>"
       - ""
       - "<yellow>▶ Click to arrange your items"
-    queue-lore:                 # in /duel queue and /duel ranked; <type> says which
-      - "<dark_gray>▪ <gray>In <type> queue: <white><queued>"
-      - "<dark_gray>▪ <gray>Dueling: <white><dueling>"
-      - "<dark_gray>▪ <building>"
+  previous: {material: ARROW, name: "<yellow>« Previous page"}
+  next: {material: ARROW, name: "<yellow>Next page »"}
+  close: {slot: 4, material: BARRIER, name: "<red>Close"}
+
+# /duel ranked: join or leave a kit's ranked queue. A kit may use <kit>, <queued> (in this queue), <fighting>
+# (dueling with the kit now), <building>, and the viewer's <elo>, <division>, <wins> and <losses> in that kit
+# (ranked duels only). queued-lore is for the kit whose queue the viewer is in; it glows. The rating button
+# shows the overall <elo> and <division>; switch opens /duel queue. Right-click previews a kit.
+ranked-queue:
+  title: "<gradient:#f7971e:#ffd200><bold>⚔ Ranked queue"
+  rows: 4
+  filler: {material: ORANGE_STAINED_GLASS_PANE, name: " "}
+  kit:
+    name: "<gold><bold><kit>"
+    lore:
       - ""
-      - "<yellow>▶ Click to join the queue"
-    queued-lore:                # in /duel queue and /duel ranked, for the queue you are in
-      - "<dark_gray>▪ <gray>In <type> queue: <white><queued>"
-      - "<dark_gray>▪ <gray>Dueling: <white><dueling>"
-      - "<dark_gray>▪ <building>"
+      - "<dark_gray>▪ <gray>Your rating: <aqua><elo></aqua> <division>"
+      - "<dark_gray>▪ <gray>Ranked record: <green><wins>W</green> <red><losses>L"
+      - "<dark_gray>▪ <gray>Queued: <white><queued></white> <dark_gray>·</dark_gray> <gray>Fighting: <white><fighting>"
       - ""
-      - "<green>✔ You're in this queue"
+      - "<yellow>▶ Click to join the ranked queue"
+      - "<gray>▶ Right-click to preview"
+    queued-lore:
+      - ""
+      - "<dark_gray>▪ <gray>Your rating: <aqua><elo></aqua> <division>"
+      - "<dark_gray>▪ <gray>Ranked record: <green><wins>W</green> <red><losses>L"
+      - "<dark_gray>▪ <gray>Queued: <white><queued></white> <dark_gray>·</dark_gray> <gray>Fighting: <white><fighting>"
+      - ""
+      - "<green>✔ You're in the ranked queue"
       - "<red>▶ Click to leave it"
+      - "<gray>▶ Right-click to preview"
+  previous: {material: ARROW, name: "<yellow>« Previous page"}
+  next: {material: ARROW, name: "<yellow>Next page »"}
+  rating: {slot: 2, material: NETHER_STAR, name: "<aqua><bold>Your rating", lore: ["<gray>Overall: <aqua><elo></aqua> <division>", "<dark_gray>The average of your kit ratings"]}
+  close: {slot: 4, material: BARRIER, name: "<red>Close"}
+  switch: {slot: 6, material: IRON_SWORD, name: "<green><bold>Unranked queue »", lore: ["<gray>Casual duels: no rating change"]}
+
+# /duel queue: join or leave a kit's unranked queue. A kit may use <kit>, <queued> (in this queue),
+# <fighting> and <building>. switch opens /duel ranked, shown only with the duels.queue.ranked permission.
+unranked-queue:
+  title: "<gradient:#56ab2f:#a8e063><bold>⚔ Unranked queue"
+  rows: 4
+  filler: {material: LIME_STAINED_GLASS_PANE, name: " "}
+  kit:
+    name: "<green><bold><kit>"
+    lore:
+      - ""
+      - "<dark_gray>▪ <gray>Queued: <white><queued></white> <dark_gray>·</dark_gray> <gray>Fighting: <white><fighting>"
+      - ""
+      - "<yellow>▶ Click to join the unranked queue"
+      - "<gray>▶ Right-click to preview"
+    queued-lore:
+      - ""
+      - "<dark_gray>▪ <gray>Queued: <white><queued></white> <dark_gray>·</dark_gray> <gray>Fighting: <white><fighting>"
+      - ""
+      - "<green>✔ You're in the unranked queue"
+      - "<red>▶ Click to leave it"
+      - "<gray>▶ Right-click to preview"
+  previous: {material: ARROW, name: "<yellow>« Previous page"}
+  next: {material: ARROW, name: "<yellow>Next page »"}
+  close: {slot: 4, material: BARRIER, name: "<red>Close"}
+  switch: {slot: 6, material: GOLDEN_SWORD, name: "<gold><bold>Ranked queue »", lore: ["<gray>Duels that move your rating"]}
+
+# Hotbar items in the lobby, given only with config.yml lobby-items.enabled. Each has a slot (0 to 8),
+# material, name and lore, the command it runs as the player when right-clicked (without the /), show
+# (idle: not queued; waiting: queued or waiting for an event; always; never, to drop a default item) and
+# an optional permission players need to get it. Add more the same way, e.g. one running "party info".
+lobby-items:
+  unranked: {slot: 0, show: idle, command: "duel queue", material: IRON_SWORD, name: "<green><bold>Unranked queue</bold> <gray>(right-click)", lore: ["<gray>Casual duels: no rating change"]}
+  ranked: {slot: 1, show: idle, permission: duels.queue.ranked, command: "duel ranked", material: DIAMOND_SWORD, name: "<gold><bold>Ranked queue</bold> <gray>(right-click)", lore: ["<gray>Duels that move your rating"]}
+  leave: {slot: 0, show: waiting, command: "duel leave", material: RED_DYE, name: "<red><bold>Leave the queue</bold> <gray>(right-click)"}
+  events: {slot: 4, show: always, command: "event list", material: NETHER_STAR, name: "<light_purple><bold>Events</bold> <gray>(right-click)", lore: ["<gray>Join or watch a hosted event"]}
+  editor: {slot: 7, show: idle, permission: duels.kit.edit, command: "duel editkit", material: BOOK, name: "<aqua><bold>Edit kits</bold> <gray>(right-click)", lore: ["<gray>Arrange your kit layouts"]}
+  history: {slot: 8, show: always, permission: duels.history, command: "duel history", material: CLOCK, name: "<yellow><bold>Match history</bold> <gray>(right-click)", lore: ["<gray>Your latest duels"]}
+  options: {slot: 6, show: idle, command: "duel options", material: COMPARATOR, name: "<gray><bold>Options</bold> <gray>(right-click)", lore: ["<gray>Requests, invites, sidebar, sounds"]}
+  party: {slot: 2, show: idle, permission: duels.party, command: "party", material: CAKE, name: "<light_purple><bold>Party</bold> <gray>(right-click)", lore: ["<gray>Your party, or a public one to join"]}
+  cosmetics: {slot: 3, show: idle, permission: duels.cosmetics, command: "duel cosmetics", material: BLAZE_POWDER, name: "<gold><bold>Cosmetics</bold> <gray>(right-click)", lore: ["<gray>Kill effects and kill messages"]}
+
+# A kit's items, opened by right-clicking it in the kits menu: storage, hotbar, then armor and off hand.
+kit-preview:
+  title: "<gradient:#f7971e:#ffd200><bold><kit>"
+  filler: {material: BLACK_STAINED_GLASS_PANE, name: " "}
+  back: {slot: 4, material: ARROW, name: "<yellow>« All kits"}
+
+# /duel inventory, from the names after a fight: a fighter as the fight left them, laid out like the kit
+# preview. The bottom-row buttons (slot 0 to 8) may use <player>, <health> (hearts), <food>, <effects>,
+# <hits>, <combo> (longest run of hits without being hit), <thrown>, <missed> and <accuracy> (health potions).
+fight-inventory:
+  title: "<gradient:#4facfe:#00f2fe><bold><player>'s inventory"
+  filler: {material: BLACK_STAINED_GLASS_PANE, name: " "}
+  health: {slot: 0, material: GLISTERING_MELON_SLICE, name: "<red><bold>Health", lore: ["<gray><white><health></white> ❤"]}
+  food: {slot: 1, material: COOKED_BEEF, name: "<gold><bold>Food", lore: ["<gray><white><food></white>/20"]}
+  effects: {slot: 2, material: BREWING_STAND, name: "<light_purple><bold>Effects", lore: ["<gray><effects>"]}
+  hits: {slot: 7, material: IRON_SWORD, name: "<yellow><bold>Hits", lore: ["<gray>Landed: <white><hits>", "<gray>Longest combo: <white><combo>"]}
+  potions:
+    slot: 8
+    material: SPLASH_POTION
+    name: "<aqua><bold>Health potions"
+    lore: ["<gray>Thrown: <white><thrown>", "<gray>Missed: <white><missed>", "<gray>Accuracy: <white><accuracy>"]
+  values:
+    none: "none"
+
+# /duel options: each player's own switches, <value> being values.on or values.off. Remove an option's
+# section to stop offering it (it then stays as the player left it, on by default).
+options:
+  title: "<gradient:#ff416c:#ff4b2b><bold>Options"
+  rows: 3
+  filler: {material: BLACK_STAINED_GLASS_PANE, name: " "}
+  values:
+    "on": "<green>On"
+    "off": "<red>Off"
+    any: "<green>Any"
+    ms: "<yellow>up to <ms> ms"
+  requests:
+    slot: 10
+    "on": LIME_DYE
+    "off": GRAY_DYE
+    name: "<gold><bold>Duel requests"
+    lore: ["<gray>Others may challenge you: <value>", "<dark_gray>Same as /duel toggle requests", "", "<yellow>▶ Click to switch"]
+  party-invites:
+    slot: 12
+    "on": CAKE
+    "off": GRAY_DYE
+    name: "<light_purple><bold>Party invites"
+    lore: ["<gray>Others may invite you: <value>", "", "<yellow>▶ Click to switch"]
+  sidebar:
+    slot: 14
+    "on": OAK_SIGN
+    "off": GRAY_DYE
+    name: "<aqua><bold>Sidebar"
+    lore: ["<gray>Duel sidebar shown: <value>", "", "<yellow>▶ Click to switch"]
+  sounds:
+    slot: 16
+    "on": NOTE_BLOCK
+    "off": GRAY_DYE
+    name: "<green><bold>Sounds"
+    lore: ["<gray>Duel sounds played to you: <value>", "", "<yellow>▶ Click to switch"]
+  spectators:
+    slot: 11
+    "on": ENDER_EYE
+    "off": GRAY_DYE
+    name: "<aqua><bold>Spectators"
+    lore: ["<gray>Others may watch your duels: <value>", "<dark_gray>Staff always can", "", "<yellow>▶ Click to switch"]
+  lobby-players:
+    slot: 13
+    "on": PLAYER_HEAD
+    "off": GRAY_DYE
+    name: "<yellow><bold>Lobby players"
+    lore: ["<gray>See other players in the lobby: <value>", "<dark_gray>Your party always shows", "", "<yellow>▶ Click to switch"]
+  # The highest ping of opponents the queues pair you with; each click moves to the next choice.
+  ping-range:
+    slot: 15
+    material: REPEATER
+    name: "<green><bold>Ping range"
+    lore: ["<gray>Opponents' ping: <value>", "<dark_gray>Both players' ranges must fit", "", "<yellow>▶ Click to change"]
+
+# /duel history [player]: their latest duels, newest first. <player> in the title; each duel may use
+# <opponent>, <kit>, <arena>, <time> (fight length), <ago>, <rating> (change, or values.unranked), <how>
+# (values.eliminated, forfeit or quit) and <health> (the winner's hearts left).
+history:
+  title: "<gradient:#f7971e:#ffd200><bold><player>'s duels"
+  rows: 6
+  filler: {material: BLACK_STAINED_GLASS_PANE, name: " "}
+  won:
+    name: "<green><bold>Won</bold> <gray>vs <white><opponent>"
+    lore:
+      - "<dark_gray>▪ <gray>Kit: <white><kit>"
+      - "<dark_gray>▪ <gray>Arena: <white><arena>"
+      - "<dark_gray>▪ <gray>Ended by <white><how></white> after <white><time>"
+      - "<dark_gray>▪ <gray>Health left: <red><health>❤"
+      - "<dark_gray>▪ <gray>Rating: <white><rating>"
+      - ""
+      - "<dark_gray><ago> ago"
+  lost:
+    name: "<red><bold>Lost</bold> <gray>vs <white><opponent>"
+    lore:
+      - "<dark_gray>▪ <gray>Kit: <white><kit>"
+      - "<dark_gray>▪ <gray>Arena: <white><arena>"
+      - "<dark_gray>▪ <gray>Ended by <white><how></white> after <white><time>"
+      - "<dark_gray>▪ <gray>Their health left: <red><health>❤"
+      - "<dark_gray>▪ <gray>Rating: <white><rating>"
+      - ""
+      - "<dark_gray><ago> ago"
+  values:
+    unranked: "unranked"
+    eliminated: "a kill"
+    forfeit: "a forfeit"
+    quit: "a quit"
   previous: {material: ARROW, name: "<yellow>« Previous page"}
   next: {material: ARROW, name: "<yellow>Next page »"}
   close: {slot: 4, material: BARRIER, name: "<red>Close"}
@@ -130,7 +307,7 @@ kit-admin:
 # /duels kit <name>: one kit's settings. <kit> and <id> work everywhere; <value> is the current setting.
 kit-settings:
   title: "<gradient:#f7971e:#ffd200><bold>⚙ <kit>"
-  rows: 4
+  rows: 5
   filler: {material: BLACK_STAINED_GLASS_PANE, name: " "}
   values:
     "on": "<green>On"
@@ -177,11 +354,12 @@ kit-settings:
     name: "<red><bold>Delete kit"
     lore: ["<gray>Removes the kit for good", "", "<red>▶ Shift + right-click to delete"]
   # One button per game rule. <rule>, <value> and <state> (set or default) are filled in.
-  # The material shows the value: flag-on, flag-off, or seconds for a number of seconds.
+  # The material shows the value: flag-on, flag-off, seconds for a number of seconds, or number.
   rule:
     flag-on: LIME_DYE
     flag-off: GRAY_DYE
     seconds: CLOCK
+    number: COMPARATOR
     name: "<yellow><bold><rule>"
     flag-lore:
       - "<dark_gray>▪ <gray>Value: <value>"
@@ -194,6 +372,12 @@ kit-settings:
       - "<dark_gray>▪ <state>"
       - ""
       - "<yellow>▶ Left-click and type seconds"
+      - "<yellow>▶ Right-click for the default"
+    number-lore:
+      - "<dark_gray>▪ <gray>Value: <white><value>"
+      - "<dark_gray>▪ <state>"
+      - ""
+      - "<yellow>▶ Left-click and type a number"
       - "<yellow>▶ Right-click for the default"
   previous: {material: ARROW, name: "<yellow>« Previous page"}
   next: {material: ARROW, name: "<yellow>Next page »"}
@@ -394,6 +578,9 @@ event-settings:
     slot: 20
     ffa: IRON_SWORD
     teams: SHIELD
+    tournament: GOLDEN_SWORD
+    sumo: SLIME_BALL
+    double: TOTEM_OF_UNDYING
     name: "<gold><bold>Mode"
     lore: ["<gray>Now: <white><mode>", "", "<yellow>▶ Click to switch"]
   winners:
@@ -453,4 +640,119 @@ event-rules:
   previous: {material: ARROW, name: "<yellow>« Previous page"}
   next: {material: ARROW, name: "<yellow>Next page »"}
   back: {slot: 3, material: ARROW, name: "<yellow>« Settings"}
+  close: {slot: 5, material: BARRIER, name: "<red>Close"}
+
+# /duel cosmetics [kill-effect|kill-message]: one button per entry of config.yml cosmetics, with its icon.
+# <name> is filled in; kill messages also have <preview>, the message with you as the killer. A click picks
+# one, or drops it when picked; locked ones need their permission. switch opens the other menu.
+kill-effect:
+  title: "<gradient:#f7971e:#ffd200><bold>✦ Kill effects"
+  rows: 4
+  filler: {material: BLACK_STAINED_GLASS_PANE, name: " "}
+  entry:
+    name: "<name>"
+    lore: ["<gray>Plays where you knock out an opponent", "", "<yellow>▶ Click to pick"]
+    chosen-lore: ["<green>✔ Picked", "", "<yellow>▶ Click to drop"]
+    locked-lore: ["<red>✖ Locked"]
+  previous: {material: ARROW, name: "<yellow>« Previous page"}
+  next: {material: ARROW, name: "<yellow>Next page »"}
+  switch: {slot: 3, material: NAME_TAG, name: "<aqua><bold>Kill messages", lore: ["<yellow>▶ Click to open"]}
+  close: {slot: 5, material: BARRIER, name: "<red>Close"}
+
+kill-message:
+  title: "<gradient:#f7971e:#ffd200><bold>✦ Kill messages"
+  rows: 4
+  filler: {material: BLACK_STAINED_GLASS_PANE, name: " "}
+  entry:
+    name: "<name>"
+    lore: ["<gray>Everyone in the fight reads:", "<preview>", "", "<yellow>▶ Click to pick"]
+    chosen-lore: ["<preview>", "", "<green>✔ Picked", "<yellow>▶ Click to drop"]
+    locked-lore: ["<preview>", "", "<red>✖ Locked"]
+  previous: {material: ARROW, name: "<yellow>« Previous page"}
+  next: {material: ARROW, name: "<yellow>Next page »"}
+  switch: {slot: 3, material: BLAZE_POWDER, name: "<gold><bold>Kill effects", lore: ["<yellow>▶ Click to open"]}
+  close: {slot: 5, material: BARRIER, name: "<red>Close"}
+
+# /duel spectate without a player: the fights you may watch, one button each with its kit's icon.
+# <fighters>, <kit>, <arena>, <type> (values.duel, party or event), <time> (left) and <spectators>.
+spectate:
+  title: "<gradient:#4facfe:#00f2fe><bold>◉ Watch a fight"
+  rows: 4
+  filler: {material: BLACK_STAINED_GLASS_PANE, name: " "}
+  fight:
+    name: "<aqua><bold><fighters>"
+    lore:
+      - "<dark_gray>▪ <gray><type> · <white><kit>"
+      - "<dark_gray>▪ <gray>Arena: <white><arena>"
+      - "<dark_gray>▪ <gray>Time left: <white><time>"
+      - "<dark_gray>▪ <gray>Watching: <white><spectators>"
+      - ""
+      - "<yellow>▶ Click to watch"
+  values:
+    duel: "Duel"
+    party: "Party fight"
+    event: "Event"
+  previous: {material: ARROW, name: "<yellow>« Previous page"}
+  next: {material: ARROW, name: "<yellow>Next page »"}
+  close: {slot: 4, material: BARRIER, name: "<red>Close"}
+
+# /duel spectate while watching a fight: a head per fighter still in it; a click takes you to them.
+# <player> and <health> (health points: 20 is full) are filled in.
+spectate-fighters:
+  title: "<gradient:#4facfe:#00f2fe><bold>◉ Go to a fighter"
+  rows: 3
+  # In the inventory of everyone watching (open it with E): a click opens this menu. slot 0 to 35:
+  # 0-8 the hotbar (not shown in spectator mode), 9-35 the inventory, 22 its middle.
+  item:
+    slot: 22
+    material: COMPASS
+    name: "<aqua><bold>Go to a fighter"
+    lore: ["<gray>Click to pick a fighter to watch"]
+  filler: {material: BLACK_STAINED_GLASS_PANE, name: " "}
+  fighter:
+    name: "<aqua><bold><player>"
+    lore:
+      - "<dark_gray>▪ <gray>Health: <white><health>"
+      - ""
+      - "<yellow>▶ Click to go to them"
+  previous: {material: ARROW, name: "<yellow>« Previous page"}
+  next: {material: ARROW, name: "<yellow>Next page »"}
+  close: {slot: 4, material: BARRIER, name: "<red>Close"}
+
+# /party in a party: a head per member and the party's buttons, each running a /party command. The leader
+# promotes a member with a left-click and kicks them with shift + right-click. <size> and <max> work in the title.
+party:
+  title: "<gradient:#ff416c:#ff4b2b><bold>⚑ Party <dark_gray>(<size>/<max>)"
+  rows: 4
+  filler: {material: BLACK_STAINED_GLASS_PANE, name: " "}
+  leader:
+    name: "<gold><bold><player></bold> <gray>(leader)"
+    leader-lore: []
+  member:
+    name: "<white><player>"
+    lore: []
+    member-lore-leader: ["", "<yellow>▶ Left-click to make leader", "<red>▶ Shift + right-click to kick"]
+  previous: {material: ARROW, name: "<yellow>« Previous page"}
+  next: {material: ARROW, name: "<yellow>Next page »"}
+  invite: {slot: 1, material: WRITABLE_BOOK, name: "<green><bold>Invite", lore: ["<gray>Type a player's name in chat", "", "<yellow>▶ Click to invite"]}
+  public-off: {slot: 2, material: IRON_DOOR, name: "<gray><bold>Private party", lore: ["<gray>Invites only", "", "<yellow>▶ Click to make it public (leader)"]}
+  public-on: {slot: 2, material: OAK_DOOR, name: "<green><bold>Public party", lore: ["<gray>Anyone may join", "", "<yellow>▶ Click to make it private (leader)"]}
+  split: {slot: 3, material: IRON_SWORD, name: "<red><bold>Split", lore: ["<gray>Two teams inside the party", "", "<yellow>▶ Click to pick a kit (leader)"]}
+  ffa: {slot: 4, material: DIAMOND_SWORD, name: "<gold><bold>Free for all", lore: ["<gray>Everyone for themselves", "", "<yellow>▶ Click to pick a kit (leader)"]}
+  duel: {slot: 5, material: SHIELD, name: "<aqua><bold>Party duel", lore: ["<gray>Challenge another party", "", "<yellow>▶ Click, then type its leader (leader)"]}
+  leave: {slot: 6, material: OAK_BOAT, name: "<yellow><bold>Leave", lore: ["<yellow>▶ Click to leave the party"]}
+  disband: {slot: 7, material: LAVA_BUCKET, name: "<red><bold>Disband", lore: ["<gray>Ends the party for everyone", "", "<red>▶ Shift + right-click (leader)"]}
+
+# /party without a party: the public parties (/party public), a click joining one, and a button to make your own.
+# <leader>, <size> and <max> work in a party's button.
+party-none:
+  title: "<gradient:#ff416c:#ff4b2b><bold>⚑ Public parties"
+  rows: 4
+  filler: {material: BLACK_STAINED_GLASS_PANE, name: " "}
+  public-party:
+    name: "<white><bold><leader></bold><gray>'s party"
+    lore: ["<dark_gray>▪ <gray>Members: <white><size>/<max>", "", "<yellow>▶ Click to join"]
+  previous: {material: ARROW, name: "<yellow>« Previous page"}
+  next: {material: ARROW, name: "<yellow>Next page »"}
+  create: {slot: 3, material: CAKE, name: "<green><bold>Make a party", lore: ["<gray>Then invite players, or make it public", "", "<yellow>▶ Click to make one"]}
   close: {slot: 5, material: BARRIER, name: "<red>Close"}

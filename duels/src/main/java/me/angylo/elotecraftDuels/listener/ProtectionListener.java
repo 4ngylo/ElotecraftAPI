@@ -3,11 +3,14 @@ package me.angylo.elotecraftDuels.listener;
 import com.destroystokyo.paper.event.player.PlayerSetSpawnEvent;
 import me.angylo.elotecraftAPI.util.Messages;
 import me.angylo.elotecraftDuels.Settings;
+import me.angylo.elotecraftDuels.kit.KitRule;
 import me.angylo.elotecraftDuels.match.Match;
 import me.angylo.elotecraftDuels.match.MatchManager;
+import me.angylo.elotecraftDuels.menu.SpectateMenu;
 import org.bukkit.Bukkit;
 import org.bukkit.command.Command;
 import org.bukkit.entity.Entity;
+import org.bukkit.entity.Item;
 import org.bukkit.entity.Player;
 import org.bukkit.event.Cancellable;
 import org.bukkit.event.Event;
@@ -19,9 +22,11 @@ import org.bukkit.event.block.BlockFertilizeEvent;
 import org.bukkit.event.entity.EntityChangeBlockEvent;
 import org.bukkit.event.entity.EntityPickupItemEvent;
 import org.bukkit.event.entity.EntityPlaceEvent;
+import org.bukkit.event.entity.ItemMergeEvent;
 import org.bukkit.event.hanging.HangingBreakByEntityEvent;
 import org.bukkit.event.hanging.HangingPlaceEvent;
 import org.bukkit.event.inventory.InventoryOpenEvent;
+import org.bukkit.event.inventory.InventoryPickupItemEvent;
 import org.bukkit.event.inventory.InventoryType;
 import org.bukkit.event.player.PlayerArmorStandManipulateEvent;
 import org.bukkit.event.player.PlayerBedEnterEvent;
@@ -32,6 +37,7 @@ import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerTeleportEvent;
 
+import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.function.Supplier;
@@ -41,10 +47,18 @@ import java.util.function.Supplier;
  * spectating) cannot drop, pick up, store or trade items, use blocks, entities or bone meal, use other
  * commands than {@code /duel} and the configured ones, or teleport out of their arena. Placing and
  * breaking blocks is up to {@link BuildListener}.
+ * <p>
+ * Fighters of a kit with {@link KitRule#ITEM_DROPS} drop items; with it, {@link KitRule#BLOCK_DROPS} or
+ * {@link KitRule#DEATH_DROPS} they pick items up inside their arena. Items
+ * dropped in a duel are tagged so nothing outside it (players, mobs, hoppers) can take them, even if they
+ * land past the arena's edge where the arena cleanup does not reach.
  */
 public final class ProtectionListener implements Listener {
 
     private static final Set<InventoryType> OWN_INVENTORY = Set.of(InventoryType.CRAFTING, InventoryType.PLAYER);
+    private static final String DUEL_DROP_TAG = "elotecraft-duels-drop";
+    /** Any of them lets fighters pick items up; throwing items needs {@code item-drops}. */
+    private static final List<KitRule> DROP_RULES = List.of(KitRule.ITEM_DROPS, KitRule.BLOCK_DROPS, KitRule.DEATH_DROPS);
 
     private final Messages messages;
     private final Supplier<Settings> settings;
@@ -59,16 +73,71 @@ public final class ProtectionListener implements Listener {
         this.duelCommand = duelCommand;
     }
 
-    @EventHandler(priority = EventPriority.LOW, ignoreCancelled = true)
-    public void onDrop(PlayerDropItemEvent event) {
-        cancelIfBusy(event.getPlayer(), event);
+    /** Marks an item dropped in a duel, by a fighter, a broken block or a knocked-out fighter. */
+    static void markDuelDrop(Item item) {
+        item.addScoreboardTag(DUEL_DROP_TAG);
+    }
+
+    private static boolean isDuelDrop(Item item) {
+        return item.getScoreboardTags().contains(DUEL_DROP_TAG);
     }
 
     @EventHandler(priority = EventPriority.LOW, ignoreCancelled = true)
-    public void onPickup(EntityPickupItemEvent event) {
-        if (event.getEntity() instanceof Player player) {
-            cancelIfBusy(player, event);
+    public void onDrop(PlayerDropItemEvent event) {
+        Player player = event.getPlayer();
+        if (!matches.isRestricted(player)) {
+            return;
         }
+        if (dropMatch(player, List.of(KitRule.ITEM_DROPS)) != null) {
+            markDuelDrop(event.getItemDrop());
+        } else {
+            event.setCancelled(true);
+        }
+    }
+
+    /** Fighters of a kit with any drop rule pick up items inside their arena; duel drops reach nobody else. */
+    @EventHandler(priority = EventPriority.LOW, ignoreCancelled = true)
+    public void onPickup(EntityPickupItemEvent event) {
+        Item item = event.getItem();
+        if (!(event.getEntity() instanceof Player player)) {
+            if (isDuelDrop(item)) {
+                event.setCancelled(true);
+            }
+            return;
+        }
+        if (!matches.isRestricted(player) && !isDuelDrop(item)) {
+            return;
+        }
+        Match match = dropMatch(player, DROP_RULES);
+        if (match == null || !match.contains(item.getLocation())) {
+            event.setCancelled(true);
+        }
+    }
+
+    /** Hoppers would carry duel drops out of the arena. */
+    @EventHandler(priority = EventPriority.LOW, ignoreCancelled = true)
+    public void onHopperPickup(InventoryPickupItemEvent event) {
+        if (isDuelDrop(event.getItem())) {
+            event.setCancelled(true);
+        }
+    }
+
+    /** A duel drop merging into another item would hand its stack to an untagged item, or the other way. */
+    @EventHandler(priority = EventPriority.LOW, ignoreCancelled = true)
+    public void onMerge(ItemMergeEvent event) {
+        if (isDuelDrop(event.getEntity()) != isDuelDrop(event.getTarget())) {
+            event.setCancelled(true);
+        }
+    }
+
+    /** The match {@code player} is fighting in if its kit has one of {@code rules} on, or null. */
+    private Match dropMatch(Player player, List<KitRule> rules) {
+        Match match = matches.matchOf(player).orElse(null);
+        if (match == null || !match.isFighting(player)) {
+            return null;
+        }
+        Settings current = settings.get();
+        return rules.stream().anyMatch(rule -> match.kit().flag(rule, current)) ? match : null;
     }
 
     @EventHandler(priority = EventPriority.LOW, ignoreCancelled = true)
@@ -143,10 +212,11 @@ public final class ProtectionListener implements Listener {
         cancelIfBusy(event.getPlayer(), event);
     }
 
-    /** Chests, ender chests and other plugins' menus: anything but the player's own inventory. */
+    /** Chests, ender chests and other plugins' menus: anything but the player's own inventory and the spectators' fighter menu. */
     @EventHandler(priority = EventPriority.LOW, ignoreCancelled = true)
     public void onInventoryOpen(InventoryOpenEvent event) {
-        if (event.getPlayer() instanceof Player player && !OWN_INVENTORY.contains(event.getInventory().getType())) {
+        if (event.getPlayer() instanceof Player player && !OWN_INVENTORY.contains(event.getInventory().getType())
+                && !(event.getInventory().getHolder() instanceof SpectateMenu.FighterMenu)) {
             cancelIfBusy(player, event);
         }
     }

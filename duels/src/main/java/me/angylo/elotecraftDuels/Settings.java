@@ -1,41 +1,61 @@
 package me.angylo.elotecraftDuels;
 
 import me.angylo.elotecraftAPI.util.Durations;
+import me.angylo.elotecraftDuels.event.HostedEvent;
+import me.angylo.elotecraftDuels.stats.Divisions;
 import net.kyori.adventure.bossbar.BossBar;
 import net.kyori.adventure.title.Title;
 import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.configuration.MemoryConfiguration;
 
 import java.time.Duration;
+import java.time.LocalTime;
+import java.time.format.DateTimeParseException;
+import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.logging.Logger;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Typed view of config.yml, rebuilt on every reload. A bad value is logged with its path and replaced
  * by the built-in default, so a typo never stops the plugin.
  */
-public record Settings(int countdownSeconds, Duration maxDuration, int endDelaySeconds, boolean bossBar,
-                BossBar.Color bossBarColor, boolean logResults, Duration requestExpiry, Duration requestCooldown,
+public record Settings(int countdownSeconds, Duration maxDuration, int endDelaySeconds, int roundDelaySeconds, boolean bossBar,
+                BossBar.Color bossBarColor, boolean logResults, boolean arrowHealth, Duration requestExpiry, Duration requestCooldown,
                 Duration rematchWindow, boolean hunger, boolean naturalRegeneration, Set<String> allowedCommands,
                 Reward winReward, Reward lossReward, Title.Times titleTimes, Effects effects,
                 boolean breakArenaBlocks, int regenBlocksPerTick, boolean voidEliminates, String arenasWorld,
                 int pregenSpacing, int maxCopies, int partyMaxSize, Duration partyInviteExpiry, boolean partyFriendlyFire, Duration kitEditorTimeout, Ranked ranked,
-                Sidebars sidebars, Events events) {
+                Sidebars sidebars, int hologramLines, LobbyItems lobbyItems, Events events, Cosmetics cosmetics, Bets bets) {
 
     private static final long MILLIS_PER_TICK = 50;
     private static final int MAX_TITLE_TICKS = 200;
     private static final int MAX_ELO_RANGE = 5000;
+    private static final int MAX_HOLOGRAM_LINES = 50;
+    private static final int MAX_DAILY_RANKED = 1000;
     private static final int MAX_EVENT_PLAYERS = 100;
+    private static final int MAX_TOURNAMENT_REPLAYS = 10;
     private static final double MAX_BORDER_DAMAGE = 20;
+    private static final int MINUTES_PER_DAY = 24 * 60;
+    private static final double MIN_BET = 0.01;
+    private static final double MAX_BET = 1_000_000_000;
+    private static final double DEFAULT_MIN_BET = 10;
+    private static final double DEFAULT_MAX_BET = 100_000;
+    private static final double MAX_PERCENT = 100;
     private static final String DEFAULT_ARENAS_WORLD = "duels_arenas";
     private static final Pattern WORLD_NAME = Pattern.compile("[a-z0-9_-]{1,64}");
 
     /** Elo rating of queue duels and how far apart two queued players may be rated. */
-    public record Ranked(int kFactor, int range, int rangeGrowth, int rangeMax) {
+    /** @param divisions rating bands shown with ratings; {@link Divisions#NONE} when off */
+    /** @param dailyLimit ranked duels a player may start a day; 0 for no limit */
+    public record Ranked(int kFactor, int range, int rangeGrowth, int rangeMax, Divisions divisions, int dailyLimit) {
 
         /** The rating gap allowed for a player who has waited {@code seconds}. */
         public int range(long seconds) {
@@ -45,13 +65,26 @@ public record Settings(int countdownSeconds, Duration maxDuration, int endDelayS
 
     /**
      * Which sidebars duels shows: one during fights, one with stats elsewhere, in {@code lobbyWorlds}
-     * (empty: every world but the arenas world).
+     * (empty: every world but the arenas world). With the fight one, {@code healthBelowName} shows health under names.
      */
-    public record Sidebars(boolean match, boolean lobby, Set<String> lobbyWorlds) {
+    public record Sidebars(boolean match, boolean lobby, Set<String> lobbyWorlds, boolean healthBelowName) {
 
         public Sidebars {
             lobbyWorlds = Set.copyOf(lobbyWorlds);
         }
+    }
+
+    /** The hotbar items of the lobby (menus.yml {@code lobby-items}), in {@code worlds}; for practice servers. */
+    public record LobbyItems(boolean enabled, Set<String> worlds) {
+
+        public LobbyItems {
+            worlds = Set.copyOf(worlds);
+        }
+    }
+
+    /** Whether {@code world} is a lobby for a feature limited to {@code worlds}: those, or with none every world but the arenas one. */
+    public boolean isLobby(String world, Set<String> worlds) {
+        return worlds.isEmpty() ? !world.equals(arenasWorld) : worlds.contains(world);
     }
 
     /**
@@ -59,7 +92,23 @@ public record Settings(int countdownSeconds, Duration maxDuration, int endDelayS
      * prize of each winner and the border the host may turn on.
      */
     public record Events(int minPlayers, int maxPlayers, Duration waitTime, Duration announceInterval,
-                         Duration hostCooldown, boolean broadcastResult, Reward reward, Border border) {
+                         Duration hostCooldown, boolean broadcastResult, Reward reward, Border border, List<Scheduled> schedule,
+                         int tournamentReplays) {
+
+        public Events {
+            schedule = List.copyOf(schedule);
+        }
+    }
+
+    /**
+     * Money bets on duels ({@code /duel <player> <kit> bet <amount>}): the stake each player puts in, from {@code min}
+     * to {@code max}, and the {@code tax} percent of the pot the server keeps.
+     */
+    public record Bets(boolean enabled, double min, double max, double tax) {
+    }
+
+    /** An event the server hosts every day at {@code at} (server time, to the minute). */
+    public record Scheduled(LocalTime at, String kit, HostedEvent.Mode mode) {
     }
 
     /**
@@ -73,8 +122,31 @@ public record Settings(int countdownSeconds, Duration maxDuration, int endDelayS
     /** Money and console commands for one outcome of a duel. */
     public record Reward(double money, List<String> commands) {
 
+        public static final Reward NONE = new Reward(0, List.of());
+
         public Reward {
             commands = List.copyOf(commands);
+        }
+
+        /** Both rewards: the money added up, then this one's commands and {@code other}'s. */
+        public Reward plus(Reward other) {
+            return new Reward(money + other.money, Stream.concat(commands.stream(), other.commands.stream()).toList());
+        }
+
+        /**
+         * Reads {@code money} and {@code commands} under {@code path}; money below 0 becomes 0 with a warning.
+         *
+         * @param file the file {@code config} is from, named in the warning
+         */
+        public static Reward load(ConfigurationSection config, Logger logger, String file, String path) {
+            double money = config.getDouble(path + ".money", 0);
+            if (!Double.isFinite(money) || money < 0) {
+                String fullPath = config.getCurrentPath() == null || config.getCurrentPath().isEmpty()
+                        ? path : config.getCurrentPath() + "." + path;
+                logger.warning(file + " " + fullPath + ".money must be 0 or more; using 0");
+                money = 0;
+            }
+            return new Reward(money, config.getStringList(path + ".commands"));
         }
     }
 
@@ -83,9 +155,11 @@ public record Settings(int countdownSeconds, Duration maxDuration, int endDelayS
                 integer(config, logger, "match.countdown-seconds", 5, 1, 30),
                 duration(config, logger, "match.max-duration", Duration.ofMinutes(5), Duration.ofSeconds(10)),
                 integer(config, logger, "match.end-delay-seconds", 4, 0, 30),
+                integer(config, logger, "match.round-delay-seconds", 3, 1, 30),
                 config.getBoolean("match.boss-bar", true),
                 bossBarColor(config, logger),
                 config.getBoolean("match.log-results", true),
+                config.getBoolean("match.arrow-health", true),
                 duration(config, logger, "requests.expiry", Duration.ofSeconds(30), Duration.ofSeconds(5)),
                 duration(config, logger, "requests.cooldown", Duration.ofSeconds(5), Duration.ZERO),
                 duration(config, logger, "requests.rematch-window", Duration.ofSeconds(30), Duration.ofSeconds(5)),
@@ -116,12 +190,20 @@ public record Settings(int countdownSeconds, Duration maxDuration, int endDelayS
                         integer(config, logger, "ranked.k-factor", 32, 1, 100),
                         integer(config, logger, "ranked.range", 100, 0, MAX_ELO_RANGE),
                         integer(config, logger, "ranked.range-growth", 10, 0, 1000),
-                        integer(config, logger, "ranked.range-max", 1000, 0, MAX_ELO_RANGE)),
+                        integer(config, logger, "ranked.range-max", 1000, 0, MAX_ELO_RANGE),
+                        divisions(config, logger),
+                        integer(config, logger, "ranked.daily-limit", 0, 0, MAX_DAILY_RANKED)),
                 new Sidebars(
                         config.getBoolean("sidebar.match", true),
                         config.getBoolean("sidebar.lobby", false),
-                        Set.copyOf(config.getStringList("sidebar.lobby-worlds"))),
-                events(config, logger));
+                        Set.copyOf(config.getStringList("sidebar.lobby-worlds")),
+                        config.getBoolean("sidebar.health-below-name", true)),
+                integer(config, logger, "holograms.lines", 10, 1, MAX_HOLOGRAM_LINES),
+                new LobbyItems(config.getBoolean("lobby-items.enabled", false),
+                        Set.copyOf(config.getStringList("lobby-items.worlds"))),
+                events(config, logger),
+                Cosmetics.load(config, logger),
+                bets(config, logger));
     }
 
     private static Events events(ConfigurationSection config, Logger logger) {
@@ -146,7 +228,76 @@ public record Settings(int countdownSeconds, Duration maxDuration, int endDelayS
                         duration(config, logger, "events.border.delay", Duration.ofSeconds(60), Duration.ZERO),
                         duration(config, logger, "events.border.shrink-time", Duration.ofMinutes(2), Duration.ofSeconds(1)),
                         integer(config, logger, "events.border.min-size", 10, 1, 1000),
-                        damage));
+                        damage),
+                schedule(config, logger),
+                integer(config, logger, "events.tournament-replays", 1, 0, MAX_TOURNAMENT_REPLAYS));
+    }
+
+    /** {@code events.schedule}: entries without a valid time, kit or mode are logged and left out. */
+    private static List<Scheduled> schedule(ConfigurationSection config, Logger logger) {
+        List<Scheduled> schedule = new ArrayList<>();
+        for (Map<?, ?> entry : config.getMapList("events.schedule")) {
+            try {
+                if (!(entry.get("kit") instanceof String kit)) {
+                    throw new IllegalArgumentException();
+                }
+                // YAML reads an unquoted 20:00 as the number 1200 (minutes, base 60).
+                LocalTime at = switch (entry.get("at")) {
+                    case String text -> LocalTime.parse(text).truncatedTo(ChronoUnit.MINUTES);
+                    case Integer minutes when minutes >= 0 && minutes < MINUTES_PER_DAY -> LocalTime.of(minutes / 60, minutes % 60);
+                    case null, default -> throw new IllegalArgumentException();
+                };
+                Object mode = entry.get("mode");
+                schedule.add(new Scheduled(at, kit,
+                        mode == null ? HostedEvent.Mode.FFA : HostedEvent.Mode.valueOf(mode.toString().toUpperCase(Locale.ROOT))));
+            } catch (DateTimeParseException | IllegalArgumentException e) {
+                logger.warning("config.yml events.schedule: " + entry + " needs at: \"HH:mm\", a kit and a mode (ffa, teams,"
+                        + " tournament or sumo); left out");
+            }
+        }
+        return schedule;
+    }
+
+    /** {@code ranked.divisions}: entries without a name or a whole-number {@code min} are logged and left out. */
+    private static Divisions divisions(ConfigurationSection config, Logger logger) {
+        List<Divisions.Division> divisions = new ArrayList<>();
+        for (Map<?, ?> entry : config.getMapList("ranked.divisions")) {
+            if (entry.get("name") instanceof String name && !name.isBlank() && entry.get("min") instanceof Integer min) {
+                divisions.add(new Divisions.Division(name, min, seasonReward(entry, logger)));
+            } else {
+                logger.warning("config.yml ranked.divisions: " + entry + " needs a name and a whole-number min; left out");
+            }
+        }
+        return new Divisions(divisions);
+    }
+
+    /** A division's {@code season-reward}: money and commands like {@code rewards.win}; none if unset. */
+    private static Reward seasonReward(Map<?, ?> division, Logger logger) {
+        if (!(division.get("season-reward") instanceof Map<?, ?> raw)) {
+            return Reward.NONE;
+        }
+        ConfigurationSection holder = new MemoryConfiguration();
+        holder.createSection("season-reward", raw);
+        return Reward.load(holder, logger, "config.yml ranked.divisions " + division.get("name"), "season-reward");
+    }
+
+    private static Bets bets(ConfigurationSection config, Logger logger) {
+        double min = number(config, logger, "bets.min", DEFAULT_MIN_BET, MIN_BET, MAX_BET);
+        double max = number(config, logger, "bets.max", DEFAULT_MAX_BET, MIN_BET, MAX_BET);
+        if (max < min) {
+            logger.warning("config.yml bets.max must be at least bets.min; using " + min);
+            max = min;
+        }
+        return new Bets(config.getBoolean("bets.enabled", true), min, max, number(config, logger, "bets.tax", 0, 0, MAX_PERCENT));
+    }
+
+    private static double number(ConfigurationSection config, Logger logger, String path, double fallback, double min, double max) {
+        double value = config.getDouble(path, fallback);
+        if (!config.isDouble(path) && !config.isInt(path) || !Double.isFinite(value) || value < min || value > max) {
+            logger.warning("config.yml " + path + " must be a number from " + min + " to " + max + "; using " + fallback);
+            return fallback;
+        }
+        return value;
     }
 
     private static int integer(ConfigurationSection config, Logger logger, String path, int fallback, int min, int max) {
@@ -195,12 +346,7 @@ public record Settings(int countdownSeconds, Duration maxDuration, int endDelayS
     }
 
     private static Reward reward(ConfigurationSection config, Logger logger, String path) {
-        double money = config.getDouble(path + ".money", 0);
-        if (!Double.isFinite(money) || money < 0) {
-            logger.warning("config.yml " + path + ".money must be 0 or more; using 0");
-            money = 0;
-        }
-        return new Reward(money, config.getStringList(path + ".commands"));
+        return Reward.load(config, logger, "config.yml", path);
     }
 
     private static Duration ticks(int ticks) {

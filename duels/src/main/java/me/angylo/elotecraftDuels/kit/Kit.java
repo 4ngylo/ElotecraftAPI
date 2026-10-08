@@ -1,18 +1,30 @@
 package me.angylo.elotecraftDuels.kit;
 
 import me.angylo.elotecraftDuels.Settings;
+import me.angylo.elotecraftDuels.Settings.Reward;
 import me.angylo.elotecraftDuels.arena.Arena;
+import me.angylo.elotecraftDuels.state.PlayerSnapshot;
 import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
+import org.bukkit.Registry;
+import org.bukkit.attribute.Attribute;
+import org.bukkit.attribute.AttributeInstance;
+import org.bukkit.attribute.AttributeModifier;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
 import org.bukkit.permissions.Permissible;
+import org.bukkit.potion.PotionEffect;
+import org.bukkit.potion.PotionEffectType;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Optional;
 import java.util.Map;
 import java.util.OptionalInt;
 import java.util.Set;
@@ -27,11 +39,21 @@ import java.util.Set;
  * @param arenaCategories arena categories duels with this kit may use; empty for any arena
  * @param damage      false for knockback-only fights such as Sumo: hits never hurt, falling off the arena loses
  * @param rules       the game rules this kit sets, each value fitting its {@link KitRule}; unset ones use their default
+ * @param rewards     paid for a won duel with this kit on top of config.yml's {@code rewards}
+ * @param effects     potion effects fighters have for the whole fight, without particles
  */
 public record Kit(String name, String displayName, Material icon, String permission, List<ItemStack> items, boolean build,
-                  Set<String> arenaCategories, boolean damage, Map<KitRule, Object> rules) {
+                  Set<String> arenaCategories, boolean damage, Map<KitRule, Object> rules, Rewards rewards,
+                  List<PotionEffect> effects) {
 
     public static final Material DEFAULT_ICON = Material.IRON_SWORD;
+    public static final int MAX_EFFECT_LEVEL = 10;
+
+    /** The extra money and commands for the winner and the loser of a duel with a kit; set in kits.yml only. */
+    public record Rewards(Reward win, Reward loss) {
+
+        public static final Rewards NONE = new Rewards(Reward.NONE, Reward.NONE);
+    }
 
     public Kit {
         items = items.stream().map(item -> item == null ? ItemStack.empty() : item.clone()).toList();
@@ -42,12 +64,19 @@ public record Kit(String name, String displayName, Material icon, String permiss
             }
         });
         rules = Map.copyOf(rules);
+        effects = List.copyOf(effects);
     }
 
-    /** A kit with every game rule at its default. */
+    /** A kit without effects. */
+    public Kit(String name, String displayName, Material icon, String permission, List<ItemStack> items, boolean build,
+               Set<String> arenaCategories, boolean damage, Map<KitRule, Object> rules, Rewards rewards) {
+        this(name, displayName, icon, permission, items, build, arenaCategories, damage, rules, rewards, List.of());
+    }
+
+    /** A kit with every game rule at its default and no rewards of its own. */
     public Kit(String name, String displayName, Material icon, String permission, List<ItemStack> items, boolean build,
                Set<String> arenaCategories, boolean damage) {
-        this(name, displayName, icon, permission, items, build, arenaCategories, damage, Map.of());
+        this(name, displayName, icon, permission, items, build, arenaCategories, damage, Map.of(), Rewards.NONE);
     }
 
     /** A kit holding a copy of everything in {@code inventory}, armor and off hand included. */
@@ -70,8 +99,8 @@ public record Kit(String name, String displayName, Material icon, String permiss
         return rules.get(rule) instanceof Boolean value ? value : rule.defaultFlag(settings);
     }
 
-    /** The seconds {@code rule} is set to, or empty to leave vanilla alone. */
-    public OptionalInt seconds(KitRule rule) {
+    /** The number {@code rule} is set to, or empty to leave the game as it is. */
+    public OptionalInt number(KitRule rule) {
         return rules.get(rule) instanceof Integer value ? OptionalInt.of(value) : OptionalInt.empty();
     }
 
@@ -115,33 +144,37 @@ public record Kit(String name, String displayName, Material icon, String permiss
     }
 
     public Kit withItems(PlayerInventory inventory) {
-        return new Kit(name, displayName, icon, permission, Arrays.asList(inventory.getContents()), build, arenaCategories, damage, rules);
+        return new Kit(name, displayName, icon, permission, Arrays.asList(inventory.getContents()), build, arenaCategories, damage, rules, rewards, effects);
     }
 
     public Kit withIcon(Material newIcon) {
-        return new Kit(name, displayName, newIcon, permission, items, build, arenaCategories, damage, rules);
+        return new Kit(name, displayName, newIcon, permission, items, build, arenaCategories, damage, rules, rewards, effects);
     }
 
     public Kit withDisplayName(String newDisplayName) {
-        return new Kit(name, newDisplayName, icon, permission, items, build, arenaCategories, damage, rules);
+        return new Kit(name, newDisplayName, icon, permission, items, build, arenaCategories, damage, rules, rewards, effects);
     }
 
     /** @param newPermission null for everyone */
     public Kit withPermission(String newPermission) {
-        return new Kit(name, displayName, icon, newPermission, items, build, arenaCategories, damage, rules);
+        return new Kit(name, displayName, icon, newPermission, items, build, arenaCategories, damage, rules, rewards, effects);
     }
 
     public Kit withBuild(boolean newBuild) {
-        return new Kit(name, displayName, icon, permission, items, newBuild, arenaCategories, damage, rules);
+        return new Kit(name, displayName, icon, permission, items, newBuild, arenaCategories, damage, rules, rewards, effects);
     }
 
     public Kit withDamage(boolean newDamage) {
-        return new Kit(name, displayName, icon, permission, items, build, arenaCategories, newDamage, rules);
+        return new Kit(name, displayName, icon, permission, items, build, arenaCategories, newDamage, rules, rewards, effects);
     }
 
     /** @param newCategories empty for any arena */
     public Kit withArenaCategories(Set<String> newCategories) {
-        return new Kit(name, displayName, icon, permission, items, build, newCategories, damage, rules);
+        return new Kit(name, displayName, icon, permission, items, build, newCategories, damage, rules, rewards, effects);
+    }
+
+    public Kit withRewards(Rewards newRewards) {
+        return new Kit(name, displayName, icon, permission, items, build, arenaCategories, damage, rules, newRewards, effects);
     }
 
     /**
@@ -156,6 +189,51 @@ public record Kit(String name, String displayName, Material icon, String permiss
         } else {
             changed.put(rule, value);
         }
-        return new Kit(name, displayName, icon, permission, items, build, arenaCategories, damage, changed);
+        return new Kit(name, displayName, icon, permission, items, build, arenaCategories, damage, changed, rewards, effects);
+    }
+
+    /**
+     * @param level 1 and up; 0 removes {@code type}
+     * @throws IllegalArgumentException if {@code level} is below 0 or above {@value #MAX_EFFECT_LEVEL}
+     */
+    public Kit withEffect(PotionEffectType type, int level) {
+        if (level < 0 || level > MAX_EFFECT_LEVEL) {
+            throw new IllegalArgumentException("Effect level must be 0 to " + MAX_EFFECT_LEVEL + ", got " + level);
+        }
+        List<PotionEffect> changed = new ArrayList<>(effects.stream().filter(effect -> !effect.getType().equals(type)).toList());
+        if (level > 0) {
+            changed.add(effect(type, level));
+        }
+        return new Kit(name, displayName, icon, permission, items, build, arenaCategories, damage, rules, rewards, changed);
+    }
+
+    /** The effect called {@code name}, e.g. {@code speed} or {@code minecraft:jump_boost}. */
+    public static Optional<PotionEffectType> effectType(String name) {
+        NamespacedKey key = NamespacedKey.fromString(name.strip().toLowerCase(Locale.ROOT));
+        return key == null ? Optional.empty() : Optional.ofNullable(Registry.MOB_EFFECT.get(key));
+    }
+
+    /** An endless effect of {@code type} at {@code level} (1 and up), as kits give them. */
+    public static PotionEffect effect(PotionEffectType type, int level) {
+        return new PotionEffect(type, PotionEffect.INFINITE_DURATION, level - 1, false, false, true);
+    }
+
+    /**
+     * Readies a fighter after {@link #apply}: this kit's effects, its {@link KitRule#MAX_HEALTH} at full health and the
+     * {@link KitRule#SATURATION} effect. {@link PlayerSnapshot} undoes the maximum health when the fight ends.
+     */
+    public void applyStatus(Player player, Settings settings) {
+        OptionalInt maxHealth = number(KitRule.MAX_HEALTH);
+        AttributeInstance health = player.getAttribute(Attribute.MAX_HEALTH);
+        if (maxHealth.isPresent() && maxHealth.getAsInt() > 0 && health != null) {
+            health.removeModifier(PlayerSnapshot.KIT_MAX_HEALTH);
+            health.addModifier(new AttributeModifier(PlayerSnapshot.KIT_MAX_HEALTH, maxHealth.getAsInt() - health.getBaseValue(),
+                    AttributeModifier.Operation.ADD_NUMBER));
+            player.setHealth(health.getValue());
+        }
+        player.addPotionEffects(effects);
+        if (flag(KitRule.SATURATION, settings)) {
+            player.addPotionEffect(new PotionEffect(PotionEffectType.SATURATION, PotionEffect.INFINITE_DURATION, 0, false, false, false));
+        }
     }
 }

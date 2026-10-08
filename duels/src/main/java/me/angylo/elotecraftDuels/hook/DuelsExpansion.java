@@ -1,5 +1,6 @@
 package me.angylo.elotecraftDuels.hook;
 
+import me.angylo.elotecraftAPI.util.Text;
 import me.angylo.elotecraftDuels.Duels;
 import me.angylo.elotecraftDuels.match.Match;
 import me.angylo.elotecraftDuels.match.QueueManager;
@@ -19,6 +20,10 @@ import java.util.function.Function;
  * and never the database: stats are those of online players, 0 for offline ones.
  */
 final class DuelsExpansion extends PlaceholderExpansion {
+
+    private static final String ELO_PREFIX = "elo_";
+    private static final String DIVISION_PREFIX = "division_";
+    private static final String PEAK_PREFIX = "peak_";
 
     private final Duels duels;
 
@@ -50,7 +55,7 @@ final class DuelsExpansion extends PlaceholderExpansion {
     @Override
     public @NotNull List<String> getPlaceholders() {
         return List.of("%duels_wins%", "%duels_losses%", "%duels_win_streak%", "%duels_best_win_streak%",
-                "%duels_win_rate%", "%duels_elo%", "%duels_in_match%", "%duels_opponent%", "%duels_kit%", "%duels_arena%",
+                "%duels_win_rate%", "%duels_elo%", "%duels_elo_<kit>%", "%duels_division%", "%duels_division_<kit>%", "%duels_peak%", "%duels_peak_<kit>%", "%duels_season%", "%duels_in_match%", "%duels_opponent%", "%duels_kit%", "%duels_arena%",
                 "%duels_queue%", "%duels_queue_type%", "%duels_party_size%", "%duels_party_leader%", "%duels_active_matches%");
     }
 
@@ -69,7 +74,10 @@ final class DuelsExpansion extends PlaceholderExpansion {
             case "win_streak" -> stat(player, PlayerStats::winStreak);
             case "best_win_streak" -> stat(player, PlayerStats::bestWinStreak);
             case "win_rate" -> stat(player, PlayerStats::winRate);
-            case "elo" -> stat(player, PlayerStats::elo);
+            case "elo" -> stat(player, found -> found.overallElo(duels.kits().names()));
+            case "division" -> division(player, null);
+            case "peak" -> stat(player, found -> found.peak(duels.kits().names()));
+            case "season" -> String.valueOf(duels.seasons().current());
             case "in_match" -> String.valueOf(match.isPresent());
             case "opponent" -> match.filter(m -> m.teamOf(player.getUniqueId()) >= 0)
                     .map(m -> m.opponentNames(player.getUniqueId())).orElse("");
@@ -80,8 +88,34 @@ final class DuelsExpansion extends PlaceholderExpansion {
                     .map(party -> Optional.ofNullable(Bukkit.getOfflinePlayer(party.leader()).getName()).orElse("")).orElse("");
             case "queue" -> duels.queues().queued(player.getUniqueId()).map(QueueManager.QueueId::kit).orElse("");
             case "queue_type" -> duels.queues().queued(player.getUniqueId()).map(id -> id.ranked() ? "ranked" : "unranked").orElse("");
-            default -> null;
+            default -> kitRating(player, params);
         };
+    }
+
+    /** {@code elo_<kit>}, {@code division_<kit>} and {@code peak_<kit>} of an existing kit; null for anything else. */
+    private String kitRating(OfflinePlayer player, String params) {
+        String prefix = params.startsWith(DIVISION_PREFIX) ? DIVISION_PREFIX : params.startsWith(PEAK_PREFIX) ? PEAK_PREFIX
+                : params.startsWith(ELO_PREFIX) ? ELO_PREFIX : null;
+        if (prefix == null) {
+            return null;
+        }
+        String kit = params.substring(prefix.length());
+        if (duels.kits().get(kit).isEmpty()) {
+            return null;
+        }
+        return switch (prefix) {
+            case DIVISION_PREFIX -> division(player, kit);
+            case PEAK_PREFIX -> stat(player, found -> found.peak(kit));
+            default -> stat(player, found -> found.elo(kit));
+        };
+    }
+
+    /** The plain name of the division of the rating in {@code kit}, or of the overall one when null. */
+    private String division(OfflinePlayer player, String kit) {
+        return duels.stats().cached(player.getUniqueId())
+                .map(found -> kit == null ? found.overallElo(duels.kits().names()) : found.elo(kit))
+                .map(elo -> Text.plain(duels.settings().ranked().divisions().name(elo)))
+                .orElse("");
     }
 
     private String stat(OfflinePlayer player, Function<PlayerStats, Integer> value) {

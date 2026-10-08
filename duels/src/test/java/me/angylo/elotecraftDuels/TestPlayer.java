@@ -14,6 +14,10 @@ import java.util.concurrent.CompletableFuture;
 /** MockBukkit leaves {@code teleportAsync} and {@code spigot().respawn()} unimplemented; these do them at once. */
 class TestPlayer extends PlayerMock {
 
+    /** While true, async teleports stay on their way: they never arrive, as on a slow chunk load. */
+    private boolean holdTeleports;
+    private int ping;
+
     TestPlayer(ServerMock server, String name) {
         super(server, name);
     }
@@ -25,7 +29,23 @@ class TestPlayer extends PlayerMock {
     @Override
     public @NotNull CompletableFuture<Boolean> teleportAsync(@NotNull Location location, @NotNull TeleportCause cause,
                                                              @NotNull TeleportFlag @NotNull ... flags) {
+        if (holdTeleports) {
+            return new CompletableFuture<>();
+        }
         return CompletableFuture.completedFuture(teleport(location, cause, flags));
+    }
+
+    void holdTeleports(boolean hold) {
+        holdTeleports = hold;
+    }
+
+    @Override
+    public int getPing() {
+        return ping;
+    }
+
+    void ping(int milliseconds) {
+        ping = milliseconds;
     }
 
     @Override

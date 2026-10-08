@@ -74,6 +74,14 @@ class KitAdminMenuTest extends DuelsTestBase {
     }
 
     @Test
+    void everyRuleFitsOnTheFirstPage() {
+        server.dispatchCommand(admin, "duels kit sword");
+
+        KitRule last = KitRule.values()[KitRule.values().length - 1];
+        assertEquals(last.key(), Text.plain(top().getItem(9 + last.ordinal()).getItemMeta().displayName()));
+    }
+
+    @Test
     void togglesRedrawInPlace() {
         server.dispatchCommand(admin, "duels kit sword");
         assertTrue(lore(BUILD).contains("Fighters may place blocks: Off"));
@@ -110,7 +118,7 @@ class KitAdminMenuTest extends DuelsTestBase {
 
         assertTrue(messages(admin).stream().anyMatch(line -> line.contains("Type pearl-cooldown for Sword in seconds")));
         admin.chat("15");
-        tickUntil(() -> sword().seconds(KitRule.PEARL_COOLDOWN).equals(OptionalInt.of(15)));
+        tickUntil(() -> sword().number(KitRule.PEARL_COOLDOWN).equals(OptionalInt.of(15)));
         tick();
         assertEquals("⚙ Sword", title());
     }

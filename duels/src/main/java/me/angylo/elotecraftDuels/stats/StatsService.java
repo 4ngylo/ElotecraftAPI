@@ -14,6 +14,7 @@ import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -91,10 +92,36 @@ public final class StatsService {
             UPDATE duels_ratings SET peak = CASE WHEN elo + ? > peak THEN elo + ? ELSE peak END,
                 elo = elo + ?, wins = wins + ?, losses = losses + ?
             WHERE uuid = ? AND kit = ?""";
+    private static final String FIND_ID = "SELECT uuid, name FROM duels_stats WHERE LOWER(name) = LOWER(?) LIMIT 1";
+    private static final String FIND_RATING = "SELECT elo, wins, losses, peak FROM duels_ratings WHERE uuid = ? AND kit = ?";
+    private static final String FIND_LEGACY = "SELECT elo FROM duels_stats WHERE uuid = ?";
+    private static final String SET_RATING = "UPDATE duels_ratings SET elo = ?, peak = ? WHERE uuid = ? AND kit = ?";
+    private static final String ADD_RATING = "INSERT INTO duels_ratings (uuid, kit, elo, wins, losses, peak) VALUES (?, ?, ?, 0, 0, ?)";
     /** A first ranked duel with a kit: the rating starts from the old one rating, in the row written just before. */
     private static final String INSERT_RATING = """
             INSERT INTO duels_ratings (uuid, kit, elo, wins, losses, peak)
             SELECT uuid, ?, elo + ?, ?, ?, CASE WHEN ? > 0 THEN elo + ? ELSE elo END FROM duels_stats WHERE uuid = ?""";
+
+    /** The highest rating an admin may give. */
+    public static final int MAX_ELO = 10_000;
+
+    /** An admin's change to a rating ({@code /duels elo}). */
+    public enum RatingChange {
+        /** To the value given; the peak rises with it. */
+        SET,
+        /** By the value given; the peak rises with it. */
+        ADD,
+        /** Back to the start, peak included. */
+        RESET
+    }
+
+    /** A rating before ({@code null} if the player had none) and after an admin's change. */
+    public record Changed(KitRating before, KitRating after) {
+    }
+
+    /** A player known to the stats table: their id and stored name. */
+    public record Known(UUID id, String name) {
+    }
 
     /**
      * @param kit       the kit of a ranked duel, whose ratings move; null for an unranked duel
@@ -211,6 +238,83 @@ public final class StatsService {
             return CompletableFuture.completedFuture(Optional.of(online.get(player.getUniqueId())));
         }
         return schema.thenCompose(ignored -> db.transaction(connection -> find(connection, FIND_BY_NAME, name)));
+    }
+
+    /** The player called {@code name} in the stats table (any case), if they ever finished a duel. */
+    public CompletableFuture<Optional<Known>> findId(String name) {
+        return schema.thenCompose(ignored -> db.queryOne(FIND_ID, row -> new Known(UUID.fromString(row.getString("uuid")),
+                row.getString("name")), name));
+    }
+
+    // ponytail: read-modify-write; a ranked result written at the same moment (only possible across servers sharing
+    // MySQL, as /duels elo refuses players in a duel or ranked queue) may be lost; lock rows if that ever matters.
+    /**
+     * Changes {@code player}'s rating in each of {@code kits} by {@code change}, kept from 0 to {@link #MAX_ELO}: SET and ADD
+     * start a rating the player lacks (from their starting rating), RESET leaves those alone. Read and written in one
+     * transaction; the cached ratings of an online player follow. Returns the ratings before and after, by kit;
+     * completes on the main thread.
+     */
+    public CompletableFuture<Map<String, Changed>> changeRating(UUID player, Collection<String> kits, RatingChange change, int value) {
+        return schema.thenCompose(ignored -> db.transaction(connection -> {
+            Map<String, Changed> changed = new LinkedHashMap<>();
+            for (String kit : kits) {
+                Optional<KitRating> before = rating(connection, player, kit);
+                if (before.isEmpty() && change == RatingChange.RESET) {
+                    continue;
+                }
+                KitRating old = before.isPresent() ? before.get() : new KitRating(legacyElo(connection, player), 0, 0, 0);
+                int elo = Math.clamp(switch (change) {
+                    case SET -> value;
+                    case ADD -> (long) old.elo() + value;
+                    case RESET -> PlayerStats.START_ELO;
+                }, 0, MAX_ELO);
+                KitRating after = new KitRating(elo, old.wins(), old.losses(), change == RatingChange.RESET ? elo : Math.max(old.peak(), elo));
+                try (PreparedStatement statement = connection.prepareStatement(before.isPresent() ? SET_RATING : ADD_RATING)) {
+                    if (before.isPresent()) {
+                        statement.setInt(1, after.elo());
+                        statement.setInt(2, after.peak());
+                        statement.setString(3, player.toString());
+                        statement.setString(4, kit);
+                    } else {
+                        statement.setString(1, player.toString());
+                        statement.setString(2, kit);
+                        statement.setInt(3, after.elo());
+                        statement.setInt(4, after.peak());
+                    }
+                    statement.executeUpdate();
+                }
+                changed.put(kit, new Changed(before.orElse(null), after));
+            }
+            return changed;
+        })).thenApply(changed -> {
+            online.computeIfPresent(player, (uuid, stats) -> {
+                Map<String, KitRating> ratings = new HashMap<>(stats.ratings());
+                changed.forEach((kit, rating) -> ratings.put(kit, rating.after()));
+                return withRatings(stats, Map.copyOf(ratings));
+            });
+            return changed;
+        });
+    }
+
+    private static Optional<KitRating> rating(Connection connection, UUID player, String kit) throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement(FIND_RATING)) {
+            statement.setString(1, player.toString());
+            statement.setString(2, kit);
+            try (ResultSet row = statement.executeQuery()) {
+                return row.next() ? Optional.of(new KitRating(row.getInt("elo"), row.getInt("wins"), row.getInt("losses"), row.getInt("peak")))
+                        : Optional.empty();
+            }
+        }
+    }
+
+    /** Where a player's first rating in a kit starts: their rating from before ratings were per kit. */
+    private static int legacyElo(Connection connection, UUID player) throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement(FIND_LEGACY)) {
+            statement.setString(1, player.toString());
+            try (ResultSet row = statement.executeQuery()) {
+                return row.next() ? row.getInt("elo") : PlayerStats.START_ELO;
+            }
+        }
     }
 
     /** The {@code limit} players with the most wins. */

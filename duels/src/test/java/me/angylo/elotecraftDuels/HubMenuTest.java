@@ -1,6 +1,7 @@
 package me.angylo.elotecraftDuels;
 
 import me.angylo.elotecraftAPI.util.Text;
+import net.kyori.adventure.text.minimessage.MiniMessage;
 import org.bukkit.Material;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.inventory.Inventory;
@@ -40,7 +41,7 @@ class HubMenuTest extends DuelsTestBase {
     void duelAloneOpensTheHubAndItsButtonsRunTheirCommands() {
         server.dispatchCommand(alex, "duel");
 
-        assertEquals("⚔ Duels", menuTitle(alex));
+        assertEquals("Duels", menuTitle(alex));
         clickNamed(alex, "Play");
         assertEquals("Duels › Play", menuTitle(alex));
 
@@ -49,7 +50,7 @@ class HubMenuTest extends DuelsTestBase {
         clickNamed(alex, "Back");
         assertEquals("Duels › Play", menuTitle(alex));
         clickNamed(alex, "Back");
-        assertEquals("⚔ Duels", menuTitle(alex));
+        assertEquals("Duels", menuTitle(alex));
     }
 
     @Test
@@ -88,6 +89,54 @@ class HubMenuTest extends DuelsTestBase {
 
         assertTrue(messages(alex).stream().anyMatch(line -> line.contains("/duel <player> [kit] [arena]")));
         assertFalse(menuTitle(alex).contains("Duels"));
+    }
+
+    @Test
+    void duelsOpensTheAdminMenuWhoseReloadAsksFirst() {
+        alex.setOp(true);
+        server.dispatchCommand(alex, "duels");
+        assertEquals("Admin", menuTitle(alex));
+        assertTrue(names(alex).containsAll(List.of("Arenas", "Kits", "Season", "Reload")));
+
+        clickNamed(alex, "Reload");
+        assertEquals("Are you sure?", menuTitle(alex));
+        clickNamed(alex, "Cancel");
+        assertEquals("Admin", menuTitle(alex));
+
+        clickNamed(alex, "Arenas");
+        assertEquals("Admin › Arenas", menuTitle(alex));
+        clickNamed(alex, "Back");
+        assertEquals("Admin", menuTitle(alex));
+    }
+
+    @Test
+    void adminMenusAreOnlyForAdmins() {
+        messages(alex);
+
+        server.dispatchCommand(alex, "duel menu admin");
+
+        assertTrue(messages(alex).stream().anyMatch(line -> line.contains("There is no menu called admin")));
+        assertFalse(menuTitle(alex).contains("Admin"));
+    }
+
+    @Test
+    void adminButtonsNeedTheirPermission() {
+        alex.addAttachment(plugin, "duels.admin", true);
+        alex.addAttachment(plugin, "duels.admin.kit", false);
+
+        server.dispatchCommand(alex, "duels");
+
+        assertTrue(names(alex).contains("Arenas"));
+        assertFalse(names(alex).contains("Kits"));
+    }
+
+    @Test
+    void theConsoleGetsTheAdminHelp() {
+        ConsoleCommandSenderMock console = (ConsoleCommandSenderMock) server.getConsoleSender();
+
+        server.dispatchCommand(console, "duels");
+
+        assertTrue(Text.plain(console.nextComponentMessage()).contains("Duels admin"));
     }
 
     @Test
@@ -133,14 +182,36 @@ class HubMenuTest extends DuelsTestBase {
 
         assertEquals("Old kits", YamlConfiguration.loadConfiguration(menus.resolveSibling("menus.v1.yml").toFile()).getString("kits.title"));
         YamlConfiguration written = YamlConfiguration.loadConfiguration(menus.toFile());
-        assertEquals(2, written.getInt("version"));
-        assertEquals("<gradient:#ff416c:#ff4b2b><bold>⚔ Choose a kit", written.getString("kits.title"));
+        assertEquals(3, written.getInt("version"));
+        assertEquals("Choose a kit", written.getString("kits.title"));
+    }
+
+    @Test
+    void aCenteredMenusFileWithStyledTitlesIsReplacedToo() throws IOException {
+        Path menus = plugin.getDataFolder().toPath().resolve("menus.yml");
+        Files.writeString(menus, "version: 2\nkits:\n  title: <bold>Old kits\n");
+        duels.shutdown();
+
+        duels = Duels.start(plugin, worldEdit);
+        await(duels.ready());
+
+        assertEquals("<bold>Old kits", YamlConfiguration.loadConfiguration(menus.resolveSibling("menus.v2.yml").toFile()).getString("kits.title"));
+        assertEquals(3, YamlConfiguration.loadConfiguration(menus.toFile()).getInt("version"));
+    }
+
+    @Test
+    void titlesHaveNoFormattingEvenWithAStyledKitName() {
+        alex.setOp(true);
+        server.dispatchCommand(alex, "duels kit sword");
+
+        assertEquals("Kits › Sword", menuTitle(alex));
+        assertEquals("Kits › Sword", MiniMessage.miniMessage().serialize(alex.getOpenInventory().title()));
     }
 
     @Test
     void aCurrentMenusFileIsKept() throws IOException {
         Path menus = plugin.getDataFolder().toPath().resolve("menus.yml");
-        Files.writeString(menus, "version: 2\nhub:\n  main:\n    title: My hub\n");
+        Files.writeString(menus, "version: 3\nhub:\n  main:\n    title: My hub\n");
         duels.shutdown();
 
         duels = Duels.start(plugin, worldEdit);

@@ -113,7 +113,7 @@ class AdminCommandTest extends DuelsTestBase {
 
     @Test
     void helpPagesAndValidation() {
-        assertTrue(said("duels", "Duels admin"));
+        assertTrue(said("duels help", "Duels admin"));
         assertTrue(said("duels arena help", "Arena setup"));
         assertTrue(said("duels kit help", "Kit setup"));
         assertTrue(said("duels arena create Bad.Name", "Names use 1 to 32"));

@@ -290,7 +290,7 @@ class EventTest extends DuelsTestBase {
 
     @Test
     void anEmptyMenusFileUsesTheBundledMenus() throws IOException {
-        Files.writeString(plugin.getDataFolder().toPath().resolve("menus.yml"), "version: 2\n");
+        Files.writeString(plugin.getDataFolder().toPath().resolve("menus.yml"), "version: 3\n");
         assertTrue(duels.reload());
 
         hostEvent();
@@ -302,7 +302,7 @@ class EventTest extends DuelsTestBase {
     @Test
     void aMenuWithoutANewButtonGetsTheBundledButton() throws IOException {
         Files.writeString(plugin.getDataFolder().toPath().resolve("menus.yml"),
-                "version: 2\nevent-settings:\n  title: My Settings\n  kit:\n    slot: 10\n    material: DIAMOND_SWORD\n");
+                "version: 3\nevent-settings:\n  title: My Settings\n  kit:\n    slot: 10\n    material: DIAMOND_SWORD\n");
         assertTrue(duels.reload());
 
         hostEvent();

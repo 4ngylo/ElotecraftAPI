@@ -80,7 +80,7 @@ class DuelsExpansionTest {
         assertEquals("", expansion.onRequest(alex, "party_leader"));
         assertEquals("", expansion.onRequest(null, "wins"));
         assertNull(expansion.onRequest(alex, "unknown"));
-        assertEquals(21, expansion.getPlaceholders().size());
+        assertEquals(25, expansion.getPlaceholders().size());
     }
 
     /** Queues need a ready arena for the kit. */

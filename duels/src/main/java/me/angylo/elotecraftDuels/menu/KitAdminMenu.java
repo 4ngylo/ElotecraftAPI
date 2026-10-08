@@ -69,6 +69,7 @@ public final class KitAdminMenu {
                 run(player, "defaults");
                 openList(player);
             }));
+            MenuLayout.place(menu, section, "back", MenuLayout.command(plugin, effects, section, "back"));
             MenuLayout.place(menu, section, "close", MenuLayout.close(plugin, effects));
             menu.open(viewer);
         } catch (IllegalArgumentException e) {
@@ -176,7 +177,7 @@ public final class KitAdminMenu {
 
         Editor(ConfigurationSection section, Effects effects, Kit kit) {
             super(section, effects, kit);
-            this.menu = MenuLayout.fixed(plugin, section, kitTags(kit));
+            this.menu = MenuLayout.fixed(plugin, section, MenuLayout.plain("kit", kit.displayName()));
             MenuLayout.put(menu, section, "back", MenuLayout.choose(plugin, effects, KitAdminMenu.this::openList));
             MenuLayout.put(menu, section, "close", MenuLayout.close(plugin, effects));
             MenuLayout.put(menu, section, "delete", MenuLayout.confirm(plugin, messages, menus, effects,
@@ -227,7 +228,7 @@ public final class KitAdminMenu {
 
         RulesEditor(ConfigurationSection section, Effects effects, Kit kit) {
             super(section, effects, kit);
-            this.menu = MenuLayout.frame(plugin, section, kitTags(kit));
+            this.menu = MenuLayout.frame(plugin, section, MenuLayout.plain("kit", kit.displayName()));
             MenuLayout.place(menu, section, "back", MenuLayout.choose(plugin, effects, player -> openSettings(player, name)));
             MenuLayout.place(menu, section, "close", MenuLayout.close(plugin, effects));
             draw(kit);

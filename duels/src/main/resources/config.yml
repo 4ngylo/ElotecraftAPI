@@ -82,6 +82,14 @@ ranked:
     - {name: "<blue>Diamond", min: 1450}
     - {name: "<light_purple>Master", min: 1600}
 
+# Rating seasons (/duels season). A season may have a planned end, set with /duels season schedule; with
+# /duels season auto on it ends by itself then, archiving ratings and paying division rewards like
+# /duels season end. Auto end is off until an admin turns it on.
+seasons:
+  default-length-days: 0  # 0 to 3650; the planned length of each new season; 0 for none
+  admin-warnings: [24h, 1h]  # before a planned end, players with duels.admin.season are told
+  player-warnings: [10m]     # before a planned end that will end the season by itself, everyone is told
+
 parties:
   max-size: 8             # 2 to 100 players, the leader included
   invite-expiry: 60s      # how long a party invite can be accepted

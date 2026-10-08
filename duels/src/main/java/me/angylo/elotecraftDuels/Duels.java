@@ -34,6 +34,7 @@ import me.angylo.elotecraftDuels.match.Bets;
 import me.angylo.elotecraftDuels.match.MatchManager;
 import me.angylo.elotecraftDuels.match.QueueManager;
 import me.angylo.elotecraftDuels.match.RequestManager;
+import me.angylo.elotecraftDuels.match.Match;
 import me.angylo.elotecraftDuels.match.Rewards;
 import me.angylo.elotecraftDuels.menu.ArenaMenu;
 import me.angylo.elotecraftDuels.menu.CosmeticsMenu;
@@ -54,6 +55,7 @@ import me.angylo.elotecraftDuels.party.PartyFights;
 import me.angylo.elotecraftDuels.party.PartyManager;
 import me.angylo.elotecraftDuels.state.SnapshotStore;
 import me.angylo.elotecraftDuels.stats.MatchHistory;
+import me.angylo.elotecraftDuels.stats.SeasonEnder;
 import me.angylo.elotecraftDuels.stats.Seasons;
 import me.angylo.elotecraftDuels.stats.StatsService;
 import org.bukkit.Bukkit;
@@ -83,8 +85,8 @@ public final class Duels {
     private static final String SCHEMATICS = "schematics";
     private static final int SECONDS_PER_RETRY = 60;
     private static final String MENUS = "menus.yml";
-    /** The menus.yml version of the centered layout; older files are replaced. */
-    private static final int MENUS_VERSION = 2;
+    /** The menus.yml version of the centered layout with plain titles; older files are replaced. */
+    private static final int MENUS_VERSION = 3;
 
     private final Plugin plugin;
     private final ConfigFile config;
@@ -96,6 +98,7 @@ public final class Duels {
     private final StatsService stats;
     private final MatchHistory history;
     private final Seasons seasons;
+    private final SeasonEnder seasonEnder;
     private final SnapshotStore snapshots;
     private final KitLayouts layouts;
     private final KitEditor editor;
@@ -134,7 +137,9 @@ public final class Duels {
         this.kits = new KitRegistry(plugin);
         this.stats = new StatsService(plugin, database);
         this.history = new MatchHistory(plugin, database);
-        this.seasons = new Seasons(plugin, database, stats.ready());
+        this.seasons = new Seasons(plugin, database, stats.ready(), () -> settings().seasons().defaultLength());
+        this.seasonEnder = new SeasonEnder(plugin, messages, this::settings, seasons, stats, kits, new Rewards(plugin, messages, this::settings),
+                () -> matches().running().stream().anyMatch(Match::isRanked));
         this.snapshots = new SnapshotStore(plugin, database);
         this.layouts = new KitLayouts(plugin, database);
         this.customKits = new CustomKits(this::settings, kits, layouts);
@@ -159,7 +164,7 @@ public final class Duels {
         TeamMenu teamMenu = new TeamMenu(plugin, messages, menus, this::settings);
         this.partyFights = new PartyFights(messages, this::settings, kits, arenas, matches, queues, parties, teamMenu);
         SpectateMenu spectateMenu = new SpectateMenu(plugin, messages, menus, this::settings, matches);
-        HubMenu hubMenu = new HubMenu(plugin, messages, menus, this::settings, kits, stats, queues, matches, events);
+        HubMenu hubMenu = new HubMenu(plugin, messages, menus, this::settings, kits, stats, queues, matches, events, seasons);
         CustomKitMenu customKitMenu = new CustomKitMenu(plugin, messages, menus, this::settings, customKits, editor);
         Command duel = new DuelCommand(this, kitMenu, arenaMenu, new FightInventoryMenu(plugin, messages, menus, this::settings),
                 new HistoryMenu(plugin, messages, menus, this::settings, kits),
@@ -167,14 +172,14 @@ public final class Duels {
                 new CosmeticsMenu(plugin, messages, menus, this::settings),
                 spectateMenu, customKitMenu, hubMenu, new RatingsMenu(plugin, messages, menus, this::settings, kits, stats)).register();
         new AdminCommand(this, new ArenaAdminMenu(plugin, messages, menus, this::settings, arenas, pool),
-                new KitAdminMenu(plugin, messages, menus, this::settings, kits)).register();
+                new KitAdminMenu(plugin, messages, menus, this::settings, kits), hubMenu).register();
         new PartyCommand(this, kitMenu, new PartyMenu(plugin, messages, menus, this::settings, parties)).register();
         new EventCommand(this, new EventMenu(plugin, messages, menus, this::settings, events, kits, arenas, matches,
                 kitMenu, arenaMenu, teamMenu)).register();
         this.sessions = new SessionListener(plugin, messages, stats, snapshots, matches, requests, queues);
         this.lobbyItems = new LobbyItems(plugin, this::settings, menus, matches, queues);
         this.watchItem = new WatchItem(plugin, menus, matches, spectateMenu);
-        for (Listener listener : List.of(sessions, parties, layouts, editor, events, lobbyItems, watchItem, customKitMenu,
+        for (Listener listener : List.of(sessions, parties, layouts, editor, events, lobbyItems, watchItem, customKitMenu, seasonEnder,
                 new CombatListener(plugin, messages, this::settings, matches, snapshots),
                 new ProtectionListener(messages, this::settings, matches, instances, duel),
                 new BuildListener(this::settings, matches, instances, arenas))) {
@@ -250,6 +255,10 @@ public final class Duels {
 
     public Seasons seasons() {
         return seasons;
+    }
+
+    public SeasonEnder seasonEnder() {
+        return seasonEnder;
     }
 
     public SnapshotStore snapshots() {
@@ -372,8 +381,9 @@ public final class Duels {
     }
 
     /**
-     * Moves a menus.yml from before {@link #MENUS_VERSION} to menus.v1.yml, so the new one is written: its layouts would
-     * not fit the centered menus, and keys are only ever added to a file. A file that does not load is left alone.
+     * Moves a menus.yml from before {@link #MENUS_VERSION} to menus.v&lt;its version&gt;.yml (v1 without one), so the new one
+     * is written: its layouts and titles would stay, as keys are only ever added to a file. A file that does not load is
+     * left alone.
      */
     private static void replaceOldMenus(Plugin plugin) {
         Path file = plugin.getDataFolder().toPath().resolve(MENUS);
@@ -383,11 +393,13 @@ public final class Duels {
         try {
             YamlConfiguration old = new YamlConfiguration();
             old.load(file.toFile());
-            if (old.getInt("version") >= MENUS_VERSION) {
+            int version = Math.max(1, old.getInt("version"));
+            if (version >= MENUS_VERSION) {
                 return;
             }
-            Files.move(file, file.resolveSibling("menus.v1.yml"), StandardCopyOption.REPLACE_EXISTING);
-            plugin.getLogger().warning(MENUS + " is from an older version: moved it to menus.v1.yml and wrote the new menus");
+            String backup = "menus.v" + version + ".yml";
+            Files.move(file, file.resolveSibling(backup), StandardCopyOption.REPLACE_EXISTING);
+            plugin.getLogger().warning(MENUS + " is from an older version: moved it to " + backup + " and wrote the new menus");
         } catch (IOException | InvalidConfigurationException e) {
             plugin.getLogger().log(Level.WARNING, "Could not check the version of " + MENUS + "; its menus may look wrong", e);
         }
@@ -404,6 +416,7 @@ public final class Duels {
 
     private void tick() {
         instances.tick();
+        seasonEnder.tick();
         matches.purgeExpired();
         requests.tick();
         bets.tick();

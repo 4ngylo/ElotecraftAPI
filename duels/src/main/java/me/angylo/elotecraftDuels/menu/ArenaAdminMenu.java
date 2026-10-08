@@ -89,6 +89,7 @@ public final class ArenaAdminMenu {
                         run(player, "import " + text);
                         openList(player);
                     })));
+            MenuLayout.place(menu, section, "back", MenuLayout.command(plugin, effects, section, "back"));
             MenuLayout.place(menu, section, "close", MenuLayout.close(plugin, effects));
             menu.open(viewer);
         } catch (IllegalArgumentException e) {
@@ -153,7 +154,7 @@ public final class ArenaAdminMenu {
             this.effects = effects;
             this.viewer = viewer;
             this.name = arena.name();
-            this.menu = MenuLayout.fixed(plugin, section, arenaTags(arena));
+            this.menu = MenuLayout.fixed(plugin, section, MenuLayout.plain("arena", arena.displayName()));
             MenuLayout.put(menu, section, "back", MenuLayout.choose(plugin, effects, player -> {
                 if (key.equals(SETTINGS)) {
                     openList(player);

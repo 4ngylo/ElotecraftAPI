@@ -27,6 +27,8 @@ import me.angylo.elotecraftDuels.stats.Divisions;
 import me.angylo.elotecraftDuels.stats.KitRating;
 import me.angylo.elotecraftDuels.stats.PlayerStats;
 import me.angylo.elotecraftDuels.stats.Ranking;
+import me.angylo.elotecraftDuels.stats.SeasonEnder;
+import me.angylo.elotecraftDuels.stats.Seasons;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.Bukkit;
 import org.bukkit.command.Command;
@@ -95,7 +97,7 @@ public final class DuelCommand {
                 .executes(this::challengeOrHub, this::suggestChallenge)
                 .sub("help", null, (sender, args) -> messages.send(sender, "command.help"))
                 .playerSub("menu", null, (player, args) -> openHub(player, args.length == 0 ? HubMenu.MAIN : args[0]),
-                        (sender, args) -> args.length == 1 ? Args.filter(hubMenu.names(), args) : List.of())
+                        (sender, args) -> args.length == 1 ? Args.filter(hubMenu.names(sender), args) : List.of())
                 .playerSub("accept", DUEL, (player, args) -> duels.requests().accept(player, Args.get(args, 0)), this::suggestSenders)
                 .playerSub("deny", DUEL, (player, args) -> duels.requests().deny(player, Args.get(args, 0)), this::suggestSenders)
                 .playerSub("cancel", DUEL, (player, args) -> duels.requests().cancel(player, Args.get(args, 0)),
@@ -120,6 +122,7 @@ public final class DuelCommand {
                 .sub("stats", "duels.stats", (sender, args) -> limited(sender, () -> stats(sender, args)),
                         (sender, args) -> Args.players(args))
                 .playerSub("ratings", "duels.stats", (player, args) -> ratingsMenu.open(player))
+                .playerSub("season", "duels.stats", (player, args) -> season(player))
                 .playerSub("history", "duels.history", (player, args) -> limited(player, () -> history(player, args)),
                         (sender, args) -> Args.players(args))
                 // Clicked in the result message; no suggestions, as the ids are not meant to be typed.
@@ -128,6 +131,21 @@ public final class DuelCommand {
                         (sender, args) -> args.length <= 1 ? Args.filter(List.of(TOP_ELO, TOP_SEASON), args)
                                 : args.length == 2 && args[0].equalsIgnoreCase(TOP_ELO) ? Args.filter(duels.kits().names(), args) : List.of())
                 .register(duels.plugin());
+    }
+
+    /** {@code /duel season}: the season running, how long it has run and has left, and the player's rating. */
+    private void season(Player player) {
+        Seasons.Info info = duels.seasons().info();
+        PlayerStats own = duels.stats().cached(player.getUniqueId()).orElse(PlayerStats.empty(player.getName()));
+        int elo = own.overallElo(duels.kits().names());
+        messages.send(player, "season.player-info",
+                Placeholder.component("name", SeasonEnder.name(messages, player, info.season(), info.name())),
+                Placeholder.unparsed("season", String.valueOf(info.season())),
+                Placeholder.unparsed("age", SeasonEnder.length(Duration.ofMillis(Math.max(0, System.currentTimeMillis() - info.startedAt())))),
+                Placeholder.component("ends", SeasonEnder.left(info).map(left -> messages.get(player, "season.end-in",
+                        Placeholder.unparsed("time", SeasonEnder.length(left)))).orElseGet(() -> messages.get(player, "season.no-end"))),
+                Placeholder.unparsed("elo", String.valueOf(elo)),
+                Placeholder.component("division", duels.settings().ranked().divisions().name(elo)));
     }
 
     /** {@code /duel cosmetics [kill-effect|kill-message]}: the hub's cosmetics menu without a kind. */

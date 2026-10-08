@@ -48,7 +48,7 @@ class MenuAndRulesTest extends DuelsTestBase {
         server.dispatchCommand(alex, "duel Steve");
 
         Inventory top = alex.getOpenInventory().getTopInventory();
-        assertEquals("⚔ Choose a kit", Text.plain(alex.getOpenInventory().title()));
+        assertEquals("Choose a kit", Text.plain(alex.getOpenInventory().title()));
         assertEquals(Material.DIAMOND_SWORD, top.getItem(slotNamed(alex, "Sword")).getType());
         assertEquals(Material.BARRIER, top.getItem(top.getSize() - 9 + 4).getType());
         assertTrue(top.getItem(top.getSize() - 9 + 3) == null, "no back button for a challenge");
@@ -130,7 +130,7 @@ class MenuAndRulesTest extends DuelsTestBase {
         swordKit();
         server.dispatchCommand(alex, "duel editkit");
 
-        assertEquals("⚔ Choose a kit", title(alex));
+        assertEquals("Choose a kit", title(alex));
     }
 
     @Test

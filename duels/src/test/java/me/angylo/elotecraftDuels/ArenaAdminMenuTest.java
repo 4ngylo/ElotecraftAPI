@@ -47,7 +47,7 @@ class ArenaAdminMenuTest extends DuelsTestBase {
     void listShowsArenasAndOpensTheirSettings() {
         server.dispatchCommand(admin, "duels arena");
 
-        assertEquals("⚙ Arenas", menuTitle(admin));
+        assertEquals("Admin › Arenas", menuTitle(admin));
         assertEquals(Material.GRASS_BLOCK, admin.getOpenInventory().getTopInventory().getItem(FIRST_ENTRY).getType());
         assertTrue(loreAt(admin, FIRST_ENTRY).contains("▪ Status: ready"));
         assertTrue(loreAt(admin, FIRST_ENTRY).contains("▪ Copies: 0"));
@@ -126,7 +126,7 @@ class ArenaAdminMenuTest extends DuelsTestBase {
         click("Confirm", ClickType.LEFT);
 
         assertTrue(duels.arenas().get("pit").isEmpty());
-        assertEquals("⚙ Arenas", menuTitle(admin));
+        assertEquals("Admin › Arenas", menuTitle(admin));
     }
 
     @Test

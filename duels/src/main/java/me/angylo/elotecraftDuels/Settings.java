@@ -12,6 +12,7 @@ import java.time.LocalTime;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -33,7 +34,7 @@ public record Settings(int countdownSeconds, Duration maxDuration, int endDelayS
                 boolean breakArenaBlocks, int regenBlocksPerTick, boolean voidEliminates, String arenasWorld,
                 Pool pool, int partyMaxSize, Duration partyInviteExpiry, boolean partyFriendlyFire, Duration kitEditorTimeout, Ranked ranked,
                 Sidebars sidebars, int hologramLines, LobbyItems lobbyItems, Events events, Cosmetics cosmetics, Bets bets,
-                CustomKitOptions customKits, Modes modes) {
+                CustomKitOptions customKits, Modes modes, SeasonOptions seasons) {
 
     private static final long MILLIS_PER_TICK = 50;
     private static final int MAX_TITLE_TICKS = 200;
@@ -46,6 +47,7 @@ public record Settings(int countdownSeconds, Duration maxDuration, int endDelayS
     private static final int MAX_MODE_RADIUS = 16;
     private static final double MAX_BORDER_DAMAGE = 20;
     private static final int MINUTES_PER_DAY = 24 * 60;
+    private static final int MAX_SEASON_DAYS = 3650;
     private static final double MIN_BET = 0.01;
     private static final double MAX_BET = 1_000_000_000;
     private static final double DEFAULT_MIN_BET = 10;
@@ -135,6 +137,14 @@ public record Settings(int countdownSeconds, Duration maxDuration, int endDelayS
      * to {@code max}, and the {@code tax} percent of the pot the server keeps.
      */
     public record Bets(boolean enabled, double min, double max, double tax) {
+    }
+
+    /**
+     * @param defaultLength  the planned length of a season that starts when one ends; zero for none
+     * @param adminWarnings  how long before a planned end admins are told, longest first
+     * @param playerWarnings how long before a planned end everyone is told, longest first
+     */
+    public record SeasonOptions(Duration defaultLength, List<Duration> adminWarnings, List<Duration> playerWarnings) {
     }
 
     /** An event the server hosts every day at {@code at} (server time, to the minute). */
@@ -240,7 +250,28 @@ public record Settings(int countdownSeconds, Duration maxDuration, int endDelayS
                         config.getString("custom-kits.display-name", "<yellow><player>'s custom kit <slot>")),
                 new Modes(integer(config, logger, "modes.bridge.goal-radius", 2, 0, MAX_MODE_RADIUS),
                         integer(config, logger, "modes.bridge.protect-radius", 3, 0, MAX_MODE_RADIUS),
-                        config.getBoolean("modes.bridge.goal-hologram", true)));
+                        config.getBoolean("modes.bridge.goal-hologram", true)),
+                new SeasonOptions(Duration.ofDays(integer(config, logger, "seasons.default-length-days", 0, 0, MAX_SEASON_DAYS)),
+                        durations(config, logger, "seasons.admin-warnings"), durations(config, logger, "seasons.player-warnings")));
+    }
+
+    /** A list of durations (e.g. 24h, 10m), longest first; bad entries are logged and left out. */
+    private static List<Duration> durations(ConfigurationSection config, Logger logger, String path) {
+        List<Duration> durations = new ArrayList<>();
+        for (String raw : config.getStringList(path)) {
+            try {
+                Duration value = Durations.parse(raw);
+                if (value.isPositive()) {
+                    durations.add(value);
+                    continue;
+                }
+            } catch (IllegalArgumentException e) {
+                // Logged below with the same message as a zero duration.
+            }
+            logger.warning("config.yml " + path + " '" + raw + "' must be a duration (e.g. 24h, 10m); left out");
+        }
+        durations.sort(Comparator.reverseOrder());
+        return List.copyOf(durations);
     }
 
     private static Events events(ConfigurationSection config, Logger logger) {

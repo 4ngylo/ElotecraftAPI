@@ -56,7 +56,7 @@ class KitAdminMenuTest extends DuelsTestBase {
     void listShowsEveryKitAndOpensItsSettings() {
         server.dispatchCommand(admin, "duels kit");
 
-        assertEquals("⚙ Kits", menuTitle(admin));
+        assertEquals("Admin › Kits", menuTitle(admin));
         assertEquals(Material.DIAMOND_SWORD, top().getItem(FIRST_ENTRY).getType());
         assertTrue(loreAt(admin, FIRST_ENTRY).contains("▪ Permission: everyone"));
         assertTrue(loreAt(admin, FIRST_ENTRY).contains("▪ Items: 1"));
@@ -147,7 +147,7 @@ class KitAdminMenuTest extends DuelsTestBase {
         click("Confirm", ClickType.LEFT);
 
         assertTrue(duels.kits().get("sword").isEmpty());
-        assertEquals("⚙ Kits", menuTitle(admin));
+        assertEquals("Admin › Kits", menuTitle(admin));
     }
 
     @Test

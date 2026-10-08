@@ -92,6 +92,7 @@ permissions:
       duels.admin.reload: true
       duels.admin.hologram: true
       duels.admin.season: true
+      duels.admin.elo: true
       duels.queue.ranked.unlimited: true
       duels.admin.stop: true
       duels.bypass.cooldown: true
@@ -112,7 +113,10 @@ permissions:
     description: Place and remove leaderboard holograms.
     default: op
   duels.admin.season:
-    description: End the rating season with /duels season end.
+    description: See, plan and end rating seasons with /duels season.
+    default: op
+  duels.admin.elo:
+    description: See and change players' ratings with /duels elo.
     default: op
   duels.queue.ranked.unlimited:
     description: No ranked.daily-limit.

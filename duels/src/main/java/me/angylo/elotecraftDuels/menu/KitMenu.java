@@ -155,8 +155,7 @@ public final class KitMenu {
             if (section == null) {
                 throw new IllegalArgumentException("Missing kit-preview section");
             }
-            Menu menu = new Menu(plugin, PREVIEW_ROWS, Text.mm(section.getString("title", ""),
-                    Placeholder.component("kit", Text.mm(kit.displayName()))));
+            Menu menu = new Menu(plugin, PREVIEW_ROWS, Text.mm(section.getString("title", ""), MenuLayout.plain("kit", kit.displayName())));
             List<ItemStack> items = kit.items();
             for (int slot = 0; slot < items.size(); slot++) {
                 int shownAt = previewSlot(slot);

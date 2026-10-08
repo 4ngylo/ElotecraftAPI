@@ -69,7 +69,7 @@ class CustomKitTest extends DuelsTestBase {
         alex.performCommand("duel customkit 1");
         tickUntil(() -> duels.editor().buildingFrom(alex).isPresent());
         tick();
-        assertEquals("✎ Pick items", title(alex));
+        assertEquals("Pick items", title(alex));
         click(alex, SWORD);
         click(alex, ARROWS);
         assertSays(alex, "duel editkit save", "Saved custom kit 1");

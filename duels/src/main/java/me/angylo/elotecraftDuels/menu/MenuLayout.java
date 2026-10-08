@@ -250,6 +250,11 @@ final class MenuLayout {
         return Text.mm(section.getString(key + ".name", key), tags);
     }
 
+    /** The tag {@code key} as the plain text of {@code miniMessage}, for kit and arena names in titles. */
+    static TagResolver plain(String key, String miniMessage) {
+        return Placeholder.unparsed(key, Text.plain(Text.mm(miniMessage)));
+    }
+
     /** A text from the section's {@code values}, in MiniMessage. */
     static Component value(ConfigurationSection section, String key) {
         return Text.mm(section.getString("values." + key, key));

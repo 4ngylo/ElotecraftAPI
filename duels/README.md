@@ -17,7 +17,7 @@ are put back after build duels, even after a crash.
 3. Start the server once; `plugins/ElotecraftDuels/` gets `config.yml`, `messages.yml` and `menus.yml`.
    After an update, settings, messages and menu buttons new in that version are added to these files with
    their comments; your values stay, and the file as it was is kept once as `<file>.bak`. A `menus.yml`
-   from before the centered menus (no `version: 2`) is moved to `menus.v1.yml` and the new one written.
+   from before the current layout (`version: 3`) is moved to `menus.v<its version>.yml` and the new one written.
 
 Statistics go to `duels.db` (SQLite) by default. For MySQL or MariaDB, set `database.type: mysql` and the
 connection keys in `config.yml`, then restart.
@@ -292,6 +292,7 @@ with their arena and limited to 256 x 256 blocks across.
 | `/duel options` | | A menu where players turn duel requests, party invites, the sidebar, duel sounds, spectators of their fights and other players in the lobby off or on, and set their ping range; kept in their player data across restarts (not across servers). Layout in menus.yml `options`; remove an option's section to stop offering it. See [Player options](#player-options) |
 | `/duel stats [player]`, `/duel top [elo [kit]]` | `duels.stats`, `duels.top` | Statistics, and leaderboard by wins, overall rating or a kit's rating |
 | `/duel top season <number>` | `duels.top` | An ended season's final overall ratings |
+| `/duel season` | `duels.stats` | The season running: its name, how long it has run and has left, and your rating |
 | `/duel history [player]` | `duels.history` | A player's latest 50 duels, online or not: opponent, kit, arena, how it ended, health left and rating change |
 | `/duel inventory` | | Opened by clicking a fighter's name in a duel's result line, or in the "Inventories" line sent after party fights and events, once the fight is over: that fighter's items, health, food and effects as the fight left them, hits landed, longest combo and health potions thrown, missed and accuracy. Kept for 10 minutes |
 | `/party` | `duels.party` | The party menu: your party's members and buttons, or the public parties to join (layouts in menus.yml `party` and `party-none`) |
@@ -309,7 +310,11 @@ with their arena and limited to 256 x 256 blocks across.
 | `/duels arena ...` | `duels.admin.arena` | menus: no argument or an arena name; `help`, `create`, `delete`, `setspawn`, `setcorner`, `setgoal`, `setbed`, `setbox`, `import`, `setspectator`, `setcenter`, `seticon`, `setname`, `category`, `buildlimit`, `toggle`, `info`, `tp`, `list`, `snapshot`, `reset`, `pool` |
 | `/duels kit ...` | `duels.admin.kit` | menus: no argument or a kit name; `help`, `create`, `save`, `load`, `delete`, `seticon`, `setname`, `setpermission`, `build`, `damage`, `mode`, `rule`, `arenas`, `defaults`, `list` |
 | `/duels hologram create <name> <wins\|elo> [kit]`, `delete <name>`, `list` | `duels.admin.hologram` | [Leaderboard holograms](#leaderboard-holograms) where you stand |
-| `/duels season`, `/duels season end [confirm]` | `duels.admin.season` | The [season](#seasons) running; end it (asks for `confirm` within 30 seconds) |
+| `/duels` | `duels.admin` | The admin menu: arenas, kits, season, holograms, ratings, reload (asks to confirm); the help for the console. `/duels help` shows the help |
+| `/duels season [list \| info <n> \| top [n] [kit] \| player <player> [n] \| divisions \| compare <a> <b> \| kits [n]]` | `duels.admin.season` | The [season](#seasons) running, ended ones, leaderboards, a player's ratings, divisions, two seasons side by side, the kits played |
+| `/duels season schedule <days\|yyyy-MM-dd\|off>`, `auto <on\|off\|toggle>`, `name <n> <name\|off>`, `export <n>` | `duels.admin.season` | Plan the end, make it end by itself, name a season, write `seasons/season-<n>.csv` |
+| `/duels season end [preview \| confirm]` | `duels.admin.season` | What ending would archive and pay; end it (asks for `confirm` within 30 seconds) |
+| `/duels elo <player>`, `elo set\|add <player> <kit\|all> <value>`, `elo reset <player> [kit\|all]` | `duels.admin.elo` | A player's ratings, online or not; change them (0 to 10000, logged); reset asks for `confirm` |
 | `/duels stop <player>` | `duels.admin.stop` | End a duel without a result |
 | `/duels reload` | `duels.admin.reload` | Reload config, messages, menus, arenas and kits |
 
@@ -356,9 +361,11 @@ cut short by a crash is undone when the player next joins.
 - `menus.yml`: titles, sizes and button items of every menu. List menus (kits, arenas, history...)
   center their entries below an empty top row, between empty side columns, with no filler; their
   bottom row has the page arrows, back (where there is a menu to go back to) and close. Each title is a
-  breadcrumb (`Play › Ranked`). The `hub` menus (`/duel`, `/duel menu <name>`) are buttons that run a
-  command, optionally behind a permission, so you can add buttons or whole menus there; their texts may
-  use the player's stats and the queue, fight and event counts. Changes that are hard to undo open the
+  plain-text breadcrumb (`Play › Ranked`; kit and arena names in titles lose their colors). The `hub` menus
+  (`/duel`, `/duel menu <name>`, and `/duels` for admins) are buttons that run a command; a button or a whole
+  menu may need a `permission`, and a button with `confirm: true` asks first, so you can add buttons or whole
+  menus there; their texts may use the player's stats, the queue, fight and event counts and the season
+  (`<season_name>`, `<season_days>`, `<season_ends>`, `<season_auto>`). Changes that are hard to undo open the
   `confirm` menu. Right-clicking a kit in a kit menu shows its items (`kit-preview`). `/duel ranked` and
   `/duel queue` have their own menus, `ranked-queue` and `unranked-queue`, with a button to switch between them.
 
@@ -395,6 +402,34 @@ rating ended in a division with a `season-reward` (config.yml `ranked.divisions`
 money through Vault and console commands with `<player>`, `<division>`, `<elo>` and `<season>`. Everyone online
 is told. `/duel top season <number>` shows a past season's final overall ratings. Ranked duels still running
 when a season ends count in the new season.
+
+`duels_season_info` keeps when each season started, its planned end, whether it ends by itself and its name.
+On a database from before it, the season running started when the last one ended, or, if none has, when the
+update started (`/duels season` says so).
+
+**Planning the end.** `/duels season schedule 30` plans the end 30 days from now (or a date, `2026-12-31`;
+`off` for none), and `seasons.default-length-days` in config.yml plans each new season. It only informs until
+`/duels season auto on`: then the season ends by itself at its planned end, exactly like `end confirm`, and so
+does each next one (auto end carries over). Auto end is off until you turn it on, and stays as you leave it
+across restarts; `/duels season auto off` stops it any time. A server that was down at the planned end ends
+the season once it starts. Auto end waits for ranked duels being fought to finish (up to 10 minutes), so they
+count in the season they started in; a failed end is tried again every 5 minutes. Before the end, players with `duels.admin.season` are told
+(`seasons.admin-warnings`, 24h and 1h by default) and, when the season will end by itself, everyone is
+(`seasons.player-warnings`, 10m). Past a planned end without auto end, admins are told when they join.
+`/duels season end preview` shows what an end would archive and pay without ending anything.
+
+**Looking at seasons.** `/duels season` shows the running season (name, start, how long it has run, the planned
+end, auto end, rated players, ranked duels and its top 3); `list` the ended ones with their dates; `info <n>`
+one of them with its top 5; `top [n] [kit]` a leaderboard; `player <player> [n]` a player's rating, peak and
+record per kit; `divisions` how many players each division holds and how many rewards an end would pay;
+`compare <a> <b>` two seasons' players, duels, average rating and most played kit; `kits [n]` the kits played
+ranked most. `name <n> <name>` names a season (MiniMessage, up to 64 characters), shown in these and in
+`%duels_season_name%`. `export <n>` writes every rating of a season to `seasons/season-<n>.csv`.
+
+**Ratings.** `/duels elo <player>` shows a player's ratings; `set` and `add` change them in one kit or `all`
+(a missing rating starts from the player's starting one; the peak rises with it), `reset` puts them back to 1000
+with the peak and asks for `confirm`. It works for offline players, updates online players at once, logs each
+change with who made it, and refuses players in a duel or a ranked queue.
 
 Updating from a version with one rating for all kits: back up `duels.db` first. Nothing is converted;
 each player's first ranked duel in a kit starts from their old rating, which stays stored unchanged.
@@ -530,7 +565,7 @@ without items or an arena is logged and skipped.
 ## Placeholders
 
 With PlaceholderAPI: `%duels_wins%`, `%duels_losses%`, `%duels_win_streak%`, `%duels_best_win_streak%`,
-`%duels_win_rate%`, `%duels_elo%` (overall), `%duels_elo_<kit>%`, `%duels_division%`, `%duels_division_<kit>%`, `%duels_peak%`, `%duels_peak_<kit>%`, `%duels_season%`, `%duels_in_match%`, `%duels_opponent%`, `%duels_kit%`, `%duels_arena%`,
+`%duels_win_rate%`, `%duels_elo%` (overall), `%duels_elo_<kit>%`, `%duels_division%`, `%duels_division_<kit>%`, `%duels_peak%`, `%duels_peak_<kit>%`, `%duels_season%`, `%duels_season_name%` (or the number without one), `%duels_season_days%`, `%duels_season_started%` (yyyy-MM-dd), `%duels_season_ends_in%` (empty without a planned end), `%duels_in_match%`, `%duels_opponent%`, `%duels_kit%`, `%duels_arena%`,
 `%duels_queue%`, `%duels_queue_type%` (`ranked` or `unranked`), `%duels_party_size%`, `%duels_party_leader%`, `%duels_active_matches%`. Stats placeholders are for online players.
 
 ## Testing on a server
@@ -597,6 +632,9 @@ The automated tests run on MockBukkit, which cannot click menus. Before a releas
 - [ ] Ranked: `/duel stats` shows the peak; with `ranked.daily-limit: 1` a second ranked queue is refused and an unranked
   one is not; `/duels season end` warns, `confirm` archives and resets, a division's `season-reward` command runs and
   `/duel top season 1` shows the old ratings; the same with MySQL
+- [ ] `/duels` admin menu and its season menu; `/duels season schedule 1` with `auto on` warns and ends by itself
+  (shorten with a date), `auto off` only tells admins; `/duels elo set|add|reset` on an online and an offline
+  player; menu titles are plain text
 - [ ] Events: `/event host`, [JOIN] in chat and the `/event` list, every event settings and access button, Start in
   team mode opens the team menu, a free for all with 2 winners, a private event refusing an uninvited
   player, spectators refused when off, the border closing in and hurting fighters outside it, potions

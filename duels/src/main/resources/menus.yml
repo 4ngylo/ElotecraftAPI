@@ -10,10 +10,11 @@
 # Buttons with a command run it as the player (without the /) when clicked, after closing the menu:
 # that is how back buttons know where to go. In the hub menus, a button without one closes the menu,
 # or does nothing with close: false.
+# Titles are plain text: kit and arena names in them lose their colors.
 #
-# version 2 is the centered layout. A menus.yml without it is from an older version: it is moved to
-# menus.v1.yml and this file is written in its place.
-version: 2
+# version 3 is the centered layout with plain titles. A menus.yml from an older version is moved to
+# menus.v<its version>.yml (menus.v1.yml without one) and this file is written in its place.
+version: 3
 
 # /duel and /duel menu <name>: menus of buttons that run commands. Each button has a slot, material,
 # name, lore, an optional command, and an optional permission players need to see it. A PLAYER_HEAD is the
@@ -23,7 +24,7 @@ version: 2
 # (running) and <events> (gathering players).
 hub:
   main:
-    title: "<gradient:#ff416c:#ff4b2b><bold>⚔ Duels"
+    title: "Duels"
     rows: 4
     buttons:
       play:
@@ -67,7 +68,7 @@ hub:
       close: {slot: 31, material: BARRIER, name: "<red>Close"}
 
   play:
-    title: "<dark_gray>Duels › </dark_gray><gradient:#ff416c:#ff4b2b><bold>Play"
+    title: "Duels › Play"
     rows: 3
     buttons:
       unranked:
@@ -101,7 +102,7 @@ hub:
       close: {slot: 22, material: BARRIER, name: "<red>Close"}
 
   profile:
-    title: "<dark_gray>Duels › </dark_gray><gradient:#4facfe:#00f2fe><bold>Profile"
+    title: "Duels › Profile"
     rows: 3
     buttons:
       ratings:
@@ -132,7 +133,7 @@ hub:
       close: {slot: 22, material: BARRIER, name: "<red>Close"}
 
   kits:
-    title: "<dark_gray>Duels › </dark_gray><gradient:#f7971e:#ffd200><bold>Kits"
+    title: "Duels › Kits"
     rows: 3
     buttons:
       edit:
@@ -153,7 +154,7 @@ hub:
       close: {slot: 22, material: BARRIER, name: "<red>Close"}
 
   cosmetics:
-    title: "<dark_gray>Duels › </dark_gray><gradient:#f7971e:#ffd200><bold>Cosmetics"
+    title: "Duels › Cosmetics"
     rows: 3
     buttons:
       kill-effect:
@@ -171,9 +172,114 @@ hub:
       back: {slot: 21, material: ARROW, name: "<yellow>« Back", command: "duel"}
       close: {slot: 22, material: BARRIER, name: "<red>Close"}
 
+  # /duels: the admin menu, for players with duels.admin (a menu's permission keeps it from everyone else).
+  # A button with confirm: true opens the confirm menu before running its command.
+  admin:
+    title: "Admin"
+    rows: 4
+    permission: duels.admin
+    buttons:
+      arenas:
+        slot: 11
+        permission: duels.admin.arena
+        material: GRASS_BLOCK
+        name: "<aqua><bold>Arenas"
+        lore: ["<gray>Create and set up arenas", "", "<yellow>▶ Click to open"]
+        command: "duels arena"
+      kits:
+        slot: 13
+        permission: duels.admin.kit
+        material: DIAMOND_SWORD
+        name: "<gold><bold>Kits"
+        lore: ["<gray>Create and edit kits", "<gray>and their game rules", "", "<yellow>▶ Click to open"]
+        command: "duels kit"
+      season:
+        slot: 15
+        permission: duels.admin.season
+        material: CLOCK
+        name: "<light_purple><bold>Season"
+        lore: ["<white><season_name></white>: <white><season_days></white> days in", "<gray>Ends by itself: <season_auto>", "", "<yellow>▶ Click to open"]
+        command: "duel menu admin-season"
+      holograms:
+        slot: 20
+        permission: duels.admin.hologram
+        material: ARMOR_STAND
+        name: "<yellow><bold>Holograms"
+        lore: ["<gray>Floating leaderboards", "<dark_gray>Their commands, in chat", "", "<yellow>▶ Click to show"]
+        command: "duels hologram"
+      ratings:
+        slot: 22
+        permission: duels.admin.elo
+        material: NETHER_STAR
+        name: "<aqua><bold>Player ratings"
+        lore: ["<gray>See or change a player's rating", "<dark_gray>Their commands, in chat", "", "<yellow>▶ Click to show"]
+        command: "duels elo"
+      reload:
+        slot: 24
+        permission: duels.admin.reload
+        confirm: true
+        material: REPEATER
+        name: "<green><bold>Reload"
+        lore: ["<gray>Config, messages, menus,", "<gray>arenas and kits", "", "<yellow>▶ Click to reload"]
+        command: "duels reload"
+      player-menu: {slot: 30, material: ARROW, name: "<yellow>« Player menu", command: "duel"}
+      close: {slot: 31, material: BARRIER, name: "<red>Close"}
+
+  # The admin menu's season button: each button runs a /duels season command, its answer in chat. <season_name>,
+  # <season_days>, <season_ends> (time left, or none) and <season_auto> (on or off) work in every hub menu.
+  admin-season:
+    title: "Admin › Season"
+    rows: 4
+    permission: duels.admin.season
+    buttons:
+      info:
+        slot: 10
+        material: BOOK
+        name: "<white><bold><season_name>"
+        lore: ["<gray>Running for <white><season_days></white> days", "<gray>Ends in: <white><season_ends>", "", "<yellow>▶ Click for details"]
+        command: "duels season"
+      list:
+        slot: 11
+        material: BOOKSHELF
+        name: "<gold><bold>Ended seasons"
+        lore: ["<gray>Dates, players and duels", "", "<yellow>▶ Click to list"]
+        command: "duels season list"
+      top:
+        slot: 12
+        material: GOLDEN_HELMET
+        name: "<gold><bold>Leaderboard"
+        lore: ["<gray>This season's best ratings", "", "<yellow>▶ Click to show"]
+        command: "duels season top"
+      divisions:
+        slot: 14
+        material: NETHER_STAR
+        name: "<aqua><bold>Divisions"
+        lore: ["<gray>Players in each division", "<gray>and the rewards to pay", "", "<yellow>▶ Click to show"]
+        command: "duels season divisions"
+      kits:
+        slot: 15
+        material: DIAMOND_SWORD
+        name: "<aqua><bold>Kits played"
+        lore: ["<gray>This season's most played", "<gray>ranked kits", "", "<yellow>▶ Click to show"]
+        command: "duels season kits"
+      preview:
+        slot: 16
+        material: SPYGLASS
+        name: "<yellow><bold>Preview the end"
+        lore: ["<gray>What ending the season now", "<gray>would archive and pay", "<dark_gray>Ends nothing", "", "<yellow>▶ Click to show"]
+        command: "duels season end preview"
+      auto:
+        slot: 22
+        material: REPEATER
+        name: "<light_purple><bold>Ends by itself: <season_auto>"
+        lore: ["<gray>At the planned end, the season", "<gray>ends like /duels season end", "<gray>Planned end in: <white><season_ends>", "", "<yellow>▶ Click to switch"]
+        command: "duels season auto toggle"
+      back: {slot: 30, material: ARROW, name: "<yellow>« Back", command: "duels"}
+      close: {slot: 31, material: BARRIER, name: "<red>Close"}
+
 # Asks before something that is hard to undo. <action> is the name of the button clicked.
 confirm:
-  title: "<red><bold>Are you sure?"
+  title: "Are you sure?"
   rows: 3
   accept: {slot: 11, material: LIME_CONCRETE, name: "<green><bold>Confirm", lore: ["<gray><action>"]}
   what: {slot: 13, material: PAPER, name: "<action>", lore: ["<gray>This cannot be undone"]}
@@ -183,7 +289,7 @@ confirm:
 # queue) and <dueling> are filled in. The queues have their own menus: ranked-queue and unranked-queue.
 # back is shown in the kit editor only.
 kits:
-  title: "<gradient:#ff416c:#ff4b2b><bold>⚔ Choose a kit"
+  title: "Choose a kit"
   rows: 4
   kit:
     name: "<gradient:#f7971e:#ffd200><bold><kit>"
@@ -209,7 +315,7 @@ kits:
 # (ranked duels only). queued-lore is for the kit whose queue the viewer is in; it glows. The rating button
 # shows the overall <elo> and <division>; switch opens /duel queue. Right-click previews a kit.
 ranked-queue:
-  title: "<dark_gray>Play › </dark_gray><gradient:#f7971e:#ffd200><bold>Ranked"
+  title: "Play › Ranked"
   rows: 5
   kit:
     name: "<gold><bold><kit>"
@@ -238,7 +344,7 @@ ranked-queue:
 # /duel queue: join or leave a kit's unranked queue. A kit may use <kit>, <queued> (in this queue),
 # <fighting> and <building>. switch opens /duel ranked, shown only with the duels.queue.ranked permission.
 unranked-queue:
-  title: "<dark_gray>Play › </dark_gray><gradient:#56ab2f:#a8e063><bold>Unranked"
+  title: "Play › Unranked"
   rows: 5
   kit:
     name: "<green><bold><kit>"
@@ -262,7 +368,7 @@ unranked-queue:
 # /duel ratings: the viewer's rating in each kit they played ranked, with its icon. <kit>, <elo>, <peak>,
 # <division>, <wins> and <losses> are filled in. The overall button shows the overall <elo> and <division>.
 ratings:
-  title: "<dark_gray>Profile › </dark_gray><gradient:#4facfe:#00f2fe><bold>Ratings"
+  title: "Profile › Ratings"
   rows: 4
   kit:
     name: "<gold><bold><kit>"
@@ -294,7 +400,7 @@ lobby-items:
 # /duel customkit: a button per custom kit; a click builds it. <slot> is its number; a built one also has
 # <items> (filled slots) and <state> (values.ready, or values.outdated once the base kit no longer has an item).
 custom-kits:
-  title: "<dark_gray>Kits › </dark_gray><gradient:#f7971e:#ffd200><bold>Custom kits"
+  title: "Kits › Custom kits"
   rows: 4
   kit:
     name: "<gold><bold>Custom kit <slot>"
@@ -319,7 +425,7 @@ custom-kits:
 # /duel customkit items, while building a custom kit: the base kit's items. A click puts one in your
 # inventory; clicking an item in your inventory below takes it out.
 custom-kit-items:
-  title: "<gradient:#f7971e:#ffd200><bold>✎ Pick items"
+  title: "Pick items"
   rows: 6
   centered: false
   previous: {material: ARROW, name: "<yellow>« Previous page"}
@@ -331,7 +437,7 @@ custom-kit-items:
 # A kit's items, opened by right-clicking it in a kit menu: storage, hotbar, then armor and off hand.
 # The bottom-row buttons have a slot from 0 to 8.
 kit-preview:
-  title: "<dark_gray>Preview › </dark_gray><gradient:#f7971e:#ffd200><bold><kit>"
+  title: "Preview › <kit>"
   back: {slot: 3, material: ARROW, name: "<yellow>« Back"}
   close: {slot: 4, material: BARRIER, name: "<red>Close"}
 
@@ -339,7 +445,7 @@ kit-preview:
 # preview. The bottom-row buttons (slot 0 to 8) may use <player>, <health> (hearts), <food>, <effects>,
 # <hits>, <combo> (longest run of hits without being hit), <thrown>, <missed> and <accuracy> (health potions).
 fight-inventory:
-  title: "<gradient:#4facfe:#00f2fe><bold><player>'s inventory"
+  title: "<player>'s inventory"
   health: {slot: 0, material: GLISTERING_MELON_SLICE, name: "<red><bold>Health", lore: ["<gray><white><health></white> ❤"]}
   food: {slot: 1, material: COOKED_BEEF, name: "<gold><bold>Food", lore: ["<gray><white><food></white>/20"]}
   effects: {slot: 2, material: BREWING_STAND, name: "<light_purple><bold>Effects", lore: ["<gray><effects>"]}
@@ -356,7 +462,7 @@ fight-inventory:
 # /duel options: each player's own switches, <value> being values.on or values.off. Remove an option's
 # section to stop offering it (it then stays as the player left it, on by default).
 options:
-  title: "<dark_gray>Duels › </dark_gray><gradient:#ff416c:#ff4b2b><bold>Options"
+  title: "Duels › Options"
   rows: 3
   values:
     "on": "<green>On"
@@ -412,7 +518,7 @@ options:
 # <opponent>, <kit>, <arena>, <time> (fight length), <ago>, <rating> (change, or values.unranked), <how>
 # (values.eliminated, forfeit or quit) and <health> (the winner's hearts left).
 history:
-  title: "<dark_gray>Profile › </dark_gray><gradient:#f7971e:#ffd200><bold><player>'s duels"
+  title: "Profile › <player>'s duels"
   rows: 6
   won:
     name: "<green><bold>Won</bold> <gray>vs <white><opponent>"
@@ -446,7 +552,7 @@ history:
 
 # The arena of a challenge or event.
 arenas:
-  title: "<gradient:#4facfe:#00f2fe><bold>⛰ Choose an arena"
+  title: "Choose an arena"
   rows: 4
   # One button per ready arena, shown with the arena's icon. <arena> is filled in.
   arena:
@@ -469,7 +575,7 @@ arenas:
     lore: ["<gray>Any free arena", "", "<yellow>▶ Click to choose"]
 
 teams:
-  title: "<gradient:#ff416c:#4facfe><bold>⚔ Pick the teams"
+  title: "Pick the teams"
   rows: 4
   # One head per party member, shown with the template of their team. <player> is filled in.
   red:
@@ -502,7 +608,7 @@ teams:
 # /duels kit: every kit, for admins. Buttons run the /duels kit commands, so the same checks and
 # messages apply; names and values are typed in chat.
 kit-admin:
-  title: "<gradient:#f7971e:#ffd200><bold>⚙ Kits"
+  title: "Admin › Kits"
   rows: 5
   # One button per kit, shown with the kit's icon. <kit>, <id>, <permission>, <building>, <items>
   # (filled slots) and <rules> (game rules changed from the default) are filled in.
@@ -520,21 +626,22 @@ kit-admin:
     everyone: "<gray>everyone"
   previous: {material: ARROW, name: "<yellow>« Previous page"}
   next: {material: ARROW, name: "<yellow>Next page »"}
+  back: {slot: 3, material: ARROW, name: "<yellow>« Back", command: "duels"}
+  close: {slot: 4, material: BARRIER, name: "<red>Close"}
   create:
-    slot: 3
+    slot: 5
     material: EMERALD
     name: "<green><bold>New kit"
     lore: ["<gray>Made from your inventory,", "<gray>armor and off hand", "", "<yellow>▶ Click and type its name"]
-  close: {slot: 4, material: BARRIER, name: "<red>Close"}
   defaults:
-    slot: 5
+    slot: 6
     material: CHEST
     name: "<aqua><bold>Default kits"
     lore: ["<gray>Add the default kits that are missing", "", "<yellow>▶ Click to add"]
 
 # /duels kit <name>: one kit's settings. <kit> and <id> work everywhere; <value> is the current setting.
 kit-settings:
-  title: "<dark_gray>Kits › </dark_gray><gradient:#f7971e:#ffd200><bold><kit>"
+  title: "Kits › <kit>"
   rows: 4
   values:
     "on": "<green>On"
@@ -607,7 +714,7 @@ kit-settings:
 # /duels kit <name>, game rules: one button per rule. <rule>, <value> and <state> (set or default) are filled in,
 # with <kit> and <id>. The material shows the value: flag-on, flag-off, seconds for a number of seconds, or number.
 kit-rules:
-  title: "<dark_gray><kit> › </dark_gray><gradient:#f7971e:#ffd200><bold>Rules"
+  title: "<kit> › Rules"
   rows: 6
   values:
     "on": "<green>On"
@@ -647,7 +754,7 @@ kit-rules:
 # /duels arena: every arena, for admins (copies pasted for duels are counted on their arena).
 # Buttons run the /duels arena commands, so the same checks and messages apply.
 arena-admin:
-  title: "<gradient:#4facfe:#00f2fe><bold>⚙ Arenas"
+  title: "Admin › Arenas"
   rows: 5
   # One button per arena, shown with its icon. <arena>, <id>, <world>, <status>, <categories> and
   # <copies> (copies pasted for duels right now) are filled in.
@@ -665,14 +772,15 @@ arena-admin:
     none: "<gray>none"
   previous: {material: ARROW, name: "<yellow>« Previous page"}
   next: {material: ARROW, name: "<yellow>Next page »"}
+  back: {slot: 3, material: ARROW, name: "<yellow>« Back", command: "duels"}
+  close: {slot: 4, material: BARRIER, name: "<red>Close"}
   create:
-    slot: 3
+    slot: 5
     material: EMERALD
     name: "<green><bold>New arena"
     lore: ["<gray>Starts where you stand", "", "<yellow>▶ Click and type its name"]
-  close: {slot: 4, material: BARRIER, name: "<red>Close"}
   import:
-    slot: 5
+    slot: 6
     material: STRUCTURE_BLOCK
     name: "<aqua><bold>Import schematic"
     lore: ["<gray>Pasted in the arenas world", "", "<yellow>▶ Click and type a name and file"]
@@ -681,7 +789,7 @@ arena-admin:
 # (arena-points, arena-modes, arena-upkeep). <arena> and <id> work in all of them; <value> is the current
 # setting. Point buttons use the place you stand when you click.
 arena-settings:
-  title: "<dark_gray>Arenas › </dark_gray><gradient:#4facfe:#00f2fe><bold><arena>"
+  title: "Arenas › <arena>"
   rows: 4
   values:
     "on": "<green>On"
@@ -746,7 +854,7 @@ arena-settings:
     lore: ["<gray>Removes the arena for good", "", "<red>▶ Click to delete"]
 
 arena-points:
-  title: "<dark_gray><arena> › </dark_gray><gradient:#4facfe:#00f2fe><bold>Points"
+  title: "<arena> › Points"
   rows: 4
   values:
     not-set: "<red>not set"
@@ -796,7 +904,7 @@ arena-points:
 # Bridge and bed fight kits (/duels kit mode): side 1 starts at spawn 1. A bed is the one you looked at
 # when you opened this menu.
 arena-modes:
-  title: "<dark_gray><arena> › </dark_gray><gradient:#4facfe:#00f2fe><bold>Goals and beds"
+  title: "<arena> › Goals and beds"
   rows: 3
   values:
     not-set: "<red>not set"
@@ -824,7 +932,7 @@ arena-modes:
   close: {slot: 22, material: BARRIER, name: "<red>Close"}
 
 arena-upkeep:
-  title: "<dark_gray><arena> › </dark_gray><gradient:#4facfe:#00f2fe><bold>Snapshot and copies"
+  title: "<arena> › Snapshot and copies"
   rows: 3
   snapshot:
     slot: 11
@@ -846,7 +954,7 @@ arena-upkeep:
 
 # /event: public events gathering players, and event fights that may be watched.
 events:
-  title: "<dark_gray>Play › </dark_gray><gradient:#ff416c:#ff4b2b><bold>Events"
+  title: "Play › Events"
   rows: 4
   # One host head per event to join. <host>, <kit>, <arena>, <mode>, <winners>, <players>, <max> and
   # <time> (until it starts) are filled in.
@@ -883,7 +991,7 @@ events:
 # in their own menus. <kit>, <arena>, <mode>, <winners>, <players>, <min>, <max>, <time> and <rules> (rules
 # changed) work everywhere; switches also get <value>, and show the on or off material.
 event-settings:
-  title: "<dark_gray>Events › </dark_gray><gradient:#ff416c:#ff4b2b><bold>Your event"
+  title: "Events › Your event"
   rows: 4
   values:
     "on": "<green>On"
@@ -942,7 +1050,7 @@ event-settings:
     lore: ["<gray>Sends everyone away", "", "<red>▶ Click to cancel"]
 
 event-access:
-  title: "<dark_gray>Your event › </dark_gray><gradient:#ff416c:#ff4b2b><bold>Access"
+  title: "Your event › Access"
   rows: 3
   values:
     "on": "<green>On"
@@ -969,7 +1077,7 @@ event-access:
 
 # The rules of the host's event. <rule>, <value> and <state> (the kit's or changed) are filled in.
 event-rules:
-  title: "<dark_gray>Your event › </dark_gray><gradient:#ff416c:#ff4b2b><bold>Rules"
+  title: "Your event › Rules"
   rows: 5
   values:
     "on": "<green>On"
@@ -995,7 +1103,7 @@ event-rules:
 # <name> is filled in; kill messages also have <preview>, the message with you as the killer. A click picks
 # one, or drops it when picked; locked ones need their permission.
 kill-effect:
-  title: "<dark_gray>Cosmetics › </dark_gray><gradient:#f7971e:#ffd200><bold>Kill effects"
+  title: "Cosmetics › Kill effects"
   rows: 4
   entry:
     name: "<name>"
@@ -1008,7 +1116,7 @@ kill-effect:
   close: {slot: 4, material: BARRIER, name: "<red>Close"}
 
 kill-message:
-  title: "<dark_gray>Cosmetics › </dark_gray><gradient:#f7971e:#ffd200><bold>Kill messages"
+  title: "Cosmetics › Kill messages"
   rows: 4
   entry:
     name: "<name>"
@@ -1023,7 +1131,7 @@ kill-message:
 # /duel spectate without a player: the fights you may watch, one button each with its kit's icon.
 # <fighters>, <kit>, <arena>, <type> (values.duel, party or event), <time> (left) and <spectators>.
 spectate:
-  title: "<dark_gray>Play › </dark_gray><gradient:#4facfe:#00f2fe><bold>Spectate"
+  title: "Play › Spectate"
   rows: 4
   fight:
     name: "<aqua><bold><fighters>"
@@ -1046,7 +1154,7 @@ spectate:
 # /duel spectate while watching a fight: a head per fighter still in it; a click takes you to them.
 # <player> and <health> (health points: 20 is full) are filled in.
 spectate-fighters:
-  title: "<gradient:#4facfe:#00f2fe><bold>◉ Go to a fighter"
+  title: "Go to a fighter"
   rows: 3
   # In the inventory of everyone watching (open it with E): a click opens this menu. slot 0 to 35:
   # 0-8 the hotbar (not shown in spectator mode), 9-35 the inventory, 22 its middle.
@@ -1069,7 +1177,7 @@ spectate-fighters:
 # (party-member) by clicking them; fights and settings have their own menus (party-fights, party-settings).
 # <size> and <max> work in the titles and buttons of all of them.
 party:
-  title: "<dark_gray>Duels › </dark_gray><gradient:#ff416c:#ff4b2b><bold>Party <dark_gray>(<size>/<max>)"
+  title: "Duels › Party (<size>/<max>)"
   rows: 4
   leader:
     name: "<gold><bold><player></bold> <gray>(leader)"
@@ -1088,7 +1196,7 @@ party:
 
 # A member, for the leader. <player> is filled in.
 party-member:
-  title: "<dark_gray>Party › </dark_gray><gradient:#ff416c:#ff4b2b><bold><player>"
+  title: "Party › <player>"
   rows: 3
   promote: {slot: 11, material: GOLDEN_HELMET, name: "<gold><bold>Make leader", lore: ["<gray>Hand the party to <white><player>", "", "<yellow>▶ Click to promote"]}
   head: {slot: 13, name: "<white><bold><player>"}
@@ -1097,7 +1205,7 @@ party-member:
   close: {slot: 22, material: BARRIER, name: "<red>Close"}
 
 party-fights:
-  title: "<dark_gray>Party › </dark_gray><gradient:#ff416c:#ff4b2b><bold>Fights"
+  title: "Party › Fights"
   rows: 3
   split: {slot: 11, material: IRON_SWORD, name: "<red><bold>Split", lore: ["<gray>Two teams inside the party", "", "<yellow>▶ Click to pick a kit (leader)"]}
   ffa: {slot: 13, material: DIAMOND_SWORD, name: "<gold><bold>Free for all", lore: ["<gray>Everyone for themselves", "", "<yellow>▶ Click to pick a kit (leader)"]}
@@ -1106,7 +1214,7 @@ party-fights:
   close: {slot: 22, material: BARRIER, name: "<red>Close"}
 
 party-settings:
-  title: "<dark_gray>Party › </dark_gray><gradient:#ff416c:#ff4b2b><bold>Settings"
+  title: "Party › Settings"
   rows: 3
   public-off: {slot: 11, material: IRON_DOOR, name: "<gray><bold>Private party", lore: ["<gray>Invites only", "", "<yellow>▶ Click to make it public (leader)"]}
   public-on: {slot: 11, material: OAK_DOOR, name: "<green><bold>Public party", lore: ["<gray>Anyone may join", "", "<yellow>▶ Click to make it private (leader)"]}
@@ -1118,7 +1226,7 @@ party-settings:
 # /party without a party: the public parties (/party public), a click joining one, and a button to make your own.
 # <leader>, <size> and <max> work in a party's button.
 party-none:
-  title: "<dark_gray>Duels › </dark_gray><gradient:#ff416c:#ff4b2b><bold>Public parties"
+  title: "Duels › Public parties"
   rows: 4
   public-party:
     name: "<white><bold><leader></bold><gray>'s party"

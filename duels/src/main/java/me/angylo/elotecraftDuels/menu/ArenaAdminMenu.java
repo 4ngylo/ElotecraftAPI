@@ -144,6 +144,11 @@ public final class ArenaAdminMenu {
             buttons.add(Button.of(entry("center", arena, position(arena.center())), change("setcenter")));
             buttons.add(Button.of(entry("ffa-spawns", arena, Component.text(arena.extraSpawns().size())),
                     split(change("addspawn"), confirmed(change("clearspawns")))));
+            Arena.ModePoints points = arena.points();
+            buttons.add(Button.of(entry("goal-1", arena, position(points.goal1())), change("setgoal", "1")));
+            buttons.add(Button.of(entry("goal-2", arena, position(points.goal2())), change("setgoal", "2")));
+            buttons.add(Button.of(entry("bed-1", arena, position(points.bed1())), change("setbed", "1")));
+            buttons.add(Button.of(entry("bed-2", arena, position(points.bed2())), change("setbed", "2")));
             buttons.add(Button.of(MenuLayout.icon(arena.icon(), section.getConfigurationSection("icon"), "lore", false, arenaTags(arena)),
                     change("seticon")));
             buttons.add(Button.of(entry("name", arena, Text.mm(arena.displayName())), prompt("setname", "", "admin.arena.prompt-name", arena)));

@@ -227,7 +227,8 @@ fight with two sides is won; bridge and bed fight also make the kit a build kit.
   fighters come back at their spawn while their bed stands; fighters may break the other side's bed (not
   their own), after which that side is out once knocked out. The bed is put back after each round and the duel.
 
-A bridge kit only uses arenas with both goals, a bed fight kit only arenas with both beds. Set them before
+The `/duels arena <arena>` menu has a button for each goal and bed too (for a bed, look at it before opening
+the menu). A bridge kit only uses arenas with both goals, a bed fight kit only arenas with both beds. Set them before
 pregenerating copies (`/duels arena pregen`): copies take the points of their source when they are made.
 
 ## Build kits

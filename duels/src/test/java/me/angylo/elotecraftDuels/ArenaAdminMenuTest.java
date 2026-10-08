@@ -24,9 +24,10 @@ class ArenaAdminMenuTest extends DuelsTestBase {
 
     private static final int ENABLED = 1;
     private static final int SPAWN_1 = 2;
-    private static final int BUILD_LIMIT = 13;
-    private static final int RESET = 16;
-    private static final int DELETE = 18;
+    private static final int GOAL_2 = 11;
+    private static final int BUILD_LIMIT = 17;
+    private static final int RESET = 20;
+    private static final int DELETE = 22;
 
     private TestPlayer admin;
 
@@ -91,6 +92,11 @@ class ArenaAdminMenuTest extends DuelsTestBase {
 
         assertEquals(new Arena.Position(7.5, 65, 9.5, 0, 0), pit().spawn1());
         assertTrue(lore(SPAWN_1).contains("At: 7 65 9"));
+
+        click(GOAL_2, ClickType.LEFT);
+
+        assertEquals(new Arena.Position(7.5, 65, 9.5, 0, 0), pit().points().goal2());
+        assertTrue(lore(GOAL_2).contains("At: 7 65 9"));
     }
 
     @Test

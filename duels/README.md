@@ -318,7 +318,8 @@ admin ones plus `duels.bypass.cooldown`, which also skips the event host cooldow
 
 1. Both players' state (position, inventory, health, hunger, xp, effects, game mode, flight) is saved to
    the database. If that fails, nothing changes.
-2. They are teleported in, given the kit and frozen during the countdown.
+2. They are teleported in, given the kit and frozen during the countdown. They can still arrange their
+   inventory, draw a bow and load a crossbow (an arrow released before the fight starts is refused).
 3. They fight until one would die: the lethal hit is cancelled instead, so there is no death screen and
    nothing drops (unless the kit has `death-drops`). A totem in hand still works. Quitting or `/duel leave` loses; running out of time
    (`match.max-duration`) is a draw. With the kit rule `rounds-to-win`, a lethal hit only wins the round:

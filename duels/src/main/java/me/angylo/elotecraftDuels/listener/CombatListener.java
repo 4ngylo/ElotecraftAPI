@@ -31,7 +31,9 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.entity.AreaEffectCloudApplyEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
+import org.bukkit.event.block.Action;
 import org.bukkit.event.entity.EntityRegainHealthEvent;
+import org.bukkit.event.entity.EntityShootBowEvent;
 import org.bukkit.event.entity.FoodLevelChangeEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.entity.PotionSplashEvent;
@@ -253,12 +255,31 @@ public final class CombatListener implements Listener {
         });
     }
 
-    /** No item use before the fight or after it ends: no pearls, potions or food. */
+    /**
+     * No item use before the fight or after it ends: no pearls, potions or food. During the countdown a bow may be
+     * drawn and a crossbow loaded, to shoot when the fight starts; see {@link #onShootBow}.
+     */
     @EventHandler(priority = EventPriority.LOW)
     public void onInteract(PlayerInteractEvent event) {
-        if (frozenFighter(event.getPlayer())) {
+        if (frozenFighter(event.getPlayer()) && !drawsBowInCountdown(event)) {
             event.setCancelled(true);
         }
+    }
+
+    /** An arrow released before the fight is refused; the client is told it still has it. */
+    @EventHandler(priority = EventPriority.LOW, ignoreCancelled = true)
+    public void onShootBow(EntityShootBowEvent event) {
+        if (event.getEntity() instanceof Player player && frozenFighter(player)) {
+            event.setCancelled(true);
+            player.updateInventory();
+        }
+    }
+
+    private boolean drawsBowInCountdown(PlayerInteractEvent event) {
+        Material item = event.getItem() == null ? null : event.getItem().getType();
+        return (item == Material.BOW || item == Material.CROSSBOW)
+                && (event.getAction() == Action.RIGHT_CLICK_AIR || event.getAction() == Action.RIGHT_CLICK_BLOCK)
+                && matches.matchOf(event.getPlayer()).filter(match -> match.state() == Match.State.COUNTDOWN).isPresent();
     }
 
     @EventHandler(priority = EventPriority.LOW, ignoreCancelled = true)

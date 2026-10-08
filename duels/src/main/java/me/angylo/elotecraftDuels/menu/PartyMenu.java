@@ -1,6 +1,7 @@
 package me.angylo.elotecraftDuels.menu;
 
 import me.angylo.elotecraftAPI.menu.Button;
+import me.angylo.elotecraftAPI.menu.Menu;
 import me.angylo.elotecraftAPI.menu.PaginatedMenu;
 import me.angylo.elotecraftAPI.util.ConfigFile;
 import me.angylo.elotecraftAPI.util.Messages;
@@ -21,15 +22,18 @@ import org.bukkit.inventory.meta.SkullMeta;
 import org.bukkit.plugin.Plugin;
 
 import java.util.Objects;
+import java.util.UUID;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
 
 /**
  * {@code /party}: without a party, the public parties to join and a button to make one; in a party, its members
- * (the leader promotes with a left-click and kicks with shift + right-click) and buttons for invites, going
- * public, fights and leaving. Every button runs the matching {@code /party} command, so its checks apply.
- * Layouts in menus.yml {@code party} and {@code party-none}.
+ * (the leader opens a member's menu to promote or kick them) and buttons for invites, fights and settings, each
+ * opening its own menu. Every button runs the matching {@code /party} command, so its checks apply.
+ * Layouts in menus.yml {@code party}, {@code party-member}, {@code party-fights}, {@code party-settings} and
+ * {@code party-none}.
  */
 public final class PartyMenu {
 
@@ -60,8 +64,8 @@ public final class PartyMenu {
             } else {
                 fillParty(menu, section, party, viewer);
             }
-            MenuLayout.place(menu, section, "close", run(""));  // not in the default party layout: its bottom row is full
-            MenuLayout.fill(menu, section);
+            MenuLayout.place(menu, section, "back", MenuLayout.command(plugin, effects(), section, "back"));
+            MenuLayout.place(menu, section, "close", MenuLayout.close(plugin, effects()));
             menu.open(viewer);
         } catch (IllegalArgumentException e) {
             MenuLayout.menuError(plugin, messages, viewer, key, e);
@@ -80,54 +84,90 @@ public final class PartyMenu {
 
     private void fillParty(PaginatedMenu menu, ConfigurationSection section, Party party, Player viewer) {
         boolean leading = party.isLeader(viewer.getUniqueId());
+        TagResolver[] sizes = sizeTags(party);
         menu.items(party.members().stream().map(member -> {
             OfflinePlayer player = Bukkit.getOfflinePlayer(member);
-            String name = Objects.requireNonNullElse(player.getName(), "?");
             boolean isLeader = party.isLeader(member);
             String lore = isLeader ? "leader-lore" : leading ? "member-lore-leader" : "lore";
             return Button.of(head(section.getConfigurationSection(isLeader ? "leader" : "member"), player, lore,
-                    Placeholder.unparsed("player", name)), leading && !isLeader ? memberClick(name) : run(null));
+                    Placeholder.unparsed("player", name(player))), leading && !isLeader
+                    ? MenuLayout.choose(plugin, effects(), clicker -> openMember(clicker, member)) : (clicker, click) -> { });
         }).toList());
-        MenuLayout.place(menu, section, "invite", ask("party.prompt-invite", ""));
-        MenuLayout.place(menu, section, party.isOpen() ? "public-on" : "public-off", run("public"));
-        MenuLayout.place(menu, section, "split", run("split"));
-        MenuLayout.place(menu, section, "ffa", run("ffa"));
-        MenuLayout.place(menu, section, "duel", ask("party.prompt-duel", "duel "));
-        MenuLayout.place(menu, section, "leave", run("leave"));
-        MenuLayout.place(menu, section, "disband", (player, click) -> {
-            if (click == ClickType.SHIFT_RIGHT) {
-                run("disband").accept(player, click);
-            }
-        });
+        MenuLayout.place(menu, section, "invite", ask("party.prompt-invite", ""), sizes);
+        MenuLayout.place(menu, section, "fights", MenuLayout.choose(plugin, effects(), this::openFights), sizes);
+        MenuLayout.place(menu, section, "settings", MenuLayout.choose(plugin, effects(), this::openSettings), sizes);
     }
 
-    /** Left-click promotes the member, shift + right-click kicks them. */
-    private BiConsumer<Player, ClickType> memberClick(String name) {
-        return (player, click) -> {
-            if (click == ClickType.SHIFT_RIGHT) {
-                run("kick " + name).accept(player, click);
-            } else if (click.isLeftClick()) {
-                run("promote " + name).accept(player, click);
-            }
-        };
-    }
-
-    /** Closes the menu and runs {@code /party <args>}; null does nothing, an empty string only closes. */
-    private BiConsumer<Player, ClickType> run(String args) {
-        Effects effects = settings.get().effects();
-        if (args == null) {
-            return (player, click) -> { };
+    /** A member of the viewer's party, to promote or kick; the party menu if they are no longer in it. */
+    private void openMember(Player viewer, UUID member) {
+        Party party = parties.partyOf(viewer.getUniqueId()).filter(found -> found.members().contains(member)).orElse(null);
+        if (party == null) {
+            open(viewer);
+            return;
         }
-        return MenuLayout.choose(plugin, effects, player -> {
-            if (!args.isEmpty()) {
-                player.performCommand("party " + args);
-            }
+        OfflinePlayer player = Bukkit.getOfflinePlayer(member);
+        String name = name(player);
+        TagResolver[] tags = MenuLayout.with(sizeTags(party), Placeholder.unparsed("player", name));
+        submenu(viewer, "party-member", tags, (menu, section) -> {
+            MenuLayout.put(menu, section, "promote", run("promote " + name), tags);
+            MenuLayout.put(menu, section, "head", head(section.getConfigurationSection("head"), player, "lore", tags), (clicker, click) -> { });
+            MenuLayout.put(menu, section, "kick", MenuLayout.confirm(plugin, messages, menus, effects(), MenuLayout.name(section, "kick", tags),
+                    command("kick " + name).andThen(this::open), clicker -> openMember(clicker, member)), tags);
         });
+    }
+
+    private void openFights(Player viewer) {
+        submenu(viewer, "party-fights", null, (menu, section) -> {
+            MenuLayout.put(menu, section, "split", run("split"));
+            MenuLayout.put(menu, section, "ffa", run("ffa"));
+            MenuLayout.put(menu, section, "duel", ask("party.prompt-duel", "duel "));
+        });
+    }
+
+    private void openSettings(Player viewer) {
+        submenu(viewer, "party-settings", null, (menu, section) -> {
+            boolean open = parties.partyOf(viewer.getUniqueId()).map(Party::isOpen).orElse(false);
+            MenuLayout.put(menu, section, open ? "public-on" : "public-off", run("public"));
+            MenuLayout.put(menu, section, "leave", run("leave"));
+            MenuLayout.put(menu, section, "disband", MenuLayout.confirm(plugin, messages, menus, effects(),
+                    MenuLayout.name(section, "disband"), command("disband"), this::openSettings));
+        });
+    }
+
+    /**
+     * Opens the party submenu {@code key}, filled by {@code fill}, with back (to the party menu) and close; the party
+     * menu instead if the viewer is no longer in a party. {@code tags} (the party's size if null) fill the title.
+     */
+    private void submenu(Player viewer, String key, TagResolver[] tags, BiConsumer<Menu, ConfigurationSection> fill) {
+        Party party = parties.partyOf(viewer.getUniqueId()).orElse(null);
+        if (party == null) {
+            open(viewer);
+            return;
+        }
+        ConfigurationSection section = menus.get().getConfigurationSection(key);
+        try {
+            Menu menu = MenuLayout.fixed(plugin, section, tags == null ? sizeTags(party) : tags);
+            fill.accept(menu, section);
+            MenuLayout.put(menu, section, "back", MenuLayout.choose(plugin, effects(), this::open));
+            MenuLayout.put(menu, section, "close", MenuLayout.close(plugin, effects()));
+            menu.open(viewer);
+        } catch (IllegalArgumentException e) {
+            MenuLayout.menuError(plugin, messages, viewer, key, e);
+        }
+    }
+
+    /** Closes the menu and runs {@code /party <args>}. */
+    private BiConsumer<Player, ClickType> run(String args) {
+        return MenuLayout.choose(plugin, effects(), command(args));
+    }
+
+    private static Consumer<Player> command(String args) {
+        return player -> player.performCommand("party " + args);
     }
 
     /** Asks a player name in chat, then runs {@code /party <prefix><name>}. */
     private BiConsumer<Player, ClickType> ask(String promptKey, String prefix) {
-        return MenuLayout.choose(plugin, settings.get().effects(), player -> MenuLayout.ask(plugin, messages, player, promptKey,
+        return MenuLayout.choose(plugin, effects(), player -> MenuLayout.ask(plugin, messages, player, promptKey,
                 new TagResolver[0], answer -> {
                     String name = answer.strip();
                     if (PLAYER_NAME.matcher(name).matches()) {
@@ -135,7 +175,19 @@ public final class PartyMenu {
                     } else {
                         messages.send(player, "general.player-not-found", Placeholder.unparsed("player", name));
                     }
+                    // A party duel may open the kit menu; an invite goes back to the party.
+                    if (prefix.isEmpty()) {
+                        open(player);
+                    }
                 }));
+    }
+
+    private Effects effects() {
+        return settings.get().effects();
+    }
+
+    private static String name(OfflinePlayer player) {
+        return Objects.requireNonNullElse(player.getName(), "?");
     }
 
     private static ItemStack head(ConfigurationSection template, OfflinePlayer owner, String loreKey, TagResolver... tags) {

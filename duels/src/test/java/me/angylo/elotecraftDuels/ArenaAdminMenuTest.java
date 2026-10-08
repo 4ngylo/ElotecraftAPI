@@ -1,18 +1,14 @@
 package me.angylo.elotecraftDuels;
 
 import me.angylo.elotecraftAPI.input.InputListener;
-import me.angylo.elotecraftAPI.menu.Menu;
 import me.angylo.elotecraftAPI.util.Text;
 import me.angylo.elotecraftDuels.arena.Arena;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.event.inventory.ClickType;
-import org.bukkit.inventory.Inventory;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockbukkit.mockbukkit.command.ConsoleCommandSenderMock;
-
-import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -22,12 +18,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /** The {@code /duels arena} menus. Clicks call the buttons directly: MockBukkit cannot route them through MenuListener. */
 class ArenaAdminMenuTest extends DuelsTestBase {
 
-    private static final int ENABLED = 1;
-    private static final int SPAWN_1 = 2;
-    private static final int GOAL_2 = 11;
-    private static final int BUILD_LIMIT = 17;
-    private static final int RESET = 20;
-    private static final int DELETE = 22;
+    /** The only arena in a centered list sits in the middle of the first row. */
+    private static final int FIRST_ENTRY = 13;
 
     private TestPlayer admin;
 
@@ -39,39 +31,30 @@ class ArenaAdminMenuTest extends DuelsTestBase {
         readyArena("pit");
     }
 
-    private Inventory top() {
-        return admin.getOpenInventory().getTopInventory();
-    }
-
-    private String title() {
-        return Text.plain(admin.getOpenInventory().title());
-    }
-
-    private void click(int slot, ClickType type) {
-        ((Menu) top().getHolder()).button(slot).orElseThrow().onClick().accept(admin, type);
-        tick();
-    }
-
-    private List<String> lore(int slot) {
-        return top().getItem(slot).getItemMeta().lore().stream().map(Text::plain).toList();
-    }
-
     private Arena pit() {
         return duels.arenas().get("pit").orElseThrow();
+    }
+
+    private void click(String name, ClickType type) {
+        clickNamed(admin, name, type);
+    }
+
+    private boolean loreHas(String button, String line) {
+        return loreAt(admin, slotNamed(admin, button)).contains(line);
     }
 
     @Test
     void listShowsArenasAndOpensTheirSettings() {
         server.dispatchCommand(admin, "duels arena");
 
-        assertEquals("⚙ Arenas", title());
-        assertEquals(Material.GRASS_BLOCK, top().getItem(0).getType());
-        assertTrue(lore(0).contains("▪ Status: ready"));
-        assertTrue(lore(0).contains("▪ Copies: 0"));
+        assertEquals("⚙ Arenas", menuTitle(admin));
+        assertEquals(Material.GRASS_BLOCK, admin.getOpenInventory().getTopInventory().getItem(FIRST_ENTRY).getType());
+        assertTrue(loreAt(admin, FIRST_ENTRY).contains("▪ Status: ready"));
+        assertTrue(loreAt(admin, FIRST_ENTRY).contains("▪ Copies: 0"));
 
-        click(0, ClickType.LEFT);
+        clickSlot(admin, FIRST_ENTRY, ClickType.LEFT);
 
-        assertEquals("⚙ pit", title());
+        assertEquals("Arenas › pit", menuTitle(admin));
     }
 
     @Test
@@ -84,59 +67,81 @@ class ArenaAdminMenuTest extends DuelsTestBase {
     }
 
     @Test
-    void pointsAreTakenWhereYouStand() {
+    void pointsAreTakenWhereYouStandInTheirSubmenus() {
         admin.teleport(new Location(arenaWorld, 7.5, 65, 9.5));
         server.dispatchCommand(admin, "duels arena pit");
 
-        click(SPAWN_1, ClickType.LEFT);
+        click("Points", ClickType.LEFT);
+        assertEquals("pit › Points", menuTitle(admin));
+        click("Spawn 1", ClickType.LEFT);
 
         assertEquals(new Arena.Position(7.5, 65, 9.5, 0, 0), pit().spawn1());
-        assertTrue(lore(SPAWN_1).contains("At: 7 65 9"));
+        assertTrue(loreHas("Spawn 1", "At: 7 65 9"));
 
-        click(GOAL_2, ClickType.LEFT);
+        click("Back", ClickType.LEFT);
+        click("Bridge and bed fight", ClickType.LEFT);
+        click("Bridge goal 2", ClickType.LEFT);
 
         assertEquals(new Arena.Position(7.5, 65, 9.5, 0, 0), pit().points().goal2());
-        assertTrue(lore(GOAL_2).contains("At: 7 65 9"));
+        assertTrue(loreHas("Bridge goal 2", "At: 7 65 9"));
     }
 
     @Test
     void enabledSwitchesInPlace() {
         server.dispatchCommand(admin, "duels arena pit");
 
-        click(ENABLED, ClickType.LEFT);
+        click("Enabled", ClickType.LEFT);
 
         assertFalse(pit().enabled());
-        assertTrue(lore(ENABLED).contains("Used for duels: Off"));
+        assertTrue(loreHas("Enabled", "Used for duels: Off"));
     }
 
     @Test
     void buildLimitIsTypedInChatAndClearedWithRightClick() {
         server.dispatchCommand(admin, "duels arena pit");
 
-        click(BUILD_LIMIT, ClickType.LEFT);
+        click("Build limit", ClickType.LEFT);
         admin.chat("70");
         tickUntil(() -> Integer.valueOf(70).equals(pit().buildLimit()));
         tick();
-        assertEquals("⚙ pit", title());
+        assertEquals("Arenas › pit", menuTitle(admin));
 
-        click(BUILD_LIMIT, ClickType.RIGHT);
+        click("Build limit", ClickType.RIGHT);
 
         assertNull(pit().buildLimit());
     }
 
     @Test
-    void deleteAndResetNeedShiftRightClick() {
+    void deleteAsksToConfirm() {
         server.dispatchCommand(admin, "duels arena pit");
-        messages(admin);
 
-        click(RESET, ClickType.LEFT);
-        click(DELETE, ClickType.LEFT);
-        assertTrue(messages(admin).isEmpty());
+        click("Delete pit", ClickType.LEFT);
+        assertEquals("Are you sure?", menuTitle(admin));
+        click("Cancel", ClickType.LEFT);
+
         assertTrue(duels.arenas().get("pit").isPresent());
+        assertEquals("Arenas › pit", menuTitle(admin));
 
-        click(DELETE, ClickType.SHIFT_RIGHT);
+        click("Delete pit", ClickType.LEFT);
+        click("Confirm", ClickType.LEFT);
 
         assertTrue(duels.arenas().get("pit").isEmpty());
-        assertEquals("⚙ Arenas", title());
+        assertEquals("⚙ Arenas", menuTitle(admin));
+    }
+
+    @Test
+    void resetAsksToConfirmAndComesBack() {
+        server.dispatchCommand(admin, "duels arena pit");
+        click("Snapshot and copies", ClickType.LEFT);
+        messages(admin);
+
+        click("Reset the blocks", ClickType.LEFT);
+
+        assertTrue(messages(admin).isEmpty());
+        assertEquals("Are you sure?", menuTitle(admin));
+
+        click("Cancel", ClickType.LEFT);
+
+        assertEquals("pit › Snapshot and copies", menuTitle(admin));
     }
 }

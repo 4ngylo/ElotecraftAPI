@@ -1,7 +1,6 @@
 package me.angylo.elotecraftDuels;
 
 import me.angylo.elotecraftAPI.menu.Menu;
-import me.angylo.elotecraftAPI.util.Text;
 import me.angylo.elotecraftDuels.arena.Arena;
 import me.angylo.elotecraftDuels.event.HostedEvent;
 import me.angylo.elotecraftDuels.kit.Kit;
@@ -22,7 +21,6 @@ import org.junit.jupiter.api.Test;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -214,17 +212,36 @@ class EventTest extends DuelsTestBase {
     @Test
     void theSettingsMenuSwitchesAndShowsTheEvent() {
         HostedEvent event = hostEvent();
-        assertEquals("Event Settings", Text.plain(ann.getOpenInventory().title()));
+        assertEquals("Events › Your event", menuTitle(ann));
 
-        click(ann, 28, ClickType.LEFT);
-        assertFalse(event.isOpen());
-        click(ann, 20, ClickType.LEFT);
+        clickNamed(ann, "Mode");
         assertEquals(HostedEvent.Mode.TEAMS, event.mode());
-        click(ann, 24, ClickType.LEFT);
+        clickNamed(ann, "Border");
         assertTrue(event.hasBorder());
-        assertEquals(Material.STRUCTURE_VOID, ann.getOpenInventory().getTopInventory().getItem(24).getType());
+        assertEquals(Material.STRUCTURE_VOID, ann.getOpenInventory().getTopInventory().getItem(slotNamed(ann, "Border")).getType());
 
-        click(ann, 34, ClickType.LEFT);
+        clickNamed(ann, "Players and spectators");
+        assertEquals("Your event › Access", menuTitle(ann));
+        clickNamed(ann, "Public");
+        assertFalse(event.isOpen());
+        clickNamed(ann, "Back");
+        tick();
+        assertEquals("Events › Your event", menuTitle(ann));
+    }
+
+    @Test
+    void cancellingAsksToConfirm() {
+        hostEvent();
+
+        clickNamed(ann, "Cancel the event");
+        assertEquals("Are you sure?", menuTitle(ann));
+        clickNamed(ann, "Cancel");
+        assertTrue(duels.events().hostedBy(ann).isPresent());
+        assertEquals("Events › Your event", menuTitle(ann));
+
+        clickNamed(ann, "Cancel the event");
+        clickNamed(ann, "Confirm");
+
         assertTrue(duels.events().hostedBy(ann).isEmpty());
     }
 
@@ -232,10 +249,11 @@ class EventTest extends DuelsTestBase {
     void theListShowsOpenEventsToJoin() {
         hostEvent();
         server.dispatchCommand(bob, "event");
-        assertEquals("⚑ Events", Text.plain(bob.getOpenInventory().title()));
-        assertEquals(Material.PLAYER_HEAD, bob.getOpenInventory().getTopInventory().getItem(0).getType());
+        assertEquals("Play › Events", menuTitle(bob));
+        int entry = slotNamed(bob, "Ann's event");
+        assertEquals(Material.PLAYER_HEAD, bob.getOpenInventory().getTopInventory().getItem(entry).getType());
 
-        click(bob, 0, ClickType.LEFT);
+        click(bob, entry, ClickType.LEFT);
 
         assertTrue(duels.events().isWaiting(bob));
     }
@@ -243,9 +261,9 @@ class EventTest extends DuelsTestBase {
     @Test
     void theRulesMenuChangesARuleForThisEventOnly() {
         HostedEvent event = hostEvent();
-        click(ann, 14, ClickType.LEFT);
-        assertEquals("Event Rules", Text.plain(ann.getOpenInventory().title()));
-        int potions = (int) Arrays.stream(KitRule.values()).filter(KitRule::isFlag).takeWhile(rule -> rule != KitRule.POTIONS).count();
+        clickNamed(ann, "Rules");
+        assertEquals("Your event › Rules", menuTitle(ann));
+        int potions = slotNamed(ann, KitRule.POTIONS.key());
 
         click(ann, potions, ClickType.LEFT);
         assertTrue(event.changed(KitRule.POTIONS));
@@ -262,33 +280,34 @@ class EventTest extends DuelsTestBase {
         fighting(ann);
 
         server.dispatchCommand(cid, "event list");
-        assertEquals(Material.DIAMOND_SWORD, cid.getOpenInventory().getTopInventory().getItem(0).getType());
-        click(cid, 0, ClickType.LEFT);
+        int entry = slotNamed(cid, "Ann's event");
+        assertEquals(Material.DIAMOND_SWORD, cid.getOpenInventory().getTopInventory().getItem(entry).getType());
+        click(cid, entry, ClickType.LEFT);
 
         tickUntil(() -> cid.getGameMode() == GameMode.SPECTATOR);
         assertTrue(duels.matches().matchOf(cid).orElseThrow().isSpectator(cid));
     }
 
     @Test
-    void anOlderMenusFileWithoutTheEventMenusUsesTheBundledOnes() throws IOException {
-        Files.writeString(plugin.getDataFolder().toPath().resolve("menus.yml"), "# from a version without events\n");
+    void anEmptyMenusFileUsesTheBundledMenus() throws IOException {
+        Files.writeString(plugin.getDataFolder().toPath().resolve("menus.yml"), "version: 2\n");
         assertTrue(duels.reload());
 
         hostEvent();
 
-        assertEquals("Event Settings", Text.plain(ann.getOpenInventory().title()));
-        assertEquals(Material.FIREWORK_ROCKET, ann.getOpenInventory().getTopInventory().getItem(16).getType());
+        assertEquals("Events › Your event", menuTitle(ann));
+        slotNamed(ann, "Start now");
     }
 
     @Test
-    void anOlderMenuWithoutANewButtonGetsTheBundledButton() throws IOException {
+    void aMenuWithoutANewButtonGetsTheBundledButton() throws IOException {
         Files.writeString(plugin.getDataFolder().toPath().resolve("menus.yml"),
-                "event-settings:\n  title: Old Settings\n  kit:\n    slot: 10\n    material: DIAMOND_SWORD\n");
+                "version: 2\nevent-settings:\n  title: My Settings\n  kit:\n    slot: 10\n    material: DIAMOND_SWORD\n");
         assertTrue(duels.reload());
 
         hostEvent();
 
-        assertEquals("Old Settings", Text.plain(ann.getOpenInventory().title()));
-        assertEquals(Material.FIREWORK_ROCKET, ann.getOpenInventory().getTopInventory().getItem(16).getType());
+        assertEquals("My Settings", menuTitle(ann));
+        slotNamed(ann, "Start now");
     }
 }

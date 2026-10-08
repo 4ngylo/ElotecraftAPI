@@ -30,7 +30,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /** Inventories after a fight ({@code /duel inventory}) and the duel history ({@code /duel history}). */
 class HistoryTest extends DuelsTestBase {
 
-    private static final int BOTTOM_ROW = 45;
 
     private TestPlayer alex;
     private TestPlayer steve;
@@ -69,7 +68,7 @@ class HistoryTest extends DuelsTestBase {
         assertEquals(Material.DIAMOND_SWORD, steveInventory.getItem(27).getType());
 
         server.dispatchCommand(alex, link.substring(1, link.lastIndexOf(' ')) + " Alex");
-        List<String> hits = lore(alex.getOpenInventory().getTopInventory().getItem(BOTTOM_ROW + 7));
+        List<String> hits = lore(alex.getOpenInventory().getTopInventory().getItem(slotNamed(alex, "Hits")));
         assertTrue(hits.contains("Landed: 4"), hits.toString());
         assertTrue(hits.contains("Longest combo: 2"), hits.toString());
     }
@@ -99,7 +98,7 @@ class HistoryTest extends DuelsTestBase {
 
         server.dispatchCommand(alex, inventoryCommand(alex, "Alex").substring(1));
 
-        List<String> potions = lore(alex.getOpenInventory().getTopInventory().getItem(BOTTOM_ROW + 8));
+        List<String> potions = lore(alex.getOpenInventory().getTopInventory().getItem(slotNamed(alex, "Health potions")));
         assertEquals(List.of("Thrown: 2", "Missed: 1", "Accuracy: 50%"), potions);
     }
 
@@ -135,8 +134,8 @@ class HistoryTest extends DuelsTestBase {
         assertEquals("Alex", lost.opponent());
 
         server.dispatchCommand(alex, "duel history");
-        tickUntil(() -> Text.plain(alex.getOpenInventory().title()).equals("Alex's duels"));
-        assertEquals("Won vs Steve", Text.plain(alex.getOpenInventory().getTopInventory().getItem(0).getItemMeta().displayName()));
+        tickUntil(() -> Text.plain(alex.getOpenInventory().title()).equals("Profile › Alex's duels"));
+        assertEquals("Won vs Steve", Text.plain(alex.getOpenInventory().getTopInventory().getItem(firstItemSlot(alex)).getItemMeta().displayName()));
     }
 
     @Test

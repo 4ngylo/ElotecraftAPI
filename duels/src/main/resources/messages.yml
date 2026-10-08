@@ -33,6 +33,7 @@ command:
     <yellow>/party chat [message]</yellow> <dark_gray>·</dark_gray> <yellow>/pc [message]</yellow> <dark_gray>-</dark_gray> <gray>talk to your party; without a message, your chat goes to the party until you run it again
   help: |-
     <gradient:#ff416c:#ff4b2b><bold>⚔ Duels</bold></gradient>
+    <yellow>/duel</yellow> <dark_gray>-</dark_gray> <gray>the duels menu: play, profile, party, kits, cosmetics and options
     <yellow>/duel <player> [kit] [arena]</yellow> <dark_gray>-</dark_gray> <gray>challenge someone
     <yellow>/duel <player> <kit> [arena] bet <amount></yellow> <dark_gray>-</dark_gray> <gray>challenge for money
     <yellow>/duel accept|deny [player]</yellow> <dark_gray>-</dark_gray> <gray>answer a challenge
@@ -47,6 +48,7 @@ command:
     <yellow>/duel toggle <option></yellow> <dark_gray>-</dark_gray> <gray>turn duel requests or another option off or on
     <yellow>/duel options</yellow> <dark_gray>-</dark_gray> <gray>requests, party invites, sidebar and sounds
     <yellow>/duel cosmetics</yellow> <dark_gray>-</dark_gray> <gray>kill effects and kill messages
+    <yellow>/duel ratings</yellow> <dark_gray>-</dark_gray> <gray>your rating in each kit
     <yellow>/duel stats [player]</yellow> <dark_gray>·</dark_gray> <yellow>/duel top [elo [kit]|season <n>]</yellow> <dark_gray>-</dark_gray> <gray>statistics
     <yellow>/duel history [player]</yellow> <dark_gray>-</dark_gray> <gray>latest duels
   admin-help: |-
@@ -116,6 +118,7 @@ general:
   not-dueling: "<prefix><red><player> isn't in a duel."
   storage-error: "<prefix><red>Your duel data couldn't be saved, so nothing changed. Try again or tell an admin."
   menu-error: "<prefix><red>That menu is misconfigured; please tell an admin."
+  no-menu: "<prefix><red>There is no menu called <menu>."
   restored: "<prefix><gray>Your items and position were restored from a duel that didn't finish."
   nothing-to-leave: "<prefix><red>You're not in a queue, an event, a duel or spectating."
   random-arena: "Random arena"

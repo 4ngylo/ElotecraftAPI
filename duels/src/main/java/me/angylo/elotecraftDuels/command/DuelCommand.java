@@ -17,9 +17,11 @@ import me.angylo.elotecraftDuels.menu.ArenaMenu;
 import me.angylo.elotecraftDuels.menu.CosmeticsMenu;
 import me.angylo.elotecraftDuels.menu.FightInventoryMenu;
 import me.angylo.elotecraftDuels.menu.HistoryMenu;
+import me.angylo.elotecraftDuels.menu.HubMenu;
 import me.angylo.elotecraftDuels.menu.KitMenu;
 import me.angylo.elotecraftDuels.menu.OptionsMenu;
 import me.angylo.elotecraftDuels.menu.CustomKitMenu;
+import me.angylo.elotecraftDuels.menu.RatingsMenu;
 import me.angylo.elotecraftDuels.menu.SpectateMenu;
 import me.angylo.elotecraftDuels.stats.Divisions;
 import me.angylo.elotecraftDuels.stats.KitRating;
@@ -63,11 +65,13 @@ public final class DuelCommand {
     private final CosmeticsMenu cosmeticsMenu;
     private final SpectateMenu spectateMenu;
     private final CustomKitMenu customKitMenu;
+    private final HubMenu hubMenu;
+    private final RatingsMenu ratingsMenu;
     private final Cooldowns<String> lookups = new Cooldowns<>();
 
     public DuelCommand(Duels duels, KitMenu kitMenu, ArenaMenu arenaMenu, FightInventoryMenu inventoryMenu, HistoryMenu historyMenu,
                        OptionsMenu optionsMenu, CosmeticsMenu cosmeticsMenu, SpectateMenu spectateMenu,
-                       CustomKitMenu customKitMenu) {
+                       CustomKitMenu customKitMenu, HubMenu hubMenu, RatingsMenu ratingsMenu) {
         this.duels = duels;
         this.messages = duels.messages();
         this.kitMenu = kitMenu;
@@ -78,6 +82,8 @@ public final class DuelCommand {
         this.cosmeticsMenu = cosmeticsMenu;
         this.spectateMenu = spectateMenu;
         this.customKitMenu = customKitMenu;
+        this.hubMenu = hubMenu;
+        this.ratingsMenu = ratingsMenu;
     }
 
     /** Registers {@code /duel} and returns it, so it can stay allowed during duels. */
@@ -86,7 +92,10 @@ public final class DuelCommand {
                 .description(Text.plain(messages.get("command.duel-description")))
                 .messages(sender -> messages.get(sender, "command.no-permission"),
                         sender -> messages.get(sender, "command.player-only"))
-                .executes(this::challengeOrHelp, this::suggestChallenge)
+                .executes(this::challengeOrHub, this::suggestChallenge)
+                .sub("help", null, (sender, args) -> messages.send(sender, "command.help"))
+                .playerSub("menu", null, (player, args) -> openHub(player, args.length == 0 ? HubMenu.MAIN : args[0]),
+                        (sender, args) -> args.length == 1 ? Args.filter(hubMenu.names(), args) : List.of())
                 .playerSub("accept", DUEL, (player, args) -> duels.requests().accept(player, Args.get(args, 0)), this::suggestSenders)
                 .playerSub("deny", DUEL, (player, args) -> duels.requests().deny(player, Args.get(args, 0)), this::suggestSenders)
                 .playerSub("cancel", DUEL, (player, args) -> duels.requests().cancel(player, Args.get(args, 0)),
@@ -110,6 +119,7 @@ public final class DuelCommand {
                 .playerSub("spectate", "duels.spectate", this::spectate, (sender, args) -> Args.players(args))
                 .sub("stats", "duels.stats", (sender, args) -> limited(sender, () -> stats(sender, args)),
                         (sender, args) -> Args.players(args))
+                .playerSub("ratings", "duels.stats", (player, args) -> ratingsMenu.open(player))
                 .playerSub("history", "duels.history", (player, args) -> limited(player, () -> history(player, args)),
                         (sender, args) -> Args.players(args))
                 // Clicked in the result message; no suggestions, as the ids are not meant to be typed.
@@ -120,10 +130,13 @@ public final class DuelCommand {
                 .register(duels.plugin());
     }
 
-    /** {@code /duel cosmetics [kill-effect|kill-message]}: kill effects by default. */
+    /** {@code /duel cosmetics [kill-effect|kill-message]}: the hub's cosmetics menu without a kind. */
     private void cosmetics(Player player, String[] args) {
-        Optional<Cosmetics.Kind> kind = args.length == 0 ? Optional.of(Cosmetics.Kind.KILL_EFFECT)
-                : Arrays.stream(Cosmetics.Kind.values()).filter(found -> found.key().equalsIgnoreCase(args[0])).findFirst();
+        if (args.length == 0) {
+            hubMenu.open(player, "cosmetics");
+            return;
+        }
+        Optional<Cosmetics.Kind> kind = Arrays.stream(Cosmetics.Kind.values()).filter(found -> found.key().equalsIgnoreCase(args[0])).findFirst();
         kind.ifPresentOrElse(found -> cosmeticsMenu.open(player, found), () -> messages.send(player, "cosmetics.usage"));
     }
 
@@ -137,9 +150,23 @@ public final class DuelCommand {
         action.run();
     }
 
-    private void challengeOrHelp(CommandSender sender, String[] args) {
+    /** Opens a hub menu; players in a match or the kit editor, who may not open menus, get the help instead. */
+    private void openHub(Player player, String name) {
+        if (duels.matches().isRestricted(player)) {
+            messages.send(player, "command.help");
+        } else {
+            hubMenu.open(player, name);
+        }
+    }
+
+    /** {@code /duel <player> ...} challenges; {@code /duel} alone opens the hub, or shows the help to the console. */
+    private void challengeOrHub(CommandSender sender, String[] args) {
         if (args.length == 0) {
-            messages.send(sender, "command.help");
+            if (sender instanceof Player player) {
+                openHub(player, HubMenu.MAIN);
+            } else {
+                messages.send(sender, "command.help");
+            }
             return;
         }
         if (!(sender instanceof Player player)) {

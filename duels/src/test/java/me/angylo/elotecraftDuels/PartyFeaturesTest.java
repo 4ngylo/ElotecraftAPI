@@ -1,13 +1,11 @@
 package me.angylo.elotecraftDuels;
 
 import io.papermc.paper.event.player.AsyncChatEvent;
-import me.angylo.elotecraftAPI.menu.Menu;
 import me.angylo.elotecraftAPI.util.Text;
 import me.angylo.elotecraftDuels.party.Party;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
-import org.bukkit.event.inventory.ClickType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -22,9 +20,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /** Public parties, party chat and the party menus. */
 class PartyFeaturesTest extends DuelsTestBase {
 
-    /** Bottom-row slots of the default menus.yml {@code party} (4 rows): public is slot 2. */
-    private static final int PUBLIC_BUTTON = 27 + 2;
-
     private TestPlayer alex;
     private TestPlayer steve;
     private TestPlayer cid;
@@ -38,12 +33,6 @@ class PartyFeaturesTest extends DuelsTestBase {
 
     private Party party(TestPlayer member) {
         return duels.parties().partyOf(member.getUniqueId()).orElseThrow();
-    }
-
-    private void click(TestPlayer player, int slot, ClickType type) {
-        ((Menu) player.getOpenInventory().getTopInventory().getHolder()).button(slot).orElseThrow()
-                .onClick().accept(player, type);
-        tick();
     }
 
     private static boolean said(List<String> lines, String text) {
@@ -140,14 +129,32 @@ class PartyFeaturesTest extends DuelsTestBase {
 
         alex.performCommand("party");
         tick();
-        click(alex, PUBLIC_BUTTON, ClickType.LEFT);
+        clickNamed(alex, "Settings");
+        assertEquals("Party › Settings", menuTitle(alex));
+        clickNamed(alex, "Private party");
         assertTrue(party(alex).isOpen());
 
         alex.performCommand("party");
         tick();
-        // Members in the order they joined: Alex, then Steve.
-        click(alex, 1, ClickType.LEFT);
+        clickNamed(alex, "Steve");
+        assertEquals("Party › Steve", menuTitle(alex));
+        clickNamed(alex, "Make leader");
         assertTrue(party(alex).isLeader(steve.getUniqueId()));
+    }
+
+    @Test
+    void kickingAMemberAsksToConfirm() {
+        alex.performCommand("party invite Steve");
+        steve.performCommand("party accept");
+        alex.performCommand("party");
+        tick();
+        clickNamed(alex, "Steve");
+
+        clickNamed(alex, "Kick Steve");
+        assertEquals("Are you sure?", menuTitle(alex));
+        clickNamed(alex, "Confirm");
+
+        assertEquals(1, party(alex).size());
     }
 
     @Test
@@ -157,7 +164,7 @@ class PartyFeaturesTest extends DuelsTestBase {
 
         steve.performCommand("party");
         tick();
-        click(steve, 0, ClickType.LEFT);
+        clickNamed(steve, "Alex's party");
 
         assertEquals(party(alex), party(steve));
     }

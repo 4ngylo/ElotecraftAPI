@@ -48,8 +48,8 @@ public final class HistoryMenu {
             PaginatedMenu menu = MenuLayout.frame(plugin, section, Placeholder.unparsed("player", player));
             long now = System.currentTimeMillis();
             menu.items(entries.stream().map(entry -> Button.display(icon(section, entry, now))).toList());
-            MenuLayout.place(menu, section, "close", MenuLayout.choose(plugin, settings.get().effects(), closer -> { }));
-            MenuLayout.fill(menu, section);
+            MenuLayout.place(menu, section, "back", MenuLayout.command(plugin, settings.get().effects(), section, "back"));
+            MenuLayout.place(menu, section, "close", MenuLayout.close(plugin, settings.get().effects()));
             menu.open(viewer);
         } catch (IllegalArgumentException e) {
             MenuLayout.menuError(plugin, messages, viewer, "history", e);

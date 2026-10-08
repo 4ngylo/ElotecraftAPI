@@ -1,11 +1,11 @@
 package me.angylo.elotecraftDuels.menu;
 
 import me.angylo.elotecraftAPI.menu.Menu;
-import me.angylo.elotecraftAPI.menu.MenuConfig;
 import me.angylo.elotecraftAPI.util.ConfigFile;
 import me.angylo.elotecraftAPI.util.Durations;
 import me.angylo.elotecraftAPI.util.Messages;
 import me.angylo.elotecraftAPI.util.Text;
+import me.angylo.elotecraftDuels.Settings;
 import me.angylo.elotecraftDuels.match.FighterResult;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.JoinConfiguration;
@@ -20,6 +20,7 @@ import org.bukkit.potion.PotionEffect;
 import java.time.Duration;
 import java.util.List;
 import java.util.Locale;
+import java.util.function.Supplier;
 
 /**
  * {@code /duel inventory}: a fighter's items as the fight left them, laid out like the kit preview, with
@@ -28,18 +29,19 @@ import java.util.Locale;
 public final class FightInventoryMenu {
 
     private static final int ROWS = 6;
-    private static final int BOTTOM_ROW = (ROWS - 1) * 9;
     private static final List<String> INFO_BUTTONS = List.of("health", "food", "effects", "hits", "potions");
     private static final int TICKS_PER_SECOND = 20;
 
     private final Plugin plugin;
     private final Messages messages;
     private final ConfigFile menus;
+    private final Supplier<Settings> settings;
 
-    public FightInventoryMenu(Plugin plugin, Messages messages, ConfigFile menus) {
+    public FightInventoryMenu(Plugin plugin, Messages messages, ConfigFile menus, Supplier<Settings> settings) {
         this.plugin = plugin;
         this.messages = messages;
         this.menus = menus;
+        this.settings = settings;
     }
 
     public void open(Player viewer, FighterResult fighter) {
@@ -58,18 +60,9 @@ public final class FightInventoryMenu {
                 }
             }
             for (String key : INFO_BUTTONS) {
-                ConfigurationSection button = section.getConfigurationSection(key);
-                if (button != null) {
-                    int slot = button.getInt("slot", -1);
-                    if (slot < 0 || slot > 8) {
-                        throw new IllegalArgumentException(button.getCurrentPath() + ".slot must be 0 to 8");
-                    }
-                    menu.set(BOTTOM_ROW + slot, MenuConfig.item(button, tags));
-                }
+                MenuLayout.bottom(menu, section, key, (player, click) -> { }, tags);
             }
-            if (section.isConfigurationSection("filler")) {
-                menu.fill(MenuConfig.item(section.getConfigurationSection("filler")));
-            }
+            MenuLayout.bottom(menu, section, "close", MenuLayout.close(plugin, settings.get().effects()));
             menu.open(viewer);
         } catch (IllegalArgumentException e) {
             MenuLayout.menuError(plugin, messages, viewer, "fight-inventory", e);

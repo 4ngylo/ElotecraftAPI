@@ -16,7 +16,8 @@ are put back after build duels, even after a crash.
    rewards, and [PlaceholderAPI](https://www.spigotmc.org/resources/placeholderapi.6245/) for placeholders.
 3. Start the server once; `plugins/ElotecraftDuels/` gets `config.yml`, `messages.yml` and `menus.yml`.
    After an update, settings, messages and menu buttons new in that version are added to these files with
-   their comments; your values stay, and the file as it was is kept once as `<file>.bak`.
+   their comments; your values stay, and the file as it was is kept once as `<file>.bak`. A `menus.yml`
+   from before the centered menus (no `version: 2`) is moved to `menus.v1.yml` and the new one written.
 
 Statistics go to `duels.db` (SQLite) by default. For MySQL or MariaDB, set `database.type: mysql` and the
 connection keys in `config.yml`, then restart.
@@ -37,9 +38,9 @@ Arenas and kits are made in game with `/duels` (operators by default).
 5. `/duels arena info desert` says `ready`, or what is missing.
 
 **Or use the menus:** `/duels arena` lists the arenas (copies are counted on their arena) with buttons for a new arena and a schematic import, and `/duels arena desert` opens one arena's
-settings: status, enabled, spawns, corners, WorldEdit box, spectator, center, FFA spawns, icon, name,
-categories, build limit, teleport, snapshot, copies, reset and delete (reset, delete and clearing
-copies or FFA spawns need shift + right-click). Point buttons use the place you stand when you click; names and numbers are typed in chat. `/duels arena help` lists the commands.
+settings: status, enabled, icon, name, categories, build limit, teleport and delete, with submenus for its
+points (spawns, spectator, center, corners, WorldEdit box, FFA spawns), its bridge goals and beds, and its
+snapshot, reset and copies. Delete, reset and clearing copies or FFA spawns ask to confirm. Point buttons use the place you stand when you click; names and numbers are typed in chat. `/duels arena help` lists the commands.
 
 A fighter who falls out of the bottom of the box loses, as in the void (`rules.void-eliminates`); leaving
 it any other way sends them back to their spawn.
@@ -58,9 +59,10 @@ Teammates can't hurt each other unless `parties.friendly-fire` is on. A party FF
 the arena's extra spawns (`/duels arena addspawn`, one per player) when there are enough; otherwise they are
 spread from spawn 1 to spawn 2, or put on spawn 1 and 2 in turn where there is no floor.
 
-**The party menu.** `/party` opens it: in a party, a head per member (the leader makes someone leader with a
-left-click and kicks with shift + right-click) and buttons to invite (a name typed in chat), go public, start a
-split or FFA, challenge another party, leave and disband (shift + right-click). Without a party it lists the
+**The party menu.** `/party` opens it: in a party, a head per member (the leader clicks one to make them
+leader or kick them, which asks to confirm), a button to invite (a name typed in chat), and two submenus:
+fights (split, FFA, challenge another party) and settings (public or private, leave, disband, which asks to
+confirm). Without a party it lists the
 public parties, a click joining one, and has a button to make a party. A public party (`/party public`) takes
 anyone with `/party join <leader>`; going public is announced to players not in a party who take party
 invites, with a click to join.
@@ -107,12 +109,10 @@ or graves plugin, exclude the arena regions; duels never fire death events, but 
 3. Optional: `/duels kit setname archer <green>Archer`, `/duels kit setpermission archer duels.kit.archer`.
 
 **Or use the menus:** `/duels kit` lists every kit (with buttons for a new kit and the default kits),
-and `/duels kit <kit>` opens one kit's settings: building, damage, icon, name, permission, arena
-categories, save or load its items, delete (shift + right-click) and every game rule (left-click
-switches, right-click resets). Names and values are typed in chat. Each button runs the matching
-command, so the same permission and checks apply. `/duels kit help` lists the commands.
-The settings menu has 5 rows, so every rule fits on one page; a menus.yml from an older version keeps
-`kit-settings.rows: 4` (two pages) until you change it.
+and `/duels kit <kit>` opens one kit's settings: icon, name, permission, arena categories, mode,
+building, damage, save or load its items, delete (asks to confirm), and a game rules submenu with every
+rule (left-click switches, right-click resets). Names and values are typed in chat. Each button runs the
+matching command, so the same permission and checks apply. `/duels kit help` lists the commands.
 
 Kits are stored in `kits.yml` with Paper's item format, so they survive server updates.
 
@@ -273,6 +273,10 @@ with their arena and limited to 256 x 256 blocks across.
 
 | Command | Permission | |
 |---|---|---|
+| `/duel` | | The duels menu: play (queues, events, spectating), profile, party, kits, cosmetics and options; the help for the console |
+| `/duel menu [name]` | | A menu of menus.yml `hub`, e.g. `play` or `profile`; add your own there |
+| `/duel help` | | The command list |
+| `/duel ratings` | `duels.stats` | Your rating, peak, division and ranked record in each kit |
 | `/duel <player> [kit] [arena]` | `duels.duel` | Challenge; without a kit the kit menu opens, then the arena menu |
 | `/duel <player> <kit> [arena] bet <amount>` | `duels.bet` | Challenge for money: each player stakes `<amount>`, the winner takes both ([bets](#bets)) |
 | `/duel accept [player]`, `/duel deny [player]` | `duels.duel` | Answer a challenge (clickable in chat too) |
@@ -349,13 +353,14 @@ cut short by a crash is undone when the player next joins.
   Invalid values are logged and replaced by defaults.
 - `messages.yml`: every text players see, in [MiniMessage](https://docs.advntr.dev/minimessage/format.html).
   Add `messages_<language>.yml` (e.g. `messages_es.yml`) for players whose client uses that language.
-- `menus.yml`: titles, sizes, filler and button items of the kit, arena, team, event and admin menus.
-  Right-clicking a kit in the kits menu shows its items (`kit-preview`). Lore lines are only added to
-  new files, so on an existing server add the "Right-click to preview" line to the `kits` lore yourself.
-  `/duel ranked` and `/duel queue` have their own menus, `ranked-queue` and `unranked-queue`. They say which
-  queue a click joins, show the player's rating and division per kit in the ranked one, and have a button
-  to switch between them. `kits` is for challenges and the kit editor only, so `kits.queue-lore` and
-  `kits.queued-lore` in an older file are no longer used; copy any custom lore into the new sections.
+- `menus.yml`: titles, sizes and button items of every menu. List menus (kits, arenas, history...)
+  center their entries below an empty top row, between empty side columns, with no filler; their
+  bottom row has the page arrows, back (where there is a menu to go back to) and close. Each title is a
+  breadcrumb (`Play › Ranked`). The `hub` menus (`/duel`, `/duel menu <name>`) are buttons that run a
+  command, optionally behind a permission, so you can add buttons or whole menus there; their texts may
+  use the player's stats and the queue, fight and event counts. Changes that are hard to undo open the
+  `confirm` menu. Right-clicking a kit in a kit menu shows its items (`kit-preview`). `/duel ranked` and
+  `/duel queue` have their own menus, `ranked-queue` and `unranked-queue`, with a button to switch between them.
 
 Rewards are paid when a duel ends with a lethal hit (not for forfeits, quits, draws or cancelled duels, so
 accounts cannot farm them): money through Vault and console commands with `<winner>`, `<loser>`, `<kit>`
@@ -441,7 +446,8 @@ sidebar another plugin shows through ElotecraftAPI is never replaced.
 
 ## Cosmetics
 
-Players pick one kill effect and one kill message in `/duel cosmetics` (click again to drop it). When they
+Players pick one kill effect and one kill message in `/duel cosmetics` (a menu with one button for each, or
+`/duel cosmetics kill-effect|kill-message`; click again to drop it). When they
 knock out an opponent they hit last, with a lethal hit or into the void, in any fight, the kill effect plays
 where the opponent fell and everyone in the fight reads the kill message (in place of "is out"). Quits,
 forfeits and falls nobody caused have no killer.
@@ -468,7 +474,7 @@ again. No hologram plugin is needed.
 
 Players host events with `/event host [kit]`. The event is announced to everyone with a clickable
 [JOIN] (again every `events.announce-interval`) and listed in `/event`. While players gather, the host
-sets it up in the Event Settings menu (`/event settings`):
+sets it up in the event settings menu (`/event settings`):
 
 - **Kit** and **arena** (random by default; choosing one needs `duels.select-arena`).
 - **Rules**: the kit's game rules for this event only (potions, hunger, fall damage...); the kit
@@ -481,10 +487,11 @@ sets it up in the Event Settings menu (`/event settings`):
 - **Border**: closes in on the fighters (`events.border`): it starts around the arena, waits `delay`
   into the fight, then shrinks to `min-size` blocks across over `shrink-time`; fighters outside lose
   `damage` health a second. Each fighter is shown their own border, so the world border is untouched.
-- **Public**: off makes it private, for players invited with `/event invite` only (not announced or listed).
-- **Spectators**: off stops anyone but staff from watching it.
+- **Players and spectators** (a submenu): **Public** off makes it private, for players invited with `/event
+  invite` (or the Invite button) only, not announced or listed; **Spectators** off stops anyone but staff from
+  watching it.
 
-It starts when the host clicks Start (`/event start`), at once when `events.max-players` have joined, or
+Cancelling it from the menu asks to confirm. It starts when the host clicks Start (`/event start`), at once when `events.max-players` have joined, or
 when `events.wait-time` runs out; with fewer than `events.min-players` then, or no free arena, it is
 cancelled. The host leaving or quitting cancels it too. Joined players can do anything in the lobby, but
 cannot queue, duel or spectate until it starts or they `/event leave`.
@@ -563,8 +570,10 @@ The automated tests run on MockBukkit, which cannot click menus. Before a releas
   with a click below, [SAVE]; `/duel <player> custom:1` gives both fighters those items; `... bet 100` is refused
 - [ ] Kit rules on a real client: `hit-delay false` combos, `pearl-cooldown 15` shows the cooldown on the
   pearl, `natural-regeneration false` stops healing on a full hunger bar, `crafting false` blocks the 2x2 grid
-- [ ] `/duels arena` and `/duels kit` menus: every button, chat prompts for names and numbers,
-  shift + right-click on delete and reset
+- [ ] `/duel`: every hub button and back button, the profile head and stats, `/duel ratings`; menus look centered
+  with no filler on a real client
+- [ ] `/duels arena` and `/duels kit` menus and their submenus: every button, chat prompts for names and numbers,
+  the confirm menu on delete, reset and clearing
 - [ ] Sidebar: the duel layout during a fight (time counts down, opponent health), the team layout in a
   party fight, the spectator one; with `sidebar.lobby: true` the stats come back after the fight and
   `/duels reload` with it off removes them
@@ -588,7 +597,7 @@ The automated tests run on MockBukkit, which cannot click menus. Before a releas
 - [ ] Ranked: `/duel stats` shows the peak; with `ranked.daily-limit: 1` a second ranked queue is refused and an unranked
   one is not; `/duels season end` warns, `confirm` archives and resets, a division's `season-reward` command runs and
   `/duel top season 1` shows the old ratings; the same with MySQL
-- [ ] Events: `/event host`, [JOIN] in chat and the `/event` list, every Event Settings button, Start in
+- [ ] Events: `/event host`, [JOIN] in chat and the `/event` list, every event settings and access button, Start in
   team mode opens the team menu, a free for all with 2 winners, a private event refusing an uninvited
   player, spectators refused when off, the border closing in and hurting fighters outside it, potions
   blocked by an event rule, the reward command once per winner, the host quitting cancels

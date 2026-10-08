@@ -21,7 +21,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
-import java.util.logging.Level;
 
 /** Picks an arena or "random" for a challenge. Layout in menus.yml {@code arenas}. */
 public final class ArenaMenu {
@@ -69,12 +68,10 @@ public final class ArenaMenu {
                         } : MenuLayout.choose(plugin, effects, player -> onChoose.accept(Optional.of(arena))));
             }).toList());
             MenuLayout.place(menu, section, "random", MenuLayout.choose(plugin, effects, player -> onChoose.accept(Optional.empty())));
-            MenuLayout.place(menu, section, "close", MenuLayout.choose(plugin, effects, player -> { }));
-            MenuLayout.fill(menu, section);
+            MenuLayout.place(menu, section, "close", MenuLayout.close(plugin, effects));
             menu.open(viewer);
         } catch (IllegalArgumentException e) {
-            plugin.getLogger().log(Level.WARNING, "Invalid arenas menu in menus.yml: " + e.getMessage());
-            messages.send(viewer, "general.menu-error");
+            MenuLayout.menuError(plugin, messages, viewer, "arenas", e);
         }
     }
 }

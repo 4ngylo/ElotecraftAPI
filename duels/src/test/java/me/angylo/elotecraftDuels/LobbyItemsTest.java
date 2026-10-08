@@ -82,7 +82,7 @@ class LobbyItemsTest extends DuelsTestBase {
     void rightClickRunsTheItemsCommand() {
         assertTrue(rightClick(0).isCancelled());
 
-        assertEquals("⚔ Unranked queue", Text.plain(alex.getOpenInventory().title()));
+        assertEquals("Play › Unranked", Text.plain(alex.getOpenInventory().title()));
     }
 
     @Test

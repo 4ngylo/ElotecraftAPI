@@ -1,7 +1,6 @@
 package me.angylo.elotecraftDuels;
 
 import me.angylo.elotecraftAPI.input.InputListener;
-import me.angylo.elotecraftAPI.menu.Menu;
 import me.angylo.elotecraftAPI.util.Text;
 import me.angylo.elotecraftDuels.kit.Kit;
 import me.angylo.elotecraftDuels.kit.KitRule;
@@ -12,8 +11,10 @@ import org.bukkit.inventory.ItemStack;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.OptionalInt;
+import java.util.stream.IntStream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -22,14 +23,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /** The {@code /duels kit} menus. Clicks call the buttons directly: MockBukkit cannot route them through MenuListener. */
 class KitAdminMenuTest extends DuelsTestBase {
 
-    private static final int BUILD = 0;
-    private static final int DAMAGE = 1;
-    private static final int DELETE = 8;
-    private static final int MODE = 9;
-    /** The first rule button. */
-    private static final int RULES = 10;
-    private static final int HUNGER = RULES + KitRule.HUNGER.ordinal();
-    private static final int PEARL_COOLDOWN = RULES + KitRule.PEARL_COOLDOWN.ordinal();
+    /** The only kit in a centered list sits in the middle of the first row. */
+    private static final int FIRST_ENTRY = 13;
 
     private TestPlayer admin;
 
@@ -45,17 +40,12 @@ class KitAdminMenuTest extends DuelsTestBase {
         return admin.getOpenInventory().getTopInventory();
     }
 
-    private String title() {
-        return Text.plain(admin.getOpenInventory().title());
+    private void click(String name, ClickType type) {
+        clickNamed(admin, name, type);
     }
 
-    private void click(int slot, ClickType type) {
-        ((Menu) top().getHolder()).button(slot).orElseThrow().onClick().accept(admin, type);
-        tick();
-    }
-
-    private List<String> lore(int slot) {
-        return top().getItem(slot).getItemMeta().lore().stream().map(Text::plain).toList();
+    private boolean loreHas(String button, String line) {
+        return loreAt(admin, slotNamed(admin, button)).contains(line);
     }
 
     private Kit sword() {
@@ -66,88 +56,98 @@ class KitAdminMenuTest extends DuelsTestBase {
     void listShowsEveryKitAndOpensItsSettings() {
         server.dispatchCommand(admin, "duels kit");
 
-        assertEquals("⚙ Kits", title());
-        assertEquals(Material.DIAMOND_SWORD, top().getItem(0).getType());
-        assertTrue(lore(0).contains("▪ Permission: everyone"));
-        assertTrue(lore(0).contains("▪ Items: 1"));
+        assertEquals("⚙ Kits", menuTitle(admin));
+        assertEquals(Material.DIAMOND_SWORD, top().getItem(FIRST_ENTRY).getType());
+        assertTrue(loreAt(admin, FIRST_ENTRY).contains("▪ Permission: everyone"));
+        assertTrue(loreAt(admin, FIRST_ENTRY).contains("▪ Items: 1"));
 
-        click(0, ClickType.LEFT);
+        clickSlot(admin, FIRST_ENTRY, ClickType.LEFT);
 
-        assertEquals("⚙ Sword", title());
+        assertEquals("Kits › Sword", menuTitle(admin));
     }
 
     @Test
     void everyRuleFitsOnTheFirstPage() {
         server.dispatchCommand(admin, "duels kit sword");
+        click("Game rules", ClickType.LEFT);
 
-        KitRule last = KitRule.values()[KitRule.values().length - 1];
-        assertEquals(last.key(), Text.plain(top().getItem(RULES + last.ordinal()).getItemMeta().displayName()));
+        assertEquals("Sword › Rules", menuTitle(admin));
+        List<String> names = IntStream.range(0, top().getSize()).mapToObj(top()::getItem)
+                .filter(item -> item != null && item.getType() != Material.ARROW && item.getType() != Material.BARRIER)
+                .map(item -> Text.plain(item.getItemMeta().displayName())).toList();
+        assertEquals(Arrays.stream(KitRule.values()).map(KitRule::key).toList(), names);
     }
 
     @Test
     void togglesRedrawInPlace() {
         server.dispatchCommand(admin, "duels kit sword");
-        assertTrue(lore(BUILD).contains("Fighters may place blocks: Off"));
+        assertTrue(loreHas("Building", "Fighters may place blocks: Off"));
 
-        click(BUILD, ClickType.LEFT);
-        click(DAMAGE, ClickType.LEFT);
+        click("Building", ClickType.LEFT);
+        click("Damage", ClickType.LEFT);
 
         assertTrue(sword().build());
         assertFalse(sword().damage());
-        assertTrue(lore(BUILD).contains("Fighters may place blocks: On"));
+        assertTrue(loreHas("Building", "Fighters may place blocks: On"));
     }
 
     @Test
     void theModeButtonCyclesTheModeAndMakesItABuildKit() {
         server.dispatchCommand(admin, "duels kit sword");
 
-        click(MODE, ClickType.LEFT);
+        click("Mode", ClickType.LEFT);
 
         assertEquals(Kit.Mode.BRIDGE, sword().mode());
         assertTrue(sword().build());
-        assertTrue(lore(MODE).contains("Now: bridge"));
+        assertTrue(loreHas("Mode", "Now: bridge"));
     }
 
     @Test
     void flagRulesFlipAndReset() {
         server.dispatchCommand(admin, "duels kit sword");
+        click("Game rules", ClickType.LEFT);
         boolean hunger = sword().flag(KitRule.HUNGER, duels.settings());
 
-        click(HUNGER, ClickType.LEFT);
+        click(KitRule.HUNGER.key(), ClickType.LEFT);
 
         assertEquals(!hunger, sword().rules().get(KitRule.HUNGER));
-        assertTrue(lore(HUNGER).contains("▪ set for this kit"));
+        assertTrue(loreHas(KitRule.HUNGER.key(), "▪ set for this kit"));
 
-        click(HUNGER, ClickType.RIGHT);
+        click(KitRule.HUNGER.key(), ClickType.RIGHT);
 
         assertFalse(sword().rules().containsKey(KitRule.HUNGER));
     }
 
     @Test
-    void secondsAreTypedInChat() {
+    void secondsAreTypedInChatAndTheRulesMenuComesBack() {
         server.dispatchCommand(admin, "duels kit sword");
+        click("Game rules", ClickType.LEFT);
         messages(admin);
 
-        click(PEARL_COOLDOWN, ClickType.LEFT);
+        click(KitRule.PEARL_COOLDOWN.key(), ClickType.LEFT);
 
         assertTrue(messages(admin).stream().anyMatch(line -> line.contains("Type pearl-cooldown for Sword in seconds")));
         admin.chat("15");
         tickUntil(() -> sword().number(KitRule.PEARL_COOLDOWN).equals(OptionalInt.of(15)));
         tick();
-        assertEquals("⚙ Sword", title());
+        assertEquals("Sword › Rules", menuTitle(admin));
     }
 
     @Test
-    void deleteNeedsShiftRightClick() {
+    void deleteAsksToConfirm() {
         server.dispatchCommand(admin, "duels kit sword");
 
-        click(DELETE, ClickType.LEFT);
+        click("Delete Sword", ClickType.LEFT);
+        assertEquals("Are you sure?", menuTitle(admin));
+        click("Cancel", ClickType.LEFT);
         assertTrue(duels.kits().get("sword").isPresent());
+        assertEquals("Kits › Sword", menuTitle(admin));
 
-        click(DELETE, ClickType.SHIFT_RIGHT);
+        click("Delete Sword", ClickType.LEFT);
+        click("Confirm", ClickType.LEFT);
 
         assertTrue(duels.kits().get("sword").isEmpty());
-        assertEquals("⚙ Kits", title());
+        assertEquals("⚙ Kits", menuTitle(admin));
     }
 
     @Test
@@ -155,7 +155,7 @@ class KitAdminMenuTest extends DuelsTestBase {
         server.dispatchCommand(admin, "duels kit sword");
         admin.getInventory().addItem(ItemStack.of(Material.BOW));
 
-        click(6, ClickType.LEFT);
+        click("Save items", ClickType.LEFT);
 
         assertTrue(sword().items().stream().anyMatch(item -> item.getType() == Material.BOW));
     }

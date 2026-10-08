@@ -39,12 +39,14 @@ import me.angylo.elotecraftDuels.menu.ArenaMenu;
 import me.angylo.elotecraftDuels.menu.CosmeticsMenu;
 import me.angylo.elotecraftDuels.menu.FightInventoryMenu;
 import me.angylo.elotecraftDuels.menu.HistoryMenu;
+import me.angylo.elotecraftDuels.menu.HubMenu;
 import me.angylo.elotecraftDuels.menu.ArenaAdminMenu;
 import me.angylo.elotecraftDuels.menu.EventMenu;
 import me.angylo.elotecraftDuels.menu.KitAdminMenu;
 import me.angylo.elotecraftDuels.menu.KitMenu;
 import me.angylo.elotecraftDuels.menu.OptionsMenu;
 import me.angylo.elotecraftDuels.menu.PartyMenu;
+import me.angylo.elotecraftDuels.menu.RatingsMenu;
 import me.angylo.elotecraftDuels.menu.CustomKitMenu;
 import me.angylo.elotecraftDuels.menu.SpectateMenu;
 import me.angylo.elotecraftDuels.menu.TeamMenu;
@@ -57,6 +59,8 @@ import me.angylo.elotecraftDuels.stats.StatsService;
 import org.bukkit.Bukkit;
 import org.bukkit.World;
 import org.bukkit.command.Command;
+import org.bukkit.configuration.InvalidConfigurationException;
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.event.Listener;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.scheduler.BukkitTask;
@@ -64,6 +68,7 @@ import org.bukkit.scheduler.BukkitTask;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.List;
 import java.util.logging.Level;
 import java.util.concurrent.CompletableFuture;
@@ -77,6 +82,9 @@ public final class Duels {
     private static final long SECOND_TICKS = 20;
     private static final String SCHEMATICS = "schematics";
     private static final int SECONDS_PER_RETRY = 60;
+    private static final String MENUS = "menus.yml";
+    /** The menus.yml version of the centered layout; older files are replaced. */
+    private static final int MENUS_VERSION = 2;
 
     private final Plugin plugin;
     private final ConfigFile config;
@@ -119,7 +127,8 @@ public final class Duels {
         this.config = config;
         this.database = database;
         this.settings = Settings.load(config.get(), plugin.getLogger());
-        this.menus = new ConfigFile(plugin, "menus.yml");
+        replaceOldMenus(plugin);
+        this.menus = new ConfigFile(plugin, MENUS);
         this.messages = new Messages(plugin);
         this.arenas = new ArenaRegistry(plugin);
         this.kits = new KitRegistry(plugin);
@@ -150,12 +159,13 @@ public final class Duels {
         TeamMenu teamMenu = new TeamMenu(plugin, messages, menus, this::settings);
         this.partyFights = new PartyFights(messages, this::settings, kits, arenas, matches, queues, parties, teamMenu);
         SpectateMenu spectateMenu = new SpectateMenu(plugin, messages, menus, this::settings, matches);
+        HubMenu hubMenu = new HubMenu(plugin, messages, menus, this::settings, kits, stats, queues, matches, events);
         CustomKitMenu customKitMenu = new CustomKitMenu(plugin, messages, menus, this::settings, customKits, editor);
-        Command duel = new DuelCommand(this, kitMenu, arenaMenu, new FightInventoryMenu(plugin, messages, menus),
+        Command duel = new DuelCommand(this, kitMenu, arenaMenu, new FightInventoryMenu(plugin, messages, menus, this::settings),
                 new HistoryMenu(plugin, messages, menus, this::settings, kits),
                 new OptionsMenu(plugin, messages, menus, this::settings),
                 new CosmeticsMenu(plugin, messages, menus, this::settings),
-                spectateMenu, customKitMenu).register();
+                spectateMenu, customKitMenu, hubMenu, new RatingsMenu(plugin, messages, menus, this::settings, kits, stats)).register();
         new AdminCommand(this, new ArenaAdminMenu(plugin, messages, menus, this::settings, arenas, pool),
                 new KitAdminMenu(plugin, messages, menus, this::settings, kits)).register();
         new PartyCommand(this, kitMenu, new PartyMenu(plugin, messages, menus, this::settings, parties)).register();
@@ -359,6 +369,28 @@ public final class Duels {
                 .filter(id -> !messages.has("kill-messages." + id))
                 .forEach(id -> plugin.getLogger().warning("config.yml cosmetics.kill-messages." + id
                         + " has no text in messages.yml kill-messages." + id + "; it is not offered"));
+    }
+
+    /**
+     * Moves a menus.yml from before {@link #MENUS_VERSION} to menus.v1.yml, so the new one is written: its layouts would
+     * not fit the centered menus, and keys are only ever added to a file. A file that does not load is left alone.
+     */
+    private static void replaceOldMenus(Plugin plugin) {
+        Path file = plugin.getDataFolder().toPath().resolve(MENUS);
+        if (Files.notExists(file)) {
+            return;
+        }
+        try {
+            YamlConfiguration old = new YamlConfiguration();
+            old.load(file.toFile());
+            if (old.getInt("version") >= MENUS_VERSION) {
+                return;
+            }
+            Files.move(file, file.resolveSibling("menus.v1.yml"), StandardCopyOption.REPLACE_EXISTING);
+            plugin.getLogger().warning(MENUS + " is from an older version: moved it to menus.v1.yml and wrote the new menus");
+        } catch (IOException | InvalidConfigurationException e) {
+            plugin.getLogger().log(Level.WARNING, "Could not check the version of " + MENUS + "; its menus may look wrong", e);
+        }
     }
 
     /** Made at start, so admins have somewhere to put schematics for {@code /duels arena import}. */

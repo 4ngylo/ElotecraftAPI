@@ -65,8 +65,8 @@ public final class SpectateMenu {
             menu.items(fights.stream().map(match -> Button.of(MenuLayout.icon(match.kit().icon(), section.getConfigurationSection("fight"),
                     "lore", false, tags(section, match)), MenuLayout.choose(plugin, effects,
                     player -> player.performCommand("duel spectate " + match.fighters().getFirst().getName())))).toList());
-            MenuLayout.place(menu, section, "close", MenuLayout.choose(plugin, effects, player -> { }));
-            MenuLayout.fill(menu, section);
+            MenuLayout.place(menu, section, "back", MenuLayout.command(plugin, effects, section, "back"));
+            MenuLayout.place(menu, section, "close", MenuLayout.close(plugin, effects));
             menu.open(viewer);
         } catch (IllegalArgumentException e) {
             MenuLayout.menuError(plugin, messages, viewer, "spectate", e);
@@ -81,8 +81,7 @@ public final class SpectateMenu {
             InMatchMenu menu = MenuLayout.frame(section, (rows, title) -> new InMatchMenu(plugin, rows, title));
             menu.items(match.fighters().stream().filter(match::isAlive).map(fighter -> Button.of(head(section, fighter),
                     MenuLayout.choose(plugin, effects, player -> player.performCommand("duel spectate " + fighter.getName())))).toList());
-            MenuLayout.place(menu, section, "close", MenuLayout.choose(plugin, effects, player -> { }));
-            MenuLayout.fill(menu, section);
+            MenuLayout.place(menu, section, "close", MenuLayout.close(plugin, effects));
             menu.open(viewer);
         } catch (IllegalArgumentException e) {
             MenuLayout.menuError(plugin, messages, viewer, "spectate-fighters", e);

@@ -8,7 +8,6 @@ import me.angylo.elotecraftDuels.match.Match;
 import me.angylo.elotecraftDuels.kit.Kit;
 import me.angylo.elotecraftDuels.menu.ArenaMenu;
 import me.angylo.elotecraftDuels.menu.KitMenu;
-import me.angylo.elotecraftAPI.menu.Menu;
 import org.bukkit.Material;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
@@ -32,6 +31,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -49,9 +49,9 @@ class MenuAndRulesTest extends DuelsTestBase {
 
         Inventory top = alex.getOpenInventory().getTopInventory();
         assertEquals("⚔ Choose a kit", Text.plain(alex.getOpenInventory().title()));
-        assertEquals(Material.DIAMOND_SWORD, top.getItem(0).getType());
-        assertEquals("Sword", Text.plain(top.getItem(0).getItemMeta().displayName()));
+        assertEquals(Material.DIAMOND_SWORD, top.getItem(slotNamed(alex, "Sword")).getType());
         assertEquals(Material.BARRIER, top.getItem(top.getSize() - 9 + 4).getType());
+        assertTrue(top.getItem(top.getSize() - 9 + 3) == null, "no back button for a challenge");
     }
 
     private static String title(TestPlayer player) {
@@ -76,20 +76,20 @@ class MenuAndRulesTest extends DuelsTestBase {
 
         server.dispatchCommand(alex, "duel queue");
 
-        assertEquals("⚔ Unranked queue", title(alex));
-        List<String> unranked = lore(alex, 0);
+        assertEquals("Play › Unranked", title(alex));
+        List<String> unranked = lore(alex, slotNamed(alex, "Sword"));
         assertTrue(unranked.contains("▪ Queued: 1 · Fighting: 0"), unranked.toString());
-        assertTrue(unranked.contains("✔ You're in the unranked queue"), unranked.toString());
+        assertTrue(unranked.contains("✔ You're in this queue"), unranked.toString());
         assertTrue(unranked.stream().noneMatch(line -> line.contains("building")), unranked.toString());
 
         server.dispatchCommand(alex, "duel ranked");
 
-        assertEquals("⚔ Ranked queue", title(alex));
-        List<String> ranked = lore(alex, 0);
+        assertEquals("Play › Ranked", title(alex));
+        List<String> ranked = lore(alex, slotNamed(alex, "Sword"));
         assertTrue(ranked.contains("▪ Your rating: 1000 Bronze"), ranked.toString());
         assertTrue(ranked.contains("▪ Queued: 0 · Fighting: 0"), ranked.toString());
-        assertTrue(ranked.contains("▶ Click to join the ranked queue"), ranked.toString());
-        assertTrue(lore(alex, bottom(alex, 2)).contains("Overall: 1000 Bronze"));
+        assertTrue(ranked.contains("▶ Click to join the queue"), ranked.toString());
+        assertTrue(lore(alex, 4).contains("Overall: 1000 Bronze"), "the rating sits in the middle of the top row");
     }
 
     @Test
@@ -102,7 +102,7 @@ class MenuAndRulesTest extends DuelsTestBase {
 
         server.dispatchCommand(alex, "duel ranked");
 
-        List<String> lore = lore(alex, 0);
+        List<String> lore = lore(alex, slotNamed(alex, "Sword"));
         assertTrue(lore.contains("▪ Your rating: 1016 Bronze"), lore.toString());
         assertTrue(lore.contains("▪ Ranked record: 1W 0L"), lore.toString());
     }
@@ -114,14 +114,14 @@ class MenuAndRulesTest extends DuelsTestBase {
         readyArena("pit");
         server.dispatchCommand(alex, "duel queue");
 
-        ((Menu) alex.getOpenInventory().getTopInventory().getHolder()).button(bottom(alex, 6)).orElseThrow().onClick().accept(alex, ClickType.LEFT);
-        tickUntil(() -> title(alex).equals("⚔ Ranked queue"));
-        ((Menu) alex.getOpenInventory().getTopInventory().getHolder()).button(bottom(alex, 6)).orElseThrow().onClick().accept(alex, ClickType.LEFT);
-        tickUntil(() -> title(alex).equals("⚔ Unranked queue"));
+        clickNamed(alex, "Ranked »");
+        tickUntil(() -> title(alex).equals("Play › Ranked"));
+        clickNamed(alex, "Unranked »");
+        tickUntil(() -> title(alex).equals("Play › Unranked"));
 
         alex.addAttachment(plugin, "duels.queue.ranked", false);
         server.dispatchCommand(alex, "duel queue");
-        assertEquals(Material.LIME_STAINED_GLASS_PANE, alex.getOpenInventory().getTopInventory().getItem(bottom(alex, 6)).getType());
+        assertNull(alex.getOpenInventory().getTopInventory().getItem(bottom(alex, 5)));
     }
 
     @Test
@@ -158,9 +158,9 @@ class MenuAndRulesTest extends DuelsTestBase {
         menu.open(alex, sword, chosen -> { });
 
         Inventory top = alex.getOpenInventory().getTopInventory();
-        List<String> pitLore = top.getItem(0).getItemMeta().lore().stream().map(Text::plain).toList();
+        List<String> pitLore = lore(alex, slotNamed(alex, "pit"));
         assertTrue(pitLore.contains("▪ In use"));
-        assertEquals(Material.ENDER_EYE, top.getItem(top.getSize() - 9 + 3).getType());
+        assertEquals(Material.ENDER_EYE, top.getItem(slotNamed(alex, "Random arena")).getType());
     }
 
     @Test
@@ -261,10 +261,10 @@ class MenuAndRulesTest extends DuelsTestBase {
         readyArena("pit");
         server.dispatchCommand(alex, "duel Steve");
 
-        ((Menu) alex.getOpenInventory().getTopInventory().getHolder()).button(0).orElseThrow().onClick().accept(alex, ClickType.RIGHT);
+        clickNamed(alex, "Sword", ClickType.RIGHT);
         tick();
 
-        assertEquals("Sword", Text.plain(alex.getOpenInventory().title()));
+        assertEquals("Preview › Sword", Text.plain(alex.getOpenInventory().title()));
         assertEquals(Material.DIAMOND_SWORD, alex.getOpenInventory().getTopInventory().getItem(KitMenu.previewSlot(0)).getType());
     }
 

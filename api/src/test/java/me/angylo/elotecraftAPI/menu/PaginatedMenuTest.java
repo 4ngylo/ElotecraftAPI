@@ -134,6 +134,61 @@ class PaginatedMenuTest {
     }
 
     @Test
+    void centeredUsesTheInnerColumnsBelowAnEmptyTopRow() {
+        PaginatedMenu menu = new PaginatedMenu(plugin, 4, "Pages").centered().items(buttons(20));
+        menu.open(player);
+
+        Inventory inventory = menu.getInventory();
+        assertEquals(2, menu.pages());
+        assertNull(inventory.getItem(0));
+        assertNull(inventory.getItem(9));
+        assertEquals(1, inventory.getItem(10).getAmount());
+        assertEquals(7, inventory.getItem(16).getAmount());
+        assertNull(inventory.getItem(17));
+        assertEquals(14, inventory.getItem(25).getAmount());
+        assertEquals(Material.ARROW, inventory.getItem(35).getType());
+
+        menu.handleClick(player.simulateInventoryClick(35));
+        menu.handleClick(player.simulateInventoryClick(11));
+        assertEquals(List.of(15), clicked);
+    }
+
+    @Test
+    void centeredCentersARowThatIsNotFull() {
+        assertEquals(List.of(4), PaginatedMenu.centeredColumns(1));
+        assertEquals(List.of(3, 5), PaginatedMenu.centeredColumns(2));
+        assertEquals(List.of(3, 4, 5), PaginatedMenu.centeredColumns(3));
+        assertEquals(List.of(2, 3, 5, 6), PaginatedMenu.centeredColumns(4));
+        assertEquals(List.of(1, 2, 3, 5, 6, 7), PaginatedMenu.centeredColumns(6));
+        assertEquals(List.of(1, 2, 3, 4, 5, 6, 7), PaginatedMenu.centeredColumns(7));
+
+        PaginatedMenu menu = new PaginatedMenu(plugin, 4, "Pages").centered().items(buttons(9));
+        menu.open(player);
+        assertEquals(8, menu.getInventory().getItem(21).getAmount());
+        assertEquals(9, menu.getInventory().getItem(23).getAmount());
+        assertNull(menu.getInventory().getItem(22));
+    }
+
+    @Test
+    void centeredKeepsButtonsInTheTopRow() {
+        PaginatedMenu menu = new PaginatedMenu(plugin, 4, "Pages").centered()
+                .set(4, new ItemStack(Material.NETHER_STAR))
+                .items(buttons(20));
+        menu.open(player);
+
+        menu.handleClick(player.simulateInventoryClick(35));
+        assertEquals(Material.NETHER_STAR, menu.getInventory().getItem(4).getType());
+    }
+
+    @Test
+    void centeredWithTwoRowsUsesTheTopRow() {
+        PaginatedMenu menu = new PaginatedMenu(plugin, 2, "Pages").centered().items(buttons(1));
+        menu.open(player);
+
+        assertEquals(1, menu.getInventory().getItem(4).getAmount());
+    }
+
+    @Test
     void needsANavigationRow() {
         assertThrows(IllegalArgumentException.class, () -> new PaginatedMenu(plugin, 1, "Pages"));
     }

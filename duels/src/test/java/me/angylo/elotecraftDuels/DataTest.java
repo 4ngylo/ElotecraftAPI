@@ -14,6 +14,7 @@ import org.bukkit.Material;
 import org.bukkit.configuration.InvalidConfigurationException;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.potion.PotionEffectType;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.junit.jupiter.api.Test;
@@ -120,7 +121,7 @@ class DataTest extends DuelsTestBase {
     @Test
     void kitItemsSurviveAReload() {
         Kit kit = new Kit("tank", "<gray>Tank", Material.SHIELD, "duels.kit.tank",
-                List.of(ItemStack.of(Material.IRON_SWORD), ItemStack.empty(), ItemStack.of(Material.GOLDEN_APPLE, 3)), true, Set.of("bridge"), true);
+                List.of(ItemStack.of(Material.IRON_SWORD), ItemStack.empty(), ItemStack.of(Material.GOLDEN_APPLE, 3)), Set.of("bridge")).withRule(KitRule.BUILD, true);
         await(duels.kits().update(kit));
         server.getScheduler().waitAsyncTasksFinished();
 
@@ -129,7 +130,7 @@ class DataTest extends DuelsTestBase {
         assertEquals(Material.GOLDEN_APPLE, loaded.items().get(2).getType());
         assertEquals(3, loaded.items().get(2).getAmount());
         assertEquals("duels.kit.tank", loaded.permission());
-        assertTrue(loaded.build());
+        assertTrue(loaded.flag(KitRule.BUILD, duels.settings()));
         assertEquals(Set.of("bridge"), loaded.arenaCategories());
         assertTrue(KitRegistry.validPermission("duels.kit.tank"));
         assertFalse(KitRegistry.validPermission("bad permission"));
@@ -137,7 +138,7 @@ class DataTest extends DuelsTestBase {
 
     @Test
     void kitRulesSurviveAReloadAndBadOnesAreSkipped() throws IOException {
-        Kit kit = new Kit("uhc", "UHC", Material.WATER_BUCKET, null, List.of(ItemStack.of(Material.IRON_SWORD)), false, Set.of(), true)
+        Kit kit = new Kit("uhc", "UHC", Material.WATER_BUCKET, null, List.of(ItemStack.of(Material.IRON_SWORD)), Set.of())
                 .withRule(KitRule.NATURAL_REGENERATION, false).withRule(KitRule.PEARL_COOLDOWN, 15);
         await(duels.kits().update(kit));
         server.getScheduler().waitAsyncTasksFinished();
@@ -153,9 +154,49 @@ class DataTest extends DuelsTestBase {
     }
 
     @Test
+    void buildAndDamageOfAnOlderKitsFileBecomeRules() throws IOException {
+        Kit sword = swordKit();
+        await(duels.kits().update(new Kit("plain", "Plain", Material.STONE, null, sword.items(), Set.of())));
+        server.getScheduler().waitAsyncTasksFinished();
+        File file = new File(plugin.getDataFolder(), "kits.yml");
+        YamlConfiguration yaml = YamlConfiguration.loadConfiguration(file);
+        yaml.set("kits.sword.build", true);
+        yaml.set("kits.sword.damage", false);
+        yaml.set("kits.plain.build", false);
+        yaml.set("kits.plain.damage", true);
+        yaml.save(file);
+
+        assertTrue(duels.kits().reload());
+        assertEquals(Map.of(KitRule.BUILD, true, KitRule.DAMAGE, false), duels.kits().get("sword").orElseThrow().rules());
+        assertEquals(Map.of(), duels.kits().get("plain").orElseThrow().rules());
+        server.getScheduler().waitAsyncTasksFinished();
+        YamlConfiguration saved = YamlConfiguration.loadConfiguration(file);
+        assertFalse(saved.contains("kits.sword.build") || saved.contains("kits.plain.damage"));
+        assertTrue(saved.getBoolean("kits.sword.rules.build"));
+    }
+
+    @Test
+    void effectsOfAnOlderKitsFileGetAnAmplifierCappedAtTwo() throws IOException {
+        await(duels.kits().update(swordKit()));
+        server.getScheduler().waitAsyncTasksFinished();
+        File file = new File(plugin.getDataFolder(), "kits.yml");
+        YamlConfiguration yaml = YamlConfiguration.loadConfiguration(file);
+        yaml.set("kits.sword.effects", List.of("speed 2", "strength 5", "wings 1"));
+        yaml.save(file);
+
+        assertTrue(duels.kits().reload());
+        assertEquals(List.of(Kit.effect(PotionEffectType.SPEED, 1, 0), Kit.effect(PotionEffectType.STRENGTH, 2, 0)),
+                duels.kits().get("sword").orElseThrow().effects());
+        server.getScheduler().waitAsyncTasksFinished();
+        YamlConfiguration saved = YamlConfiguration.loadConfiguration(file);
+        assertEquals(2, saved.getInt("kits.sword.effects.strength.amplifier"));
+        assertEquals(0, saved.getInt("kits.sword.effects.speed.seconds"));
+    }
+
+    @Test
     void kitRewardsSurviveAReloadAndNegativeMoneyBecomesZero() throws IOException {
         Kit plain = swordKit();
-        Kit kit = new Kit("uhc", "UHC", Material.WATER_BUCKET, null, List.of(ItemStack.of(Material.IRON_SWORD)), false, Set.of(), true)
+        Kit kit = new Kit("uhc", "UHC", Material.WATER_BUCKET, null, List.of(ItemStack.of(Material.IRON_SWORD)), Set.of())
                 .withRewards(new Kit.Rewards(new Reward(50, List.of("give <winner> diamond 1")), new Reward(0, List.of("say <loser> lost"))));
         await(duels.kits().update(kit));
         server.getScheduler().waitAsyncTasksFinished();

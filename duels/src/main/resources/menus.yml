@@ -65,6 +65,13 @@ hub:
         name: "<gray><bold>Options"
         lore: ["<gray>Requests, invites, sidebar, sounds", "", "<yellow>▶ Click to open"]
         command: "duel options"
+      admin:
+        slot: 35
+        permission: duels.staff
+        material: COMMAND_BLOCK
+        name: "<red><bold>Admin"
+        lore: ["<gray>Arenas, kits, season and more", "", "<yellow>▶ Click to open"]
+        command: "duels"
       close: {slot: 31, material: BARRIER, name: "<red>Close"}
 
   play:
@@ -172,12 +179,13 @@ hub:
       back: {slot: 21, material: ARROW, name: "<yellow>« Back", command: "duel"}
       close: {slot: 22, material: BARRIER, name: "<red>Close"}
 
-  # /duels: the admin menu, for players with duels.admin (a menu's permission keeps it from everyone else).
+  # /duels: the admin menu, for players with duels.staff, which duels.admin grants (a menu's permission keeps it
+  # from everyone else). Each button needs its own permission.
   # A button with confirm: true opens the confirm menu before running its command.
   admin:
     title: "Admin"
     rows: 4
-    permission: duels.admin
+    permission: duels.staff
     buttons:
       arenas:
         slot: 11
@@ -267,12 +275,14 @@ hub:
         material: SPYGLASS
         name: "<yellow><bold>Preview the end"
         lore: ["<gray>What ending the season now", "<gray>would archive and pay", "<dark_gray>Ends nothing", "", "<yellow>▶ Click to show"]
+        permission: duels.admin.season.manage
         command: "duels season end preview"
       auto:
         slot: 22
         material: REPEATER
         name: "<light_purple><bold>Ends by itself: <season_auto>"
         lore: ["<gray>At the planned end, the season", "<gray>ends like /duels season end", "<gray>Planned end in: <white><season_ends>", "", "<yellow>▶ Click to switch"]
+        permission: duels.admin.season.manage
         command: "duels season auto toggle"
       back: {slot: 30, material: ARROW, name: "<yellow>« Back", command: "duels"}
       close: {slot: 31, material: BARRIER, name: "<red>Close"}
@@ -671,22 +681,18 @@ kit-settings:
     material: GRASS_BLOCK
     name: "<gold><bold>Arena categories"
     lore: ["<gray>Uses: <white><value>", "", "<yellow>▶ Click and type categories, or any"]
-  # Bridge: goals win rounds; bed fight: fighters respawn while their bed stands. Both make it a build kit.
+  # Bridge: goals win rounds; bed fight: fighters respawn while their bed stands. Both turn the build rule on.
   mode:
     slot: 14
     material: RED_BED
     name: "<gold><bold>Mode"
     lore: ["<gray>Now: <value>", "<dark_gray>Arenas need goals or beds", "", "<yellow>▶ Click to switch"]
-  build:
+  # <value> is how many effects the kit gives.
+  effects:
     slot: 15
-    material: BRICKS
-    name: "<gold><bold>Building"
-    lore: ["<gray>Fighters may place blocks: <value>", "", "<yellow>▶ Click to switch"]
-  damage:
-    slot: 16
-    material: IRON_SWORD
-    name: "<gold><bold>Damage"
-    lore: ["<gray>Hits hurt: <value>", "<dark_gray>Off: knockback only (Sumo)", "", "<yellow>▶ Click to switch"]
+    material: BREWING_STAND
+    name: "<gold><bold>Potion effects"
+    lore: ["<gray>Given: <white><value>", "", "<yellow>▶ Click to open"]
   save:
     slot: 20
     material: WRITABLE_BOOK
@@ -746,6 +752,32 @@ kit-rules:
       - ""
       - "<yellow>▶ Left-click and type a number"
       - "<yellow>▶ Right-click for the default"
+  previous: {material: ARROW, name: "<yellow>« Previous page"}
+  next: {material: ARROW, name: "<yellow>Next page »"}
+  back: {slot: 3, material: ARROW, name: "<yellow>« Back"}
+  close: {slot: 4, material: BARRIER, name: "<red>Close"}
+
+# /duels kit <kit> > Potion effects: one potion per effect, the kit's own first. A click asks the amplifier (0 is
+# level I) and the seconds (0 for the whole fight) in two anvils; right-click takes a given effect away.
+# <effect>, <amplifier> and <duration> are filled in.
+kit-effects:
+  title: "<kit> › Effects"
+  rows: 6
+  values:
+    whole-fight: "<gray>whole fight"
+  effect:
+    material: POTION
+    name: "<yellow><bold><effect>"
+    lore:
+      - "<dark_gray>▪ <gray>Not given"
+      - ""
+      - "<yellow>▶ Click to add"
+    given-lore:
+      - "<dark_gray>▪ <gray>Amplifier: <white><amplifier>"
+      - "<dark_gray>▪ <gray>Duration: <white><duration>"
+      - ""
+      - "<yellow>▶ Left-click to change"
+      - "<red>▶ Right-click to remove"
   previous: {material: ARROW, name: "<yellow>« Previous page"}
   next: {material: ARROW, name: "<yellow>Next page »"}
   back: {slot: 3, material: ARROW, name: "<yellow>« Back"}

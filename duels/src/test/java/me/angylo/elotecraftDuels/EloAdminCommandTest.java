@@ -59,7 +59,7 @@ class EloAdminCommandTest extends DuelsTestBase {
 
     @Test
     void addWorksOnEveryKitAndStartsMissingRatings() {
-        Kit bow = new Kit("bow", "Bow", Material.BOW, null, List.of(ItemStack.of(Material.BOW)), false, Set.of(), true);
+        Kit bow = new Kit("bow", "Bow", Material.BOW, null, List.of(ItemStack.of(Material.BOW)), Set.of());
         await(duels.kits().update(bow));
 
         assertSays(admin, "duels elo add Steve all -50", "Bow 1000 → 950");
@@ -103,5 +103,21 @@ class EloAdminCommandTest extends DuelsTestBase {
     @Test
     void needsItsPermission() {
         assertSays(alex, "duels elo Alex", "You don't have permission");
+    }
+
+    @Test
+    void viewersCannotChangeRatingsButEditorsCan() {
+        TestPlayer viewer = join("Viewer");
+        viewer.addAttachment(plugin, "duels.staff", true);
+        viewer.addAttachment(plugin, "duels.admin.elo", true);
+        assertSays(viewer, "duels elo", "/duels elo set <player> <kit|all> <rating>");
+        assertSays(viewer, "duels elo set Alex sword 1500", "You don't have permission");
+        assertSays(viewer, "duels stop Alex", "You don't have permission");
+
+        TestPlayer editor = join("Editor");
+        editor.addAttachment(plugin, "duels.staff", true);
+        editor.addAttachment(plugin, "duels.admin.elo.edit", true);
+        assertSays(editor, "duels elo set Alex sword 1500", "Sword 1020 → 1500");
+        assertSays(editor, "duels elo", "/duels elo set <player> <kit|all> <rating>");
     }
 }

@@ -198,6 +198,6 @@ public final class PartyMenu {
 
     private TagResolver[] sizeTags(Party party) {
         return new TagResolver[]{Placeholder.unparsed("size", String.valueOf(party == null ? 0 : party.size())),
-                Placeholder.unparsed("max", String.valueOf(settings.get().partyMaxSize()))};
+                Placeholder.unparsed("max", String.valueOf(parties.maxSize(party)))};
     }
 }

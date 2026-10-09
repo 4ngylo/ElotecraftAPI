@@ -180,7 +180,7 @@ class PartyFightTest extends DuelsTestBase {
         ticks(20 * duels.settings().countdownSeconds());
 
         assertTrue(bob.simulateDamage(1, ann).isCancelled());
-        setConfig("parties.friendly-fire", true);
+        setConfig("rules.kit-defaults.friendly-fire", true);
         assertFalse(bob.simulateDamage(1, ann).isCancelled());
     }
 

@@ -47,7 +47,7 @@ import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.regex.Pattern;
 
-/** {@code /duels}: arena setup, reload and stopping duels, with kit setup in {@link KitAdminCommand}. Admin permissions only. */
+/** {@code /duels}: arena setup, reload and stopping duels, with kit setup in {@link KitAdminCommand}. Needs {@code duels.staff} (granted by {@code duels.admin}), and each part its own permission. */
 public final class AdminCommand {
 
     private static final List<String> NUMBERS = List.of("1", "2");
@@ -86,7 +86,7 @@ public final class AdminCommand {
 
         CommandBuilder.create("duels")
                 .description(Text.plain(messages.get("command.admin-description")))
-                .permission("duels.admin")
+                .permission("duels.staff")
                 .messages(sender -> messages.get(sender, "command.no-permission"),
                         sender -> messages.get(sender, "command.player-only"))
                 .executes(this::hubOrHelp)

@@ -5,6 +5,7 @@ import me.angylo.elotecraftDuels.kit.Kit;
 import me.angylo.elotecraftDuels.kit.KitRule;
 import me.angylo.elotecraftDuels.match.Match;
 import org.bukkit.Material;
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.damage.DamageSource;
 import org.bukkit.damage.DamageType;
 import org.bukkit.entity.Arrow;
@@ -22,6 +23,7 @@ import org.bukkit.inventory.ItemStack;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.io.File;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -70,12 +72,54 @@ class KitRulesTest extends DuelsTestBase {
 
     @Test
     void unsetRulesFollowConfig() {
-        setConfig("rules.hunger", true);
+        setConfig("rules.kit-defaults.hunger", true);
         Kit kit = swordKit();
 
         assertTrue(kit.flag(KitRule.HUNGER, duels.settings()));
         assertTrue(kit.flag(KitRule.FALL_DAMAGE, duels.settings()));
-        assertTrue(kit.number(KitRule.PEARL_COOLDOWN).isEmpty());
+        assertTrue(kit.number(KitRule.PEARL_COOLDOWN, duels.settings()).isEmpty());
+    }
+
+    @Test
+    void everyRuleTakesItsDefaultFromConfigUnlessTheKitSetsIt() {
+        setConfig("rules.kit-defaults.fall-damage", false);
+        setConfig("rules.kit-defaults.build", true);
+        setConfig("rules.kit-defaults.pearl-cooldown", 5);
+        Kit kit = swordKit();
+
+        assertFalse(kit.flag(KitRule.FALL_DAMAGE, duels.settings()));
+        assertTrue(kit.flag(KitRule.BUILD, duels.settings()));
+        assertEquals(5, kit.number(KitRule.PEARL_COOLDOWN, duels.settings()).orElseThrow());
+        Kit own = kit.withRule(KitRule.FALL_DAMAGE, true).withRule(KitRule.PEARL_COOLDOWN, 0);
+        assertTrue(own.flag(KitRule.FALL_DAMAGE, duels.settings()));
+        assertEquals(0, own.number(KitRule.PEARL_COOLDOWN, duels.settings()).orElseThrow());
+    }
+
+    @Test
+    void invalidDefaultsFallBackToTheBuiltInOnes() {
+        setConfig("rules.kit-defaults.damage", "maybe");
+        setConfig("rules.kit-defaults.max-health", 5000);
+        setConfig("rules.kit-defaults.pearl-cooldown", "vanilla");
+        Kit kit = swordKit();
+
+        assertTrue(kit.flag(KitRule.DAMAGE, duels.settings()));
+        assertTrue(kit.number(KitRule.MAX_HEALTH, duels.settings()).isEmpty());
+        assertTrue(kit.number(KitRule.PEARL_COOLDOWN, duels.settings()).isEmpty());
+    }
+
+    @Test
+    void anOlderConfigKeepsItsRuleDefaults() {
+        setConfig("rules.hunger", true);
+        setConfig("parties.friendly-fire", true);
+        Kit kit = swordKit();
+
+        assertTrue(kit.flag(KitRule.HUNGER, duels.settings()));
+        assertTrue(kit.flag(KitRule.FRIENDLY_FIRE, duels.settings()));
+        server.getScheduler().waitAsyncTasksFinished();
+        YamlConfiguration file = YamlConfiguration.loadConfiguration(new File(plugin.getDataFolder(), "config.yml"));
+        assertTrue(file.getBoolean("rules.kit-defaults.hunger"));
+        assertTrue(file.getBoolean("rules.kit-defaults.friendly-fire"));
+        assertFalse(file.contains("rules.hunger") || file.contains("parties.friendly-fire"));
     }
 
     @Test
@@ -196,7 +240,7 @@ class KitRulesTest extends DuelsTestBase {
 
     @Test
     void boxingEndsTheDuelOnTheLastHit() {
-        Match match = fight(swordKit().withDamage(false).withRule(KitRule.HITS_TO_WIN, 3));
+        Match match = fight(swordKit().withRule(KitRule.DAMAGE, false).withRule(KitRule.HITS_TO_WIN, 3));
 
         steve.simulateDamage(1, alex);
         steve.simulateDamage(1, alex);
@@ -213,7 +257,7 @@ class KitRulesTest extends DuelsTestBase {
      */
     @Test
     void hitsWhileInvulnerableDoNotCount() {
-        Match match = fight(swordKit().withDamage(false).withRule(KitRule.HITS_TO_WIN, 2));
+        Match match = fight(swordKit().withRule(KitRule.DAMAGE, false).withRule(KitRule.HITS_TO_WIN, 2));
         assertFalse(punch(steve).isCancelled());
 
         steve.setNoDamageTicks(steve.getMaximumNoDamageTicks() / 2 + 1);
@@ -250,7 +294,7 @@ class KitRulesTest extends DuelsTestBase {
     void numberRulesHaveTheirOwnLimits() {
         Kit kit = swordKit();
 
-        assertEquals(100, kit.withRule(KitRule.HITS_TO_WIN, 100).number(KitRule.HITS_TO_WIN).orElseThrow());
+        assertEquals(100, kit.withRule(KitRule.HITS_TO_WIN, 100).number(KitRule.HITS_TO_WIN, duels.settings()).orElseThrow());
         assertThrows(IllegalArgumentException.class, () -> kit.withRule(KitRule.HITS_TO_WIN, KitRule.MAX_HITS + 1));
         assertEquals("15s", KitRule.PEARL_COOLDOWN.format(15));
         assertEquals("100", KitRule.HITS_TO_WIN.format(100));

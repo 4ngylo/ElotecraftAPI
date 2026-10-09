@@ -97,6 +97,7 @@ public final class Match {
     private final FightStats fightStats = new FightStats();
     /** Rounds won by each team, for {@link KitRule#ROUNDS_TO_WIN} duels. */
     private final int[] roundWins;
+    private final int kitRounds;
     /** Bed fight: the teams whose bed was broken this round. */
     private final Set<Integer> bedsBroken = new HashSet<>();
     private int round = 1;
@@ -118,7 +119,10 @@ public final class Match {
     /** Null until the fight ends with a result or a draw. */
     private EndReason endReason;
 
-    Match(ArenaInstance instance, Kit kit, List<List<Player>> teams, Type type, boolean ranked, Options options) {
+    /**
+     * @param kitRounds the kit's {@link KitRule#ROUNDS_TO_WIN} at the start, so a reload cannot change it mid-fight
+     */
+    Match(ArenaInstance instance, Kit kit, List<List<Player>> teams, Type type, boolean ranked, Options options, int kitRounds) {
         this.instance = instance;
         this.kit = kit;
         this.teams = teams.stream().map(List::copyOf).toList();
@@ -126,6 +130,7 @@ public final class Match {
         this.ranked = ranked;
         this.options = options;
         this.roundWins = new int[teams.size()];
+        this.kitRounds = kitRounds;
     }
 
     public Type type() {
@@ -299,7 +304,7 @@ public final class Match {
 
     /** Rounds a team must win to win the fight: the kit's {@link KitRule#ROUNDS_TO_WIN} in a duel, else 1. */
     public int roundsToWin() {
-        return isDuel() || mode() != Kit.Mode.NORMAL ? Math.max(1, kit.number(KitRule.ROUNDS_TO_WIN).orElse(1)) : 1;
+        return isDuel() || mode() != Kit.Mode.NORMAL ? Math.max(1, kitRounds) : 1;
     }
 
     /** The kit's mode, which only fights of two sides play; others play {@code NORMAL}. */

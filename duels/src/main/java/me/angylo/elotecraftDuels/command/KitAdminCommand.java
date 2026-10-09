@@ -11,6 +11,7 @@ import me.angylo.elotecraftDuels.kit.KitRegistry;
 import me.angylo.elotecraftDuels.kit.KitRule;
 import me.angylo.elotecraftDuels.menu.KitAdminMenu;
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.JoinConfiguration;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver;
 import org.bukkit.Material;
@@ -18,6 +19,7 @@ import org.bukkit.Registry;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.PlayerInventory;
+import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 
 import java.util.ArrayList;
@@ -39,6 +41,7 @@ final class KitAdminCommand {
 
     private static final String ANY = "any";
     private static final String DEFAULT = "default";
+    private static final String REMOVE = "remove";
 
     private final AdminCommand admin;
     private final Duels duels;
@@ -88,21 +91,14 @@ final class KitAdminCommand {
                 .sub("setpermission", null, (sender, args) -> withKit(sender, args, (kit, rest) -> setPermission(sender, kit, rest)),
                         (sender, args) -> args.length == 1 ? Args.filter(kits.names(), args)
                                 : args.length == 2 ? Args.filter(List.of("none", "duels.kit." + args[0]), args) : List.of())
-                .sub("build", null, (sender, args) -> withKit(sender, args, (kit, rest) -> {
-                    Kit changed = kit.withBuild(!kit.build());
-                    admin.save(sender, kits.update(changed), changed.build() ? "admin.kit.build-on" : "admin.kit.build-off", kitTags(kit));
-                }), kitNames)
-                .sub("damage", null, (sender, args) -> withKit(sender, args, (kit, rest) -> {
-                    Kit changed = kit.withDamage(!kit.damage());
-                    admin.save(sender, kits.update(changed), changed.damage() ? "admin.kit.damage-on" : "admin.kit.damage-off", kitTags(kit));
-                }), kitNames)
                 .sub("mode", null, (sender, args) -> withKit(sender, args, (kit, rest) -> mode(sender, kit, rest)),
                         (sender, args) -> args.length == 1 ? Args.filter(kits.names(), args)
                                 : args.length == 2 ? Args.filter(Arrays.stream(Kit.Mode.values()).map(Kit.Mode::key).toList(), args) : List.of())
                 .sub("effect", null, (sender, args) -> withKit(sender, args, (kit, rest) -> effect(sender, kit, rest)),
                         (sender, args) -> args.length == 1 ? Args.filter(kits.names(), args)
-                                : args.length == 2 ? Args.filter(Registry.MOB_EFFECT.stream().map(type -> type.getKey().getKey()).sorted().toList(), args)
-                                : args.length == 3 ? Args.filter(List.of("1", "2", "0"), args) : List.of())
+                                : args.length == 2 ? Args.filter(Registry.MOB_EFFECT.stream().map(Kit::effectName).sorted().toList(), args)
+                                : args.length == 3 ? Args.filter(List.of("0", "1", "2", REMOVE), args)
+                                : args.length == 4 && !args[2].equalsIgnoreCase(REMOVE) ? Args.filter(List.of("0", "30", "60"), args) : List.of())
                 .sub("rule", null, (sender, args) -> withKit(sender, args, (kit, rest) -> kitRule(sender, kit, rest)),
                         (sender, args) -> args.length == 1 ? Args.filter(kits.names(), args)
                                 : args.length == 2 ? Args.filter(KitRule.keys(), args)
@@ -124,7 +120,7 @@ final class KitAdminCommand {
             messages.send(sender, "admin.kit.mode-usage");
             return;
         }
-        Kit changed = kit.withMode(mode).withBuild(kit.build() || mode != Kit.Mode.NORMAL);
+        Kit changed = mode == Kit.Mode.NORMAL ? kit.withMode(mode) : kit.withMode(mode).withRule(KitRule.BUILD, true);
         admin.save(sender, kits.update(changed), "admin.kit.mode-set",
                 with(kitTags(kit), Placeholder.component("mode", messages.get(sender, "admin.kit.modes." + mode.key()))));
     }
@@ -204,23 +200,43 @@ final class KitAdminCommand {
                 Placeholder.component("value", ruleValue(sender, changed, rule.get()))));
     }
 
-    /** {@code effect <kit> [effect level]}: lists the kit's potion effects, or sets one; level 0 removes it. */
+    /**
+     * {@code effect <kit> [effect <amplifier> [seconds] | effect remove]}: lists the kit's potion effects, gives one
+     * (amplifier 0 to {@value Kit#MAX_AMPLIFIER}, seconds 0 to {@value Kit#MAX_EFFECT_SECONDS}, 0 or none for the whole
+     * fight) or takes one away.
+     */
     private void effect(CommandSender sender, Kit kit, String[] rest) {
         if (rest.length == 0) {
-            messages.send(sender, "admin.kit.effects", with(kitTags(kit), Placeholder.unparsed("effects", kit.effects().isEmpty() ? "-"
-                    : String.join(", ", kit.effects().stream().map(effect -> effect.getType().getKey().getKey() + " " + (effect.getAmplifier() + 1)).toList()))));
+            messages.send(sender, "admin.kit.effects", with(kitTags(kit), Placeholder.component("effects", kit.effects().isEmpty()
+                    ? Component.text("-") : Component.join(JoinConfiguration.commas(true),
+                    kit.effects().stream().map(effect -> describe(sender, effect)).toList()))));
             return;
         }
         Optional<PotionEffectType> type = Kit.effectType(rest[0]);
-        OptionalInt level = rest.length == 2 ? Args.integer(rest[1], 0, Kit.MAX_EFFECT_LEVEL) : OptionalInt.empty();
-        if (type.isEmpty() || level.isEmpty() || level.getAsInt() < 0 || level.getAsInt() > Kit.MAX_EFFECT_LEVEL) {
-            messages.send(sender, "admin.kit.effect-usage", Placeholder.unparsed("max", String.valueOf(Kit.MAX_EFFECT_LEVEL)));
+        if (type.isPresent() && rest.length == 2 && rest[1].equalsIgnoreCase(REMOVE)) {
+            admin.save(sender, kits.update(kit.withoutEffect(type.get())), "admin.kit.effect-removed",
+                    with(kitTags(kit), Placeholder.unparsed("effect", Kit.effectName(type.get()))));
             return;
         }
-        admin.save(sender, kits.update(kit.withEffect(type.get(), level.getAsInt())),
-                level.getAsInt() == 0 ? "admin.kit.effect-removed" : "admin.kit.effect-set",
-                with(kitTags(kit), Placeholder.unparsed("effect", type.get().getKey().getKey()),
-                        Placeholder.unparsed("level", String.valueOf(level.getAsInt()))));
+        OptionalInt amplifier = rest.length >= 2 ? Args.integer(rest[1], 0, Kit.MAX_AMPLIFIER) : OptionalInt.empty();
+        OptionalInt seconds = rest.length == 3 ? Args.integer(rest[2], 0, Kit.MAX_EFFECT_SECONDS) : OptionalInt.of(0);
+        if (type.isEmpty() || rest.length > 3 || amplifier.isEmpty() || seconds.isEmpty()) {
+            messages.send(sender, "admin.kit.effect-usage", Placeholder.unparsed("max", String.valueOf(Kit.MAX_AMPLIFIER)),
+                    Placeholder.unparsed("max_seconds", String.valueOf(Kit.MAX_EFFECT_SECONDS)));
+            return;
+        }
+        PotionEffect effect = Kit.effect(type.get(), amplifier.getAsInt(), seconds.getAsInt());
+        admin.save(sender, kits.update(kit.withEffect(type.get(), amplifier.getAsInt(), seconds.getAsInt())), "admin.kit.effect-set",
+                with(kitTags(kit), Placeholder.component("effect", describe(sender, effect))));
+    }
+
+    /** {@code speed 1 (30s)}: an effect's name, amplifier and duration, as typed in the command. */
+    private Component describe(CommandSender viewer, PotionEffect effect) {
+        int seconds = Kit.seconds(effect);
+        return messages.get(viewer, "admin.kit.effect-entry", Placeholder.unparsed("effect", Kit.effectName(effect.getType())),
+                Placeholder.unparsed("amplifier", String.valueOf(effect.getAmplifier())),
+                Placeholder.component("duration", seconds == 0 ? messages.get(viewer, "admin.kit.effect-whole-fight")
+                        : messages.get(viewer, "admin.kit.effect-seconds", Placeholder.unparsed("seconds", String.valueOf(seconds)))));
     }
 
     /** true or false, a number, or vanilla for an unset number. */
@@ -228,7 +244,7 @@ final class KitAdminCommand {
         if (rule.isFlag()) {
             return Component.text(kit.flag(rule, duels.settings()));
         }
-        OptionalInt number = kit.number(rule);
+        OptionalInt number = kit.number(rule, duels.settings());
         return number.isPresent() ? Component.text(rule.format(number.getAsInt())) : messages.get(viewer, "admin.kit.rule-vanilla");
     }
 

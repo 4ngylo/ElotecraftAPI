@@ -113,14 +113,14 @@ public final class CombatListener implements Listener {
             return;
         }
         boolean byOpponent = attacker != null && !attacker.equals(victim);
-        OptionalInt multiplier = victimMatch.kit().number(KitRule.DAMAGE_MULTIPLIER);
+        OptionalInt multiplier = victimMatch.kit().number(KitRule.DAMAGE_MULTIPLIER, settings.get());
         if (byOpponent && multiplier.isPresent() && multiplier.getAsInt() > 0) {
             event.setDamage(event.getDamage() * multiplier.getAsInt() / PERCENT);
         }
         if (byOpponent && invulnerable(victim)) {
             // Paper fires this event again for a harder hit while the victim is still invulnerable, and a
             // knockback-only kit's 0 damage makes every hit harder: count none of them, and let only damage through.
-            if (!victimMatch.kit().damage()) {
+            if (!victimMatch.kit().flag(KitRule.DAMAGE, settings.get())) {
                 event.setCancelled(true);
                 return;
             }
@@ -134,7 +134,7 @@ public final class CombatListener implements Listener {
             }
         }
         // Knockback-only kits (Sumo): the hit still pushes, but never hurts; falling off the arena decides.
-        if (!victimMatch.kit().damage()) {
+        if (!victimMatch.kit().flag(KitRule.DAMAGE, settings.get())) {
             event.setDamage(0);
             return;
         }
@@ -344,7 +344,7 @@ public final class CombatListener implements Listener {
         if (match == null || !(event.getProjectile() instanceof EnderPearl)) {
             return;
         }
-        match.kit().number(KitRule.PEARL_COOLDOWN).ifPresent(seconds ->
+        match.kit().number(KitRule.PEARL_COOLDOWN, settings.get()).ifPresent(seconds ->
                 // Paper puts the vanilla cooldown on after this event, so ours goes on a tick later.
                 Tasks.later(plugin, () -> {
                     if (player.isOnline() && matches.matchOf(player).orElse(null) == match) {
@@ -421,7 +421,7 @@ public final class CombatListener implements Listener {
      * @return true when it is the hit that knocks {@code victim} out
      */
     private boolean lastHit(Match match, Player attacker, Player victim) {
-        int needed = match.kit().number(KitRule.HITS_TO_WIN).orElse(0);
+        int needed = match.kit().number(KitRule.HITS_TO_WIN, settings.get()).orElse(0);
         if (needed <= 0) {
             return false;
         }

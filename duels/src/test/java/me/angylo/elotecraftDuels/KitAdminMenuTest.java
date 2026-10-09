@@ -4,16 +4,23 @@ import me.angylo.elotecraftAPI.input.InputListener;
 import me.angylo.elotecraftAPI.util.Text;
 import me.angylo.elotecraftDuels.kit.Kit;
 import me.angylo.elotecraftDuels.kit.KitRule;
+import me.angylo.elotecraftDuels.menu.KitAdminMenu;
 import org.bukkit.Material;
 import org.bukkit.event.inventory.ClickType;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.potion.PotionEffectType;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayDeque;
 import java.util.Arrays;
+import java.util.Deque;
 import java.util.List;
+import java.util.Optional;
 import java.util.OptionalInt;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.IntStream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -27,6 +34,8 @@ class KitAdminMenuTest extends DuelsTestBase {
     private static final int FIRST_ENTRY = 13;
 
     private TestPlayer admin;
+
+    private final KitAdminMenu.AnvilAsk realAnvil = KitAdminMenu.anvil;
 
     @BeforeEach
     void setUpAdmin() {
@@ -79,16 +88,69 @@ class KitAdminMenuTest extends DuelsTestBase {
     }
 
     @Test
-    void togglesRedrawInPlace() {
+    void buildAndDamageAreOnlyInTheRulesMenu() {
         server.dispatchCommand(admin, "duels kit sword");
-        assertTrue(loreHas("Building", "Fighters may place blocks: Off"));
+        assertFalse(itemNames(admin).contains("Building") || itemNames(admin).contains("Damage"));
+        click("Game rules", ClickType.LEFT);
 
-        click("Building", ClickType.LEFT);
-        click("Damage", ClickType.LEFT);
+        click(KitRule.BUILD.key(), ClickType.LEFT);
+        click(KitRule.DAMAGE.key(), ClickType.LEFT);
 
-        assertTrue(sword().build());
-        assertFalse(sword().damage());
-        assertTrue(loreHas("Building", "Fighters may place blocks: On"));
+        assertTrue(sword().flag(KitRule.BUILD, duels.settings()));
+        assertFalse(sword().flag(KitRule.DAMAGE, duels.settings()));
+        assertTrue(loreHas(KitRule.BUILD.key(), "▪ set for this kit"));
+    }
+
+    /** Answers the menu's anvils from {@code answers}, in order; an empty answer is a closed anvil. */
+    private void answerAnvils(String... answers) {
+        Deque<String> left = new ArrayDeque<>(List.of(answers));
+        KitAdminMenu.anvil = (owner, player, title, initialText) ->
+                CompletableFuture.completedFuture(Optional.ofNullable(left.poll()).filter(answer -> !answer.isEmpty()));
+    }
+
+    @AfterEach
+    void restoreAnvil() {
+        KitAdminMenu.anvil = realAnvil;
+    }
+
+    @Test
+    void effectsAreAddedWithTwoAnvilsAndRemovedWithARightClick() {
+        server.dispatchCommand(admin, "duels kit sword");
+        click("Potion effects", ClickType.LEFT);
+        assertEquals("Sword › Effects", menuTitle(admin));
+        answerAnvils("1", "30");
+
+        click("absorption", ClickType.LEFT);
+        ticks(2);
+
+        assertEquals(List.of(Kit.effect(PotionEffectType.ABSORPTION, 1, 30)), sword().effects());
+        assertEquals("Sword › Effects", menuTitle(admin));
+        // Slot 10 is the first of a full centered row: the kit's own effects come first.
+        assertEquals("absorption", itemNames(admin).get(10));
+        assertTrue(loreHas("absorption", "▪ Duration: 30s"));
+
+        click("absorption", ClickType.RIGHT);
+
+        assertTrue(sword().effects().isEmpty());
+    }
+
+    @Test
+    void aBadAmplifierOrAClosedAnvilChangesNothing() {
+        server.dispatchCommand(admin, "duels kit sword");
+        click("Potion effects", ClickType.LEFT);
+        answerAnvils("5");
+        messages(admin);
+
+        click("absorption", ClickType.LEFT);
+        ticks(2);
+
+        assertTrue(messages(admin).stream().anyMatch(line -> line.contains("Use /duels kit effect")));
+        answerAnvils("1", "");
+        click("absorption", ClickType.LEFT);
+        ticks(2);
+
+        assertTrue(sword().effects().isEmpty());
+        assertEquals("Sword › Effects", menuTitle(admin));
     }
 
     @Test
@@ -98,7 +160,7 @@ class KitAdminMenuTest extends DuelsTestBase {
         click("Mode", ClickType.LEFT);
 
         assertEquals(Kit.Mode.BRIDGE, sword().mode());
-        assertTrue(sword().build());
+        assertTrue(sword().flag(KitRule.BUILD, duels.settings()));
         assertTrue(loreHas("Mode", "Now: bridge"));
     }
 
@@ -128,7 +190,7 @@ class KitAdminMenuTest extends DuelsTestBase {
 
         assertTrue(messages(admin).stream().anyMatch(line -> line.contains("Type pearl-cooldown for Sword in seconds")));
         admin.chat("15");
-        tickUntil(() -> sword().number(KitRule.PEARL_COOLDOWN).equals(OptionalInt.of(15)));
+        tickUntil(() -> sword().number(KitRule.PEARL_COOLDOWN, duels.settings()).equals(OptionalInt.of(15)));
         tick();
         assertEquals("Sword › Rules", menuTitle(admin));
     }

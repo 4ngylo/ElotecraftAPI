@@ -41,8 +41,10 @@ import java.util.logging.Level;
  */
 public final class SeasonEnder implements Listener {
 
-    /** Who sees season warnings and may end a season. */
+    /** Who may look up seasons with {@code /duels season}. */
     public static final String PERMISSION = "duels.admin.season";
+    /** Who may end, plan, name and export seasons, and sees the warnings about the planned end. */
+    public static final String MANAGE = "duels.admin.season.manage";
     /** How long a failed end waits before auto end tries again. */
     private static final Duration RETRY = Duration.ofMinutes(5);
     /** How long past the planned end auto end waits for ranked duels to finish, so they count in their own season. */
@@ -174,7 +176,7 @@ public final class SeasonEnder implements Listener {
         if (due(info, options.adminWarnings(), left, "admin")) {
             TagResolver[] tags = tags(info, left);
             plugin.getLogger().info("Duel season " + info.season() + " ends in " + length(Duration.ofMillis(left)));
-            Bukkit.getOnlinePlayers().stream().filter(player -> player.hasPermission(PERMISSION))
+            Bukkit.getOnlinePlayers().stream().filter(player -> player.hasPermission(MANAGE))
                     .forEach(player -> messages.send(player, info.autoEnd() ? "admin.season.warning-auto" : "admin.season.warning", tags));
         }
         if (info.autoEnd() && due(info, options.playerWarnings(), left, "player")) {
@@ -187,7 +189,7 @@ public final class SeasonEnder implements Listener {
     @EventHandler
     public void onJoin(PlayerJoinEvent event) {
         Seasons.Info info = seasons.info();
-        if (info.planned() && !info.autoEnd() && info.endsAt() <= System.currentTimeMillis() && event.getPlayer().hasPermission(PERMISSION)) {
+        if (info.planned() && !info.autoEnd() && info.endsAt() <= System.currentTimeMillis() && event.getPlayer().hasPermission(MANAGE)) {
             messages.send(event.getPlayer(), "admin.season.overdue", season(info.season()));
         }
     }

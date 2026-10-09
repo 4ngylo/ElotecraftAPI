@@ -97,7 +97,7 @@ class RoundsTest extends DuelsTestBase {
 
     @Test
     void boxingHitsStartAgainEachRound() {
-        Match match = fight(firstToTwo(swordKit().withDamage(false).withRule(KitRule.HITS_TO_WIN, 2)));
+        Match match = fight(firstToTwo(swordKit().withRule(KitRule.DAMAGE, false).withRule(KitRule.HITS_TO_WIN, 2)));
         steve.simulateDamage(1, alex);
         steve.simulateDamage(1, alex);
         assertEquals(Match.State.ROUND_OVER, match.state());
@@ -197,7 +197,7 @@ class RoundsTest extends DuelsTestBase {
         Kit kit = swordKit();
 
         assertEquals(1, fight(kit).roundsToWin());
-        assertEquals(10, kit.withRule(KitRule.ROUNDS_TO_WIN, KitRule.MAX_ROUNDS).number(KitRule.ROUNDS_TO_WIN).orElseThrow());
+        assertEquals(10, kit.withRule(KitRule.ROUNDS_TO_WIN, KitRule.MAX_ROUNDS).number(KitRule.ROUNDS_TO_WIN, duels.settings()).orElseThrow());
         assertThrows(IllegalArgumentException.class, () -> kit.withRule(KitRule.ROUNDS_TO_WIN, KitRule.MAX_ROUNDS + 1));
     }
 }

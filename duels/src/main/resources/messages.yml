@@ -102,10 +102,8 @@ command:
     <yellow>/duels kit seticon <name></yellow> <dark_gray>-</dark_gray> <gray>menu icon: the item in your hand
     <yellow>/duels kit setname <name> <text></yellow> <dark_gray>-</dark_gray> <gray>name shown to players
     <yellow>/duels kit setpermission <name> <permission|none></yellow> <dark_gray>-</dark_gray> <gray>who may use it
-    <yellow>/duels kit build <name></yellow> <dark_gray>-</dark_gray> <gray>let fighters place blocks, or stop it
-    <yellow>/duels kit damage <name></yellow> <dark_gray>-</dark_gray> <gray>knockback-only hits (Sumo), or normal again
     <yellow>/duels kit mode <name> [normal|bridge|bed-fight]</yellow> <dark_gray>-</dark_gray> <gray>goals or beds decide fights
-    <yellow>/duels kit effect <name> [effect level]</yellow> <dark_gray>-</dark_gray> <gray>potion effects for the whole fight (level 0 removes)
+    <yellow>/duels kit effect <name> [effect amplifier [seconds]|effect remove]</yellow> <dark_gray>-</dark_gray> <gray>potion effects: amplifier 0-2, seconds (0: whole fight)
     <yellow>/duels kit rule <name> [rule] [value|default]</yellow> <dark_gray>-</dark_gray> <gray>game rules: hunger, regeneration, pearl cooldown...
     <yellow>/duels kit defaults</yellow> <dark_gray>-</dark_gray> <gray>add the default kits that are missing
     <yellow>/duels kit arenas <name> <category...|any></yellow> <dark_gray>-</dark_gray> <gray>which arena categories its duels use
@@ -673,9 +671,6 @@ admin:
     list-header: "<prefix><gray>Kits (<count>):"
     list-entry: " <dark_gray>▪</dark_gray> <kit> <dark_gray>(<id>)</dark_gray> <gray><permission>"
     list-empty: "<prefix><gray>No kits yet. Create one with <white>/duels kit create <name>"
-    build-on: "<prefix><green>Fighters with <white><kit></white> can now place blocks; arenas are put back after each duel."
-    build-off: "<prefix><green>Fighters with <white><kit></white> can no longer place blocks."
-    damage-on: "<prefix><green>Hits with <white><kit></white> hurt again."
     # /duels kit mode <kit> [mode]; bridge and bed fight also make it a build kit.
     mode-set: "<prefix><green><white><kit></white> is now <white><mode></white>."
     mode-usage: "<prefix><red>Use /duels kit mode <kit> [normal|bridge|bed-fight]."
@@ -683,7 +678,6 @@ admin:
       normal: "a normal kit"
       bridge: "a bridge kit (goals win rounds, fighters respawn)"
       bed-fight: "a bed fight kit (fighters respawn while their bed stands)"
-    damage-off: "<prefix><green>Hits with <white><kit></white> only knock back now; falling off the arena loses."
     defaults-added: "<prefix><green>Added <white><count></white> default kits; existing kits were kept."
     arenas-usage: "<prefix><red>Use /duels kit arenas <name> <category...> or any; categories use lowercase letters, digits, - and _."
     arenas-set: "<prefix><green>Duels with <white><kit></white> now use arenas in: <white><categories></white>."
@@ -694,13 +688,20 @@ admin:
     rule-vanilla: "vanilla"
     rule-set: "<prefix><green><white><rule></white> of <white><kit></white> is now <white><value></white>."
     effects: "<prefix><gray>Effects of <white><kit></white>: <white><effects>"
-    effect-usage: "<prefix><red>Use /duels kit effect <name> <effect> <level>, level 1 to <max>, or 0 to remove it."
-    effect-set: "<prefix><green><white><kit></white> gives <white><effect> <level></white> for the whole fight."
+    effect-usage: "<prefix><red>Use /duels kit effect <name> <effect> <amplifier> [seconds] (amplifier 0 to <max>, 0 is level I; seconds 0 to <max_seconds>, 0 for the whole fight), or <effect> remove."
+    effect-set: "<prefix><green><white><kit></white> gives <white><effect></white>."
+    # <effect> <amplifier> and its <duration>, in effect lists and effect-set.
+    effect-entry: "<effect> <amplifier> <gray>(<duration>)</gray>"
+    effect-whole-fight: "whole fight"
+    effect-seconds: "<seconds>s"
     effect-removed: "<prefix><green><white><kit></white> no longer gives <white><effect></white>."
     rule-usage: "<prefix><red>Use /duels kit rule <name> [rule] [value|default]. Rules: <gray><rules>"
     rule-flag-usage: "<prefix><red><rule> is true, false or default."
     rule-seconds-usage: "<prefix><red><rule> is a number of seconds from 0 to <max>, or default."
     rule-number-usage: "<prefix><red><rule> is a whole number from 0 to <max>, or default."
+    # Titles of the anvils the /duels kit effects menu asks in.
+    prompt-amplifier: "<effect>: amplifier 0-<max>"
+    prompt-seconds: "<effect>: seconds (0 whole fight)"
     # Asked in chat by the /duels kit menus.
     prompt-create: "<prefix><gray>Type a name for the new kit (lowercase letters, digits, - and _), or <white>cancel</white>."
     prompt-name: "<prefix><gray>Type the name to show for <white><kit></white> (e.g. <white>\\<gold>Sword</white>), or <white>cancel</white>."

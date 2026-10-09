@@ -273,4 +273,19 @@ class SeasonCommandsTest extends DuelsTestBase {
         assertSays(admin, "duels season export ../x", "Use a season from 1 to 1");
         assertFalse(Files.exists(Path.of(plugin.getDataFolder().getPath(), "x.csv")));
     }
+
+    @Test
+    void lookingAtSeasonsNeedsLessThanManagingThem() {
+        TestPlayer viewer = join("Viewer");
+        viewer.addAttachment(plugin, "duels.staff", true);
+        viewer.addAttachment(plugin, "duels.admin.season", true);
+
+        assertSays(viewer, "duels season list", "No season has ended yet.");
+        assertSays(viewer, "duels season end", "You don't have permission");
+        assertSays(viewer, "duels season schedule 30", "You don't have permission");
+        assertSays(viewer, "duels season auto on", "You don't have permission");
+
+        viewer.addAttachment(plugin, "duels.admin.season.manage", true);
+        assertSays(viewer, "duels season schedule 30", "won't end by itself");
+    }
 }

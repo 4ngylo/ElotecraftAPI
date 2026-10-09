@@ -9,6 +9,7 @@ import me.angylo.elotecraftAPI.util.Text;
 import me.angylo.elotecraftDuels.Effects;
 import me.angylo.elotecraftDuels.Settings;
 import me.angylo.elotecraftDuels.kit.Kit;
+import me.angylo.elotecraftDuels.kit.KitRule;
 import me.angylo.elotecraftDuels.kit.KitRegistry;
 import me.angylo.elotecraftDuels.match.MatchManager;
 import me.angylo.elotecraftDuels.match.QueueManager;
@@ -109,7 +110,7 @@ public final class KitMenu {
                                         Placeholder.unparsed("queued", String.valueOf(waiting)),
                                         Placeholder.unparsed("dueling", fighting),
                                         Placeholder.unparsed("fighting", fighting),
-                                        Placeholder.component("building", messages.get(viewer, kit.build() ? "general.kit-build" : "general.kit-no-build")))),
+                                        Placeholder.component("building", messages.get(viewer, kit.flag(KitRule.BUILD, settings.get()) ? "general.kit-build" : "general.kit-no-build")))),
                         click(mode, MenuLayout.choose(plugin, effects, player -> onChoose.accept(kit)),
                                 MenuLayout.choose(plugin, effects, player -> preview(player, kit, mode, onChoose))));
             }).toList());

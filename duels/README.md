@@ -42,7 +42,7 @@ settings: status, enabled, icon, name, categories, build limit, teleport and del
 points (spawns, spectator, center, corners, WorldEdit box, FFA spawns), its bridge goals and beds, and its
 snapshot, reset and copies. Delete, reset and clearing copies or FFA spawns ask to confirm. Point buttons use the place you stand when you click; names and numbers are typed in chat. `/duels arena help` lists the commands.
 
-A fighter who falls out of the bottom of the box loses, as in the void (`rules.void-eliminates`); leaving
+A fighter who falls out of the bottom of the box loses, as in the void (kit rule `void-eliminates`); leaving
 it any other way sends them back to their spawn.
 
 **Arena pools.** `/duels arena category desert add bridge` puts an arena in a category, and
@@ -55,7 +55,7 @@ member's head to move them to the other team, then Start), `/party ffa` (everyon
 themselves) or `/party duel <leader>` (party against party once the other leader accepts); without a kit
 the kit menu opens. Every member must be online and free, and they leave their queues. Fighters who are
 knocked out watch until one side is left. Party fights are casual: no stats, rating, rewards or rematch.
-Teammates can't hurt each other unless `parties.friendly-fire` is on. A party FFA puts each player on one of
+Teammates can't hurt each other unless the kit rule `friendly-fire` is on. A party FFA puts each player on one of
 the arena's extra spawns (`/duels arena addspawn`, one per player) when there are enough; otherwise they are
 spread from spawn 1 to spawn 2, or put on spawn 1 and 2 in turn where there is no floor.
 
@@ -110,8 +110,9 @@ or graves plugin, exclude the arena regions; duels never fire death events, but 
 
 **Or use the menus:** `/duels kit` lists every kit (with buttons for a new kit and the default kits),
 and `/duels kit <kit>` opens one kit's settings: icon, name, permission, arena categories, mode,
-building, damage, save or load its items, delete (asks to confirm), and a game rules submenu with every
-rule (left-click switches, right-click resets). Names and values are typed in chat. Each button runs the
+save or load its items, delete (asks to confirm), a game rules submenu with every rule, `build` and
+`damage` included (left-click switches, right-click resets), and a potion effects submenu. Names and
+values are typed in chat, effect amplifiers and seconds in anvils. Each button runs the
 matching command, so the same permission and checks apply. `/duels kit help` lists the commands.
 
 Kits are stored in `kits.yml` with Paper's item format, so they survive server updates.
@@ -138,7 +139,7 @@ again. They are stored with the kit layouts.
 NoDebuff, Debuff, Gapple, BuildUHC, Classic, Archer, Sumo, Boxing, Combo, Vanilla (crystals and anchors), UHC,
 Pot, NethOP, SMP, Sword, Axe, Mace, Spear, Bridge and Bed Fight (see [kit modes](#kit-modes); their arena
 categories are `bridge` and `bedfight`). BuildUHC, Vanilla and UHC are build kits. Sumo hits only knock back
-(`/duels kit damage <kit>` toggles that for any kit): falling off the arena loses a round of a best of 3, so give
+(the kit rule `damage`, `/duels kit rule <kit> damage false` for any kit): falling off the arena loses a round of a best of 3, so give
 it a small platform arena in category `sumo` (`/duels arena category <arena> add sumo`). Boxing hits only knock
 back too: the first to land 100 hits wins. Combo has no hit delay. Edit them like any kit;
 `/duels kit defaults` adds the ones that are missing on an existing server and never overwrites a kit.
@@ -149,14 +150,21 @@ defaults: set them by hand, e.g. `/duels kit rule uhc natural-regeneration false
 ## Kit game rules
 
 `/duels kit rule <kit>` lists a kit's game rules; `/duels kit rule <kit> <rule> <value>` sets one, and
-`default` as the value unsets it. They are saved under `rules` in `kits.yml`.
+`default` as the value unsets it. They are saved under `rules` in `kits.yml`. A rule a kit does not set takes
+its value from the list `rules.kit-defaults` in `config.yml`, which holds every rule; the Default column is the
+value it ships with. Changing that list changes every kit that does not set the rule. A number default may be
+`vanilla`, leaving the game as it is. Older `config.yml` files (`rules.hunger`, `rules.natural-regeneration`,
+`rules.void-eliminates`, `parties.friendly-fire`) and `kits.yml` files (`build` and `damage` beside `rules`)
+are moved to the new places at start.
 
 | Rule | Default | |
 |---|---|---|
-| `hunger` | `rules.hunger` | true: food drains during the fight |
-| `natural-regeneration` | `rules.natural-regeneration` | false: a full hunger bar no longer heals (UHC); potions and golden apples still do |
-| `friendly-fire` | `parties.friendly-fire` | Teammates hurt each other in party fights |
-| `void-eliminates` | `rules.void-eliminates` | Falling out of the bottom of the arena loses |
+| `build` | false | Fighters place blocks and break the ones placed during the duel ([build kits](#build-kits)) |
+| `damage` | true | false: knockback only (Sumo), hits never hurt and falling off the arena decides |
+| `hunger` | false | true: food drains during the fight |
+| `natural-regeneration` | true | false: a full hunger bar no longer heals (UHC); potions and golden apples still do |
+| `friendly-fire` | false | Teammates hurt each other in party fights |
+| `void-eliminates` | true | Falling out of the bottom of the arena loses |
 | `arena-bounds` | true | Fighters leaving the arena's box by the sides or the top go back to their spawn; false lets them out (kits played over the void, e.g. bridge), and they fall out of the bottom. Spectators always stay in the box. The default Bridge and Bed Fight kits have it off |
 | `fall-damage` | true | Falling hurts, and so does landing an ender pearl |
 | `fire-damage` | true | Fire, lava, magma blocks and campfires hurt |
@@ -171,9 +179,8 @@ defaults: set them by hand, e.g. `/duels kit rule uhc natural-regeneration false
 | `block-drops` | false | Blocks broken in a build duel drop their item |
 | `death-drops` | false | A knocked-out fighter drops their inventory where they fell (useful in party fights and events) |
 | `pearl-cooldown` | vanilla (1s) | Seconds between ender pearls, 0 to 60 (0: none) |
-| `hits-to-win` | off | Boxing: a fighter hit this many times by opponents is out, so the first to land them wins a duel; 1 to 1000 (0: off). The attacker sees the count in the action bar. Pair it with `/duels kit damage <kit>` off |
+| `hits-to-win` | off | Boxing: a fighter hit this many times by opponents is out, so the first to land them wins a duel; 1 to 1000 (0: off). The attacker sees the count in the action bar. Pair it with `damage` false |
 | `rounds-to-win` | 1 | Duels only: the first fighter to win this many rounds wins the duel; 2 to 10 (0 or 1: one round). Between rounds both are healed and re-kitted and go back to their spawns, and a build arena is put back. `match.max-duration` applies to each round; a round running out of time ends the duel in a draw, and quitting or `/duel leave` loses the whole duel. Stats, rating, rewards and history count the duel once |
-
 | `max-health` | off | Fighters' maximum health in health points, 1 to 200 (20 is ten hearts; 0: off). They start the fight full; it is undone when they are sent back, and after a crash |
 | `damage-multiplier` | off | Percent of the damage opponents deal, 1 to 500 (50 halves it, 200 doubles it; 0: off) |
 | `saturation` | false | Food and saturation stay full (an endless saturation effect), so health comes back fast |
@@ -181,10 +188,16 @@ defaults: set them by hand, e.g. `/duels kit rule uhc natural-regeneration false
 
 With any of the three drop rules on, fighters pick up items inside the arena.
 
-**Effects.** `/duels kit effect <kit> <effect> <level>` gives fighters a potion effect for the whole fight,
-without particles (`speed 2`, `jump_boost 1`, any Minecraft effect name); level 0 removes it, and
-`/duels kit effect <kit>` lists them. They are stored under `effects` in `kits.yml`, e.g.
-`effects: ["speed 2"]`, and taken away with everything else when the fight ends.
+**Effects.** `/duels kit effect <kit> <effect> <amplifier> [seconds]` gives fighters a potion effect without
+particles (any Minecraft effect name): amplifier 0 to 2 (0 is level I, 2 is level III), and 0 to 9999 seconds,
+0 or none for the whole fight. `/duels kit effect <kit> <effect> remove` takes it away, and
+`/duels kit effect <kit>` lists them. In the menus, the kit's **Potion effects** button lists every effect,
+the kit's own first: a click asks the amplifier and then the seconds in two anvils, a right-click on a given
+one removes it. Whole-fight effects are given at the countdown, timed ones when the fight starts (again each
+round), so the countdown does not use them up. They are stored under `effects` in `kits.yml`, e.g.
+`effects: {speed: {amplifier: 1, seconds: 0}}`, and taken away with everything else when the fight ends.
+The older list (`effects: ["speed 2"]`, a level) is read as amplifier level - 1, at most 2, for the whole
+fight, and rewritten at start.
 
 ## Kit rewards
 
@@ -249,7 +262,7 @@ points of their arena when they are pasted.
 
 ## Build kits
 
-`/duels kit build <kit>` turns a kit into a build kit (run it again to undo): while fighting, its
+The kit rule `build` (`/duels kit rule <kit> build true`, or `default` to undo) makes a build kit: while fighting, its
 fighters may place blocks inside the arena box, use buckets and flint and steel, and break blocks placed
 during the duel. With `build.break-arena-blocks: true` they may break the arena itself too. Broken blocks
 drop nothing unless the kit has the `block-drops` rule. They can also use doors, levers and the like in
@@ -273,7 +286,7 @@ with their arena and limited to 256 x 256 blocks across.
 
 | Command | Permission | |
 |---|---|---|
-| `/duel` | | The duels menu: play (queues, events, spectating), profile, party, kits, cosmetics and options; the help for the console |
+| `/duel` | | The duels menu: play (queues, events, spectating), profile, party, kits, cosmetics, options and admin (for `duels.staff`); the help for the console |
 | `/duel menu [name]` | | A menu of menus.yml `hub`, e.g. `play` or `profile`; add your own there |
 | `/duel help` | | The command list |
 | `/duel ratings` | `duels.stats` | Your rating, peak, division and ranked record in each kit |
@@ -297,8 +310,9 @@ with their arena and limited to 256 x 256 blocks across.
 | `/duel inventory` | | Opened by clicking a fighter's name in a duel's result line, or in the "Inventories" line sent after party fights and events, once the fight is over: that fighter's items, health, food and effects as the fight left them, hits landed, longest combo and health potions thrown, missed and accuracy. Kept for 10 minutes |
 | `/party` | `duels.party` | The party menu: your party's members and buttons, or the public parties to join (layouts in menus.yml `party` and `party-none`) |
 | `/party <player>`, `/party accept\|deny [player]` | `duels.party` | Invite someone (makes a party if you have none) or answer an invite |
-| `/party public`, `/party join <leader>` | `duels.party` | Leader: let anyone join without an invite (announced once a minute at most), or stop; join a public party |
-| `/party chat [message]`, `/pc [message]` | `duels.party` | Talk to your party; the message shows as typed. Without a message, switches party chat mode: what you type in chat goes to your party until you run it again or leave the party |
+| `/party public` | `duels.party.public` | Leader: let anyone join without an invite (announced once a minute at most), or stop |
+| `/party join <leader>` | `duels.party` | Join a public party |
+| `/party chat [message]`, `/pc [message]` | `duels.party.chat` | Talk to your party; the message shows as typed. Without a message, switches party chat mode: what you type in chat goes to your party until you run it again or leave the party |
 | `/party kick\|promote <player>`, `/party disband` | `duels.party` | Manage the party (leader only) |
 | `/party leave`, `/party info` | `duels.party` | Leave the party, list its members |
 | `/party split [kit] [arena]`, `/party ffa [kit] [arena]` | `duels.party.fight` | Leader: two teams picked in a menu, or everyone for themselves |
@@ -308,20 +322,49 @@ with their arena and limited to 256 x 256 blocks across.
 | `/event host [kit]` | `duels.event.host` | Host an event (kit menu without a kit), then set it up in its menu |
 | `/event settings\|start\|cancel`, `/event invite <player>` | `duels.event.host` | Run your event; invite players to a private one (`duels.event.host.private` makes it private) |
 | `/duels arena ...` | `duels.admin.arena` | menus: no argument or an arena name; `help`, `create`, `delete`, `setspawn`, `setcorner`, `setgoal`, `setbed`, `setbox`, `import`, `setspectator`, `setcenter`, `seticon`, `setname`, `category`, `buildlimit`, `toggle`, `info`, `tp`, `list`, `snapshot`, `reset`, `pool` |
-| `/duels kit ...` | `duels.admin.kit` | menus: no argument or a kit name; `help`, `create`, `save`, `load`, `delete`, `seticon`, `setname`, `setpermission`, `build`, `damage`, `mode`, `rule`, `arenas`, `defaults`, `list` |
+| `/duels kit ...` | `duels.admin.kit` | menus: no argument or a kit name; `help`, `create`, `save`, `load`, `delete`, `seticon`, `setname`, `setpermission`, `mode`, `effect`, `rule`, `arenas`, `defaults`, `list` |
 | `/duels hologram create <name> <wins\|elo> [kit]`, `delete <name>`, `list` | `duels.admin.hologram` | [Leaderboard holograms](#leaderboard-holograms) where you stand |
-| `/duels` | `duels.admin` | The admin menu: arenas, kits, season, holograms, ratings, reload (asks to confirm); the help for the console. `/duels help` shows the help |
+| `/duels` | `duels.staff` | The admin menu: arenas, kits, season, holograms, ratings, reload (asks to confirm); the help for the console. `/duels help` shows the help |
 | `/duels season [list \| info <n> \| top [n] [kit] \| player <player> [n] \| divisions \| compare <a> <b> \| kits [n]]` | `duels.admin.season` | The [season](#seasons) running, ended ones, leaderboards, a player's ratings, divisions, two seasons side by side, the kits played |
-| `/duels season schedule <days\|yyyy-MM-dd\|off>`, `auto <on\|off\|toggle>`, `name <n> <name\|off>`, `export <n>` | `duels.admin.season` | Plan the end, make it end by itself, name a season, write `seasons/season-<n>.csv` |
-| `/duels season end [preview \| confirm]` | `duels.admin.season` | What ending would archive and pay; end it (asks for `confirm` within 30 seconds) |
-| `/duels elo <player>`, `elo set\|add <player> <kit\|all> <value>`, `elo reset <player> [kit\|all]` | `duels.admin.elo` | A player's ratings, online or not; change them (0 to 10000, logged); reset asks for `confirm` |
+| `/duels season schedule <days\|yyyy-MM-dd\|off>`, `auto <on\|off\|toggle>`, `name <n> <name\|off>`, `export <n>` | `duels.admin.season.manage` | Plan the end, make it end by itself, name a season, write `seasons/season-<n>.csv` |
+| `/duels season end [preview \| confirm]` | `duels.admin.season.manage` | What ending would archive and pay; end it (asks for `confirm` within 30 seconds) |
+| `/duels elo <player>` | `duels.admin.elo` | A player's ratings, online or not |
+| `/duels elo set\|add <player> <kit\|all> <value>`, `elo reset <player> [kit\|all]` | `duels.admin.elo.edit` | Change them (0 to 10000, logged); reset asks for `confirm` |
 | `/duels stop <player>` | `duels.admin.stop` | End a duel without a result |
 | `/duels reload` | `duels.admin.reload` | Reload config, messages, menus, arenas and kits |
 
 Choosing the arena needs `duels.select-arena`; without it arenas are random. `duels.player` (everyone by
 default) grants all player permissions, hosting events included; `duels.admin` (operators) grants all
 admin ones plus `duels.bypass.cooldown`, which also skips the event host cooldown, and
-`duels.bypass.commands`, which allows every command during a duel, and can watch events that forbid spectators. `/duels` itself needs `duels.admin`.
+`duels.bypass.commands`, which allows every command during a duel, and can watch events that forbid spectators. `/duels` itself needs `duels.staff`
+(in `duels.admin`), and each part of it its own permission. `duels.admin.season.manage` includes `duels.admin.season`,
+and `duels.admin.elo.edit` includes `duels.admin.elo`; the season warnings go to `duels.admin.season.manage`.
+
+### Permissions for ranks
+
+Every feature above has its own permission, so a permissions plugin such as LuckPerms can give each rank
+its own set. Player permissions are on for everyone by default: to keep one for a rank, take it from
+`default` and give it to the rank, whose own permission wins over the one it inherits:
+
+```
+lp group default permission set duels.bet false
+lp group vip permission set duels.bet true
+lp group vip permission set duels.select-arena true
+lp group mod permission set duels.staff true
+lp group mod permission set duels.admin.stop true
+lp group mod permission set duels.admin.season true
+```
+
+Some limits from config.yml can be raised per rank with a number at the end of a permission; the
+highest a player has counts, and never less than config.yml:
+
+| Permission | Raises | Up to |
+|---|---|---|
+| `duels.party.size.<n>` | `parties.max-size`, by the party leader's permission | 100 |
+| `duels.kit.custom.slots.<n>` | `custom-kits.slots`; kits in slots a player loses are kept, not offered | 9 |
+| `duels.queue.ranked.limit.<n>` | `ranked.daily-limit` (no effect while it is 0, no limit) | 1000 |
+
+For example `lp group vip permission set duels.party.size.12 true`.
 
 ## How a duel runs
 
@@ -624,8 +667,8 @@ The automated tests run on MockBukkit, which cannot click menus. Before a releas
   shows the fighters' heads, a click teleports to one; the compass in the middle of the inventory (E) opens the same menu,
   and is gone after the fight
 - [ ] Kit rules on a real client: `max-health 40` shows 20 hearts and is back to 10 after the duel, `damage-multiplier 50`
-  halves hits, `saturation` heals fast, `auto-ignite-tnt` lights TNT on placing; `/duels kit effect <kit> speed 2` shows
-  the effect icon and it is gone after the duel
+  halves hits, `saturation` heals fast, `auto-ignite-tnt` lights TNT on placing; `/duels kit effect <kit> speed 1 10` shows
+  the effect icon for 10 seconds from the fight start; the kit menu's effect anvils take typed numbers
 - [ ] Parties: `/party` menu with and without a party, every button; `/party public` announces once, another player
   joins with the [JOIN] click; `/party chat` and `/pc` reach members only; `/pc` alone, then typing in chat, reaches
   members only until `/pc` again

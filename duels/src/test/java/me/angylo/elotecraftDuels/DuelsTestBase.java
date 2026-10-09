@@ -6,6 +6,7 @@ import me.angylo.elotecraftAPI.util.Text;
 import me.angylo.elotecraftDuels.arena.Arena;
 import me.angylo.elotecraftDuels.arena.Arena.Position;
 import me.angylo.elotecraftDuels.kit.Kit;
+import me.angylo.elotecraftDuels.kit.KitRule;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -105,14 +106,14 @@ abstract class DuelsTestBase {
 
     /** A kit of one diamond sword. */
     protected Kit swordKit() {
-        Kit kit = new Kit("sword", "<aqua>Sword", Material.DIAMOND_SWORD, null, List.of(ItemStack.of(Material.DIAMOND_SWORD)), false, Set.of(), true);
+        Kit kit = new Kit("sword", "<aqua>Sword", Material.DIAMOND_SWORD, null, List.of(ItemStack.of(Material.DIAMOND_SWORD)), Set.of());
         await(duels.kits().update(kit));
         return kit;
     }
 
     /** A build kit of a stack of planks. */
     protected Kit buildKit() {
-        Kit kit = new Kit("bridge", "<gold>Bridge", Material.OAK_PLANKS, null, List.of(ItemStack.of(Material.OAK_PLANKS, 64)), true, Set.of(), true);
+        Kit kit = new Kit("bridge", "<gold>Bridge", Material.OAK_PLANKS, null, List.of(ItemStack.of(Material.OAK_PLANKS, 64)), Set.of()).withRule(KitRule.BUILD, true);
         await(duels.kits().update(kit));
         return kit;
     }
@@ -177,12 +178,17 @@ abstract class DuelsTestBase {
     }
 
     /** The slot of {@code player}'s open menu whose item is named {@code name}, or else the first whose name contains it. */
-    protected static int slotNamed(TestPlayer player, String name) {
+    /** The plain names of the open menu's items, slot by slot; "" for a slot without a named item. */
+    protected static List<String> itemNames(TestPlayer player) {
         Inventory top = player.getOpenInventory().getTopInventory();
-        List<String> names = IntStream.range(0, top.getSize()).mapToObj(top::getItem)
+        return IntStream.range(0, top.getSize()).mapToObj(top::getItem)
                 .map(item -> item == null || !item.hasItemMeta() || !item.getItemMeta().hasDisplayName() ? ""
                         : Text.plain(item.getItemMeta().displayName()))
                 .toList();
+    }
+
+    protected static int slotNamed(TestPlayer player, String name) {
+        List<String> names = itemNames(player);
         int exact = names.indexOf(name);
         if (exact >= 0) {
             return exact;

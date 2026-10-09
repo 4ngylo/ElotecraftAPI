@@ -62,7 +62,7 @@ final class DefaultKits {
                         .slot(1, potion(Material.POTION, PotionType.STRONG_SWIFTNESS)).slot(2, potion(Material.POTION, PotionType.STRONG_SWIFTNESS))
                         .slot(8, item(Material.COOKED_BEEF, 64)).slot(9, item(Material.ARROW, 1))),
                 kit("sumo", "<yellow>Sumo", Material.SLIME_BALL, false, Set.of("sumo"), new Loadout()
-                        .slot(8, item(Material.COOKED_BEEF, 64))).withDamage(false).withRule(KitRule.ROUNDS_TO_WIN, SUMO_ROUNDS),
+                        .slot(8, item(Material.COOKED_BEEF, 64))).withRule(KitRule.DAMAGE, false).withRule(KitRule.ROUNDS_TO_WIN, SUMO_ROUNDS),
                 kit("vanilla", "<dark_purple>Vanilla", Material.END_CRYSTAL, true, Set.of(), new Loadout()
                         .armor("NETHERITE", 4).slot(0, ench(Material.NETHERITE_SWORD, Enchantment.SHARPNESS, 5))
                         .slot(1, item(Material.END_CRYSTAL, 64)).slot(2, item(Material.OBSIDIAN, 64))
@@ -114,7 +114,7 @@ final class DefaultKits {
                         .slot(8, item(Material.COOKED_BEEF, 64)).slot(OFF_HAND, item(Material.SHIELD, 1))),
                 kit("boxing", "<red>Boxing", Material.LEATHER, false, Set.of(), new Loadout()
                         .slot(0, ench(Material.DIAMOND_SWORD, Enchantment.SHARPNESS, 1)).slot(8, item(Material.COOKED_BEEF, 64)))
-                        .withDamage(false).withRule(KitRule.HITS_TO_WIN, BOXING_HITS),
+                        .withRule(KitRule.DAMAGE, false).withRule(KitRule.HITS_TO_WIN, BOXING_HITS),
                 kit("combo", "<blue>Combo", Material.PUFFERFISH, false, Set.of(), new Loadout()
                         .armor("DIAMOND", 3).slot(0, ench(Material.DIAMOND_SWORD, Enchantment.SHARPNESS, 3, Enchantment.UNBREAKING, 3))
                         .slot(1, item(Material.ENCHANTED_GOLDEN_APPLE, 64)).slot(2, potion(Material.POTION, PotionType.STRONG_SWIFTNESS))
@@ -152,7 +152,8 @@ final class DefaultKits {
     }
 
     private static Kit kit(String name, String displayName, Material icon, boolean build, Set<String> categories, Loadout loadout) {
-        return new Kit(name, displayName, icon, null, Arrays.asList(loadout.slots), build, categories, true);
+        Kit kit = new Kit(name, displayName, icon, null, Arrays.asList(loadout.slots), categories);
+        return build ? kit.withRule(KitRule.BUILD, true) : kit;
     }
 
     private static ItemStack item(Material material, int amount) {

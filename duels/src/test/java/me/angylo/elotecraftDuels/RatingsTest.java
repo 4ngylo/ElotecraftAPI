@@ -40,7 +40,7 @@ class RatingsTest extends DuelsTestBase {
         alex = join("Alex");
         steve = join("Steve");
         sword = swordKit();
-        axe = new Kit("axe", "<gray>Axe", Material.IRON_AXE, null, List.of(ItemStack.of(Material.IRON_AXE)), false, Set.of(), true);
+        axe = new Kit("axe", "<gray>Axe", Material.IRON_AXE, null, List.of(ItemStack.of(Material.IRON_AXE)), Set.of());
         await(duels.kits().update(axe));
         readyArena("pit");
     }

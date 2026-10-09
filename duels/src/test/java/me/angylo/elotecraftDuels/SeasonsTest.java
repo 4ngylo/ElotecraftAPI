@@ -125,4 +125,17 @@ class SeasonsTest extends DuelsTestBase {
         assertEquals(1, duels.seasons().current());
         assertSays(alex, "duel top season 1", "No season has ended yet.");
     }
+
+    @Test
+    void aPermissionRaisesTheDailyLimit() {
+        setConfig("ranked.daily-limit", 1);
+        alex.addAttachment(plugin, "duels.queue.ranked.limit.2", true);
+        duels.queues().toggle(alex, kit, true);
+        duels.queues().toggle(steve, kit, true);
+        duels.matches().leave(alex);
+        ticks(20 * duels.settings().endDelaySeconds() + 1);
+
+        assertSays(alex, "duel ranked sword", "Joined the Ranked");
+        assertSays(steve, "duel ranked sword", "You played your 1 ranked duels for today.");
+    }
 }

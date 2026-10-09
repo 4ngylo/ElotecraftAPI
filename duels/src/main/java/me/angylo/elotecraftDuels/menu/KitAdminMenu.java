@@ -1,11 +1,14 @@
 package me.angylo.elotecraftDuels.menu;
 
+import me.angylo.elotecraftAPI.command.Args;
+import me.angylo.elotecraftAPI.input.AnvilInput;
 import me.angylo.elotecraftAPI.menu.Button;
 import me.angylo.elotecraftAPI.menu.Menu;
 import me.angylo.elotecraftAPI.menu.MenuConfig;
 import me.angylo.elotecraftAPI.menu.PaginatedMenu;
 import me.angylo.elotecraftAPI.util.ConfigFile;
 import me.angylo.elotecraftAPI.util.Messages;
+import me.angylo.elotecraftAPI.util.Tasks;
 import me.angylo.elotecraftAPI.util.Text;
 import me.angylo.elotecraftDuels.Effects;
 import me.angylo.elotecraftDuels.Settings;
@@ -15,16 +18,25 @@ import me.angylo.elotecraftDuels.kit.KitRule;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver;
+import org.bukkit.Registry;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Player;
 import org.bukkit.event.inventory.ClickType;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.PotionMeta;
 import org.bukkit.plugin.Plugin;
+import org.bukkit.potion.PotionEffect;
+import org.bukkit.potion.PotionEffectType;
 
+import java.time.Duration;
 import java.util.Arrays;
+import java.util.Comparator;
+import java.util.Optional;
 import java.util.OptionalInt;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.logging.Level;
 import java.util.function.Supplier;
 
 import static me.angylo.elotecraftDuels.menu.MenuLayout.value;
@@ -37,6 +49,8 @@ import static me.angylo.elotecraftDuels.menu.MenuLayout.with;
  * Layouts in menus.yml {@code kit-admin}, {@code kit-settings} and {@code kit-rules}.
  */
 public final class KitAdminMenu {
+
+    private static final Duration ANVIL_TIME = Duration.ofSeconds(60);
 
     private final Plugin plugin;
     private final Messages messages;
@@ -79,15 +93,20 @@ public final class KitAdminMenu {
 
     /** Shows the settings of the kit {@code name}, or the kit list if it is gone. */
     public void openSettings(Player viewer, String name) {
-        open(viewer, name, "kit-settings", false);
+        open(viewer, name, "kit-settings", Editor::new);
     }
 
     /** Shows the game rules of the kit {@code name}, or the kit list if it is gone. */
     public void openRules(Player viewer, String name) {
-        open(viewer, name, "kit-rules", true);
+        open(viewer, name, "kit-rules", RulesEditor::new);
     }
 
-    private void open(Player viewer, String name, String key, boolean rules) {
+    /** Shows every potion effect for the kit {@code name}, the ones it gives first, or the kit list if it is gone. */
+    public void openEffects(Player viewer, String name) {
+        open(viewer, name, "kit-effects", EffectsEditor::new);
+    }
+
+    private void open(Player viewer, String name, String key, ViewMaker maker) {
         Kit kit = kits.get(name).orElse(null);
         if (kit == null) {
             openList(viewer);
@@ -95,8 +114,7 @@ public final class KitAdminMenu {
         }
         try {
             ConfigurationSection section = menus.get().getConfigurationSection(key);
-            Effects effects = settings.get().effects();
-            (rules ? new RulesEditor(section, effects, kit) : new Editor(section, effects, kit)).open(viewer);
+            maker.make(section, settings.get().effects(), kit).open(viewer);
         } catch (IllegalArgumentException e) {
             MenuLayout.menuError(plugin, messages, viewer, key, e);
         }
@@ -106,7 +124,7 @@ public final class KitAdminMenu {
         long items = kit.items().stream().filter(item -> !item.isEmpty()).count();
         return MenuLayout.icon(kit.icon(), section.getConfigurationSection("kit"), "lore", false, with(kitTags(kit),
                 Placeholder.component("permission", permission(section, kit)),
-                Placeholder.component("building", messages.get(viewer, kit.build() ? "general.kit-build" : "general.kit-no-build")),
+                Placeholder.component("building", messages.get(viewer, kit.flag(KitRule.BUILD, settings.get()) ? "general.kit-build" : "general.kit-no-build")),
                 Placeholder.unparsed("items", String.valueOf(items)),
                 Placeholder.unparsed("rules", String.valueOf(kit.rules().size()))));
     }
@@ -118,6 +136,40 @@ public final class KitAdminMenu {
 
     private void ask(Player player, String promptKey, TagResolver[] tags, Consumer<String> onAnswer) {
         MenuLayout.ask(plugin, messages, player, promptKey, tags, onAnswer);
+    }
+
+    /** Asks {@code player} for text in an anvil; tests swap {@link #anvil}, as MockBukkit opens no anvil. */
+    @FunctionalInterface
+    public interface AnvilAsk {
+        CompletableFuture<Optional<String>> ask(Plugin plugin, Player player, Component title, String initialText);
+    }
+
+    public static AnvilAsk anvil = (plugin, player, title, initialText) -> AnvilInput.ask(plugin, player, title, initialText, ANVIL_TIME);
+
+    /**
+     * Asks in an anvil titled {@code titleKey}; the answer goes to {@code onAnswer} a tick later, outside the anvil's click
+     * event, and closing the anvil runs {@code onCancel} instead.
+     */
+    private void askAnvil(Player player, String titleKey, TagResolver[] tags, String initialText, Consumer<String> onAnswer,
+                          Consumer<Player> onCancel) {
+        anvil.ask(plugin, player, messages.get(player, titleKey, tags), initialText).thenAccept(answer -> {
+            if (plugin.isEnabled()) {
+                Tasks.sync(plugin, () -> {
+                    if (player.isOnline()) {
+                        answer.ifPresentOrElse(onAnswer, () -> onCancel.accept(player));
+                    }
+                });
+            }
+        }).exceptionally(error -> {
+            plugin.getLogger().log(Level.WARNING, "Menu anvil answer failed", error);
+            return null;
+        });
+    }
+
+    /** Builds one of the kit views. */
+    @FunctionalInterface
+    private interface ViewMaker {
+        KitView make(ConfigurationSection section, Effects effects, Kit kit);
     }
 
     /** What the settings and rules menus share: running a change on the kit and redrawing, or asking in chat. */
@@ -210,12 +262,12 @@ public final class KitAdminMenu {
                     : Component.text(String.join(", ", kit.arenaCategories().stream().sorted().toList()))),
                     prompt("arenas", "", "admin.kit.prompt-arenas", kit));
             MenuLayout.put(menu, section, "mode", entry("mode", kit, value(section, "mode-" + kit.mode().key())), change("mode"));
-            MenuLayout.put(menu, section, "build", entry("build", kit, onOff(kit.build())), change("build"));
-            MenuLayout.put(menu, section, "damage", entry("damage", kit, onOff(kit.damage())), change("damage"));
             MenuLayout.put(menu, section, "save", entry("save", kit, Component.empty()), change("save"));
             MenuLayout.put(menu, section, "rules", MenuConfig.item(section.getConfigurationSection("rules"), with(kitTags(kit),
                     Placeholder.unparsed("rules", String.valueOf(kit.rules().size())))),
                     MenuLayout.choose(plugin, effects, player -> openRules(player, name)));
+            MenuLayout.put(menu, section, "effects", entry("effects", kit, Component.text(kit.effects().size())),
+                    MenuLayout.choose(plugin, effects, player -> openEffects(player, name)));
             MenuLayout.put(menu, section, "load", entry("load", kit, Component.empty()),
                     MenuLayout.choose(plugin, effects, player -> run(player, "load " + name)));
         }
@@ -253,7 +305,7 @@ public final class KitAdminMenu {
         private Button rule(Kit kit, KitRule rule) {
             ConfigurationSection template = section.getConfigurationSection("rule");
             boolean flagOn = rule.isFlag() && kit.flag(rule, settings.get());
-            OptionalInt number = kit.number(rule);
+            OptionalInt number = kit.number(rule, settings.get());
             Component value = rule.isFlag() ? onOff(flagOn)
                     : number.isPresent() ? Component.text(rule.format(number.getAsInt())) : value(section, "vanilla");
             boolean set = kit.rules().containsKey(rule);
@@ -272,6 +324,77 @@ public final class KitAdminMenu {
                     numberPrompt.accept(player, click);
                 }
             });
+        }
+    }
+
+    /**
+     * One open effects menu: a potion per effect, the kit's own first. Left-click asks the amplifier, then the seconds, in
+     * two anvils and runs {@code /duels kit effect}; right-click takes a given effect away.
+     */
+    private final class EffectsEditor extends KitView {
+
+        private final PaginatedMenu menu;
+
+        EffectsEditor(ConfigurationSection section, Effects effects, Kit kit) {
+            super(section, effects, kit);
+            this.menu = MenuLayout.frame(plugin, section, MenuLayout.plain("kit", kit.displayName()));
+            MenuLayout.place(menu, section, "back", MenuLayout.choose(plugin, effects, player -> openSettings(player, name)));
+            MenuLayout.place(menu, section, "close", MenuLayout.close(plugin, effects));
+            draw(kit);
+        }
+
+        @Override
+        void open(Player viewer) {
+            menu.open(viewer);
+        }
+
+        @Override
+        void reopen(Player player) {
+            openEffects(player, name);
+        }
+
+        @Override
+        void draw(Kit kit) {
+            menu.items(Registry.MOB_EFFECT.stream()
+                    .sorted(Comparator.comparing((PotionEffectType type) -> kit.effectOf(type).isEmpty()).thenComparing(Kit::effectName))
+                    .map(type -> button(kit, type)).toList());
+        }
+
+        private Button button(Kit kit, PotionEffectType type) {
+            ConfigurationSection template = section.getConfigurationSection("effect");
+            Optional<PotionEffect> given = kit.effectOf(type);
+            int seconds = given.map(Kit::seconds).orElse(0);
+            ItemStack icon = MenuLayout.icon(MenuLayout.material(template, "material"), template, given.isPresent() ? "given-lore" : "lore",
+                    given.isPresent(), with(kitTags(kit), Placeholder.unparsed("effect", Kit.effectName(type)),
+                            Placeholder.unparsed("amplifier", String.valueOf(given.map(PotionEffect::getAmplifier).orElse(0))),
+                            Placeholder.component("duration", seconds == 0 ? value(section, "whole-fight") : Component.text(seconds + "s"))));
+            icon.editMeta(PotionMeta.class, meta -> meta.setColor(type.getColor()));
+            BiConsumer<Player, ClickType> ask = MenuLayout.choose(plugin, effects, player -> askAmplifier(player, kit, type));
+            return Button.of(icon, (player, click) -> {
+                if (click.isRightClick() && given.isPresent()) {
+                    change("effect", Kit.effectName(type) + " remove").accept(player, click);
+                } else {
+                    ask.accept(player, click);
+                }
+            });
+        }
+
+        private void askAmplifier(Player player, Kit kit, PotionEffectType type) {
+            Optional<PotionEffect> given = kit.effectOf(type);
+            TagResolver[] tags = with(kitTags(kit), Placeholder.unparsed("effect", Kit.effectName(type)),
+                    Placeholder.unparsed("max", String.valueOf(Kit.MAX_AMPLIFIER)),
+                    Placeholder.unparsed("max_seconds", String.valueOf(Kit.MAX_EFFECT_SECONDS)));
+            askAnvil(player, "admin.kit.prompt-amplifier", tags, String.valueOf(given.map(PotionEffect::getAmplifier).orElse(0)), amplifier -> {
+                if (Args.integer(amplifier, 0, Kit.MAX_AMPLIFIER).isEmpty()) {
+                    messages.send(player, "admin.kit.effect-usage", tags);
+                    reopen(player);
+                    return;
+                }
+                askAnvil(player, "admin.kit.prompt-seconds", tags, String.valueOf(given.map(Kit::seconds).orElse(0)), seconds -> {
+                    run(player, "effect " + name + " " + Kit.effectName(type) + " " + amplifier + " " + seconds);
+                    reopen(player);
+                }, this::reopen);
+            }, this::reopen);
         }
     }
 

@@ -51,7 +51,7 @@ class ModesTest extends DuelsTestBase {
     }
 
     private static Kit kit(Kit.Mode mode) {
-        return new Kit("mode", "<gold>Mode", Material.OAK_PLANKS, null, List.of(ItemStack.of(Material.OAK_PLANKS, 64)), true, Set.of(), true)
+        return new Kit("mode", "<gold>Mode", Material.OAK_PLANKS, null, List.of(ItemStack.of(Material.OAK_PLANKS, 64)), Set.of()).withRule(KitRule.BUILD, true)
                 .withMode(mode);
     }
 
@@ -87,7 +87,7 @@ class ModesTest extends DuelsTestBase {
         items.set(36, ItemStack.of(Material.LEATHER_BOOTS));
         items.set(38, ItemStack.of(Material.LEATHER_CHESTPLATE));
         items.set(39, ItemStack.of(Material.IRON_HELMET));
-        return new Kit("mode", "<gold>Mode", Material.OAK_PLANKS, null, items, true, Set.of(), true).withMode(mode);
+        return new Kit("mode", "<gold>Mode", Material.OAK_PLANKS, null, items, Set.of()).withRule(KitRule.BUILD, true).withMode(mode);
     }
 
     private static Color color(ItemStack armor) {
@@ -374,7 +374,7 @@ class ModesTest extends DuelsTestBase {
         Kit sword = duels.kits().get("sword").orElseThrow();
 
         assertEquals(Kit.Mode.BRIDGE, sword.mode());
-        assertTrue(sword.build());
+        assertTrue(sword.flag(KitRule.BUILD, duels.settings()));
         assertTrue(sword.accepts(arena));
         assertFalse(sword.accepts(plain));
         assertFalse(sword.withMode(Kit.Mode.BED_FIGHT).accepts(plain.withPoints(arena.points().withBed(2, null))));

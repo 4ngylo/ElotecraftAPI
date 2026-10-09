@@ -109,4 +109,25 @@ class PartyTest extends DuelsTestBase {
         assertTrue(messages(alex).stream().anyMatch(line -> line.contains("Steve disbanded the party.")));
         assertTrue(!inParty(alex) && !inParty(steve));
     }
+
+    @Test
+    void theLeadersPermissionRaisesThePartySize() {
+        setConfig("parties.max-size", 2);
+        alex.addAttachment(plugin, "duels.party.size.3", true);
+        alex.addAttachment(plugin, "duels.party.size.abc", true);
+
+        partyWith(steve, sam);
+
+        assertEquals(3, partyOf(alex).size());
+        assertEquals(3, duels.parties().maxSize(partyOf(alex)));
+        assertSays(alex, "party info", "3/3");
+    }
+
+    @Test
+    void thePartySizePermissionStopsAtTheMaximum() {
+        alex.addAttachment(plugin, "duels.party.size.5000", true);
+        partyWith(steve);
+
+        assertEquals(Settings.MAX_PARTY_SIZE, duels.parties().maxSize(partyOf(alex)));
+    }
 }

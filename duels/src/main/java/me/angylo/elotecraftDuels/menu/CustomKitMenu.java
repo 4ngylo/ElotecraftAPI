@@ -65,7 +65,7 @@ public final class CustomKitMenu implements Listener {
             Effects effects = settings.get().effects();
             PaginatedMenu menu = MenuLayout.frame(plugin, section);
             List<Button> buttons = new ArrayList<>();
-            for (int slot = 1; slot <= customKits.slots(); slot++) {
+            for (int slot = 1; slot <= customKits.slots(player); slot++) {
                 String command = "duel customkit " + slot;
                 buttons.add(Button.of(slotIcon(section, base.get(), player, slot), MenuLayout.choose(plugin, effects,
                         clicker -> clicker.performCommand(command))));

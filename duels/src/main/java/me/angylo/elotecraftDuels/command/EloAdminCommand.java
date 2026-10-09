@@ -38,6 +38,8 @@ import java.util.stream.Stream;
 final class EloAdminCommand {
 
     static final String PERMISSION = "duels.admin.elo";
+    /** Changing ratings; {@link #PERMISSION} alone only shows them. */
+    static final String EDIT = "duels.admin.elo.edit";
     private static final int CONFIRM_SECONDS = 30;
     private static final String CONFIRM = "confirm";
     private static final String ALL = "all";
@@ -55,9 +57,9 @@ final class EloAdminCommand {
     CommandBuilder node() {
         return CommandBuilder.create("elo").permission(PERMISSION)
                 .executes(this::show, (sender, args) -> args.length == 1 ? Args.players(args) : List.of())
-                .sub("set", null, (sender, args) -> change(sender, args, RatingChange.SET), this::suggestChange)
-                .sub("add", null, (sender, args) -> change(sender, args, RatingChange.ADD), this::suggestChange)
-                .sub("reset", null, this::reset, (sender, args) -> args.length == 3 ? Args.filter(List.of(CONFIRM), args) : suggestChange(sender, args));
+                .sub("set", EDIT, (sender, args) -> change(sender, args, RatingChange.SET), this::suggestChange)
+                .sub("add", EDIT, (sender, args) -> change(sender, args, RatingChange.ADD), this::suggestChange)
+                .sub("reset", EDIT, this::reset, (sender, args) -> args.length == 3 ? Args.filter(List.of(CONFIRM), args) : suggestChange(sender, args));
     }
 
     private List<String> suggestChange(CommandSender sender, String[] args) {

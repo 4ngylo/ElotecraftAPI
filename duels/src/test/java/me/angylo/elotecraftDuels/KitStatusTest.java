@@ -68,8 +68,8 @@ class KitStatusTest extends DuelsTestBase {
 
     @Test
     void effectsAndSaturationAreGivenAndTakenBack() {
-        PotionEffect speed = Kit.effect(PotionEffectType.SPEED, 2);
-        fight(swordKit().withEffect(PotionEffectType.SPEED, 2).withRule(KitRule.SATURATION, true));
+        PotionEffect speed = Kit.effect(PotionEffectType.SPEED, 1, 0);
+        fight(swordKit().withEffect(PotionEffectType.SPEED, 1, 0).withRule(KitRule.SATURATION, true));
         assertEquals(1, alex.getPotionEffect(PotionEffectType.SPEED).getAmplifier());
         assertNotNull(alex.getPotionEffect(PotionEffectType.SATURATION));
         assertEquals(speed, duels.kits().get("sword").orElseThrow().effects().getFirst());
@@ -82,15 +82,28 @@ class KitStatusTest extends DuelsTestBase {
     }
 
     @Test
+    void aTimedEffectStartsWithTheFightAndWearsOff() {
+        fight(swordKit().withEffect(PotionEffectType.SPEED, 0, 3));
+        assertEquals(0, alex.getPotionEffect(PotionEffectType.SPEED).getAmplifier());
+        assertEquals(3 * 20, alex.getPotionEffect(PotionEffectType.SPEED).getDuration(), 2);
+
+        ticks(20 * 4);
+
+        assertFalse(alex.hasPotionEffect(PotionEffectType.SPEED));
+    }
+
+    @Test
     void effectsAreSavedAndSetByCommand() {
         swordKit();
-        assertSays(alex, "duels kit effect sword speed 2", "Sword gives speed 2 for the whole fight.");
-        assertSays(alex, "duels kit effect sword jump_boost 1", "jump_boost 1");
-        assertSays(alex, "duels kit effect sword speed 0", "Sword no longer gives speed.");
+        assertSays(alex, "duels kit effect sword speed 2", "Sword gives speed 2 (whole fight).");
+        assertSays(alex, "duels kit effect sword jump_boost 0 30", "jump_boost 0 (30s)");
+        assertSays(alex, "duels kit effect sword speed remove", "Sword no longer gives speed.");
         assertSays(alex, "duels kit effect sword wings 1", "Use /duels kit effect");
+        assertSays(alex, "duels kit effect sword speed 3", "Use /duels kit effect");
+        assertSays(alex, "duels kit effect sword speed 1 10000", "Use /duels kit effect");
 
         assertTrue(duels.kits().reload());
-        assertEquals(List.of(Kit.effect(PotionEffectType.JUMP_BOOST, 1)), duels.kits().get("sword").orElseThrow().effects());
-        assertSays(alex, "duels kit effect sword", "Effects of Sword: jump_boost 1");
+        assertEquals(List.of(Kit.effect(PotionEffectType.JUMP_BOOST, 0, 30)), duels.kits().get("sword").orElseThrow().effects());
+        assertSays(alex, "duels kit effect sword", "Effects of Sword: jump_boost 0 (30s)");
     }
 }

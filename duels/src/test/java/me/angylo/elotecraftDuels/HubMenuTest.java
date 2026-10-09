@@ -110,6 +110,19 @@ class HubMenuTest extends DuelsTestBase {
     }
 
     @Test
+    void theHubLinksToTheAdminMenuOnlyForAdmins() {
+        server.dispatchCommand(alex, "duel");
+        assertFalse(names(alex).contains("Admin"));
+
+        alex.setOp(true);
+        server.dispatchCommand(alex, "duel");
+        clickNamed(alex, "Admin");
+        assertEquals("Admin", menuTitle(alex));
+        clickNamed(alex, "« Player menu");
+        assertEquals("Duels", menuTitle(alex));
+    }
+
+    @Test
     void adminMenusAreOnlyForAdmins() {
         messages(alex);
 

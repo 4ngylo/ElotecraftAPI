@@ -79,7 +79,7 @@ public final class QueueManager {
             messages.send(player, "general.no-arena-for-kit", kitTag(kit));
             return;
         }
-        int dailyLimit = settings.get().ranked().dailyLimit();
+        int dailyLimit = DailyRanked.limit(player, settings.get().ranked().dailyLimit());
         if (ranked && !DailyRanked.allowed(player, dailyLimit)) {
             messages.send(player, "queue.ranked-limit", Placeholder.unparsed("limit", String.valueOf(dailyLimit)));
             return;

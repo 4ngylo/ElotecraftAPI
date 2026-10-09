@@ -34,8 +34,7 @@ class CountdownTest extends DuelsTestBase {
     void startCountdown() {
         alex = join("Alex");
         Kit kit = new Kit("archer", "<green>Archer", Material.BOW, null, List.of(ItemStack.of(Material.BOW),
-                ItemStack.of(Material.CROSSBOW), ItemStack.of(Material.ENDER_PEARL, 4), ItemStack.of(Material.ARROW, 16)),
-                false, Set.of(), true);
+                ItemStack.of(Material.CROSSBOW), ItemStack.of(Material.ENDER_PEARL, 4), ItemStack.of(Material.ARROW, 16)), Set.of());
         await(duels.kits().update(kit));
         assertTrue(duels.matches().start(alex, join("Steve"), kit, readyArena("pit")));
         match = duels.matches().matchOf(alex).orElseThrow();

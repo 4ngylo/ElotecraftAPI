@@ -129,7 +129,7 @@ public final class Duels {
         this.worldEdit = worldEdit;
         this.config = config;
         this.database = database;
-        this.settings = Settings.load(config.get(), plugin.getLogger());
+        this.settings = loadSettings();
         replaceOldMenus(plugin);
         this.menus = new ConfigFile(plugin, MENUS);
         this.messages = new Messages(plugin);
@@ -341,7 +341,7 @@ public final class Duels {
         ok &= menus.reload();
         ok &= arenas.reload();
         ok &= kits.reload();
-        settings = Settings.load(config.get(), plugin.getLogger());
+        settings = loadSettings();
         warnMissingKillMessages();
         return ok;
     }
@@ -370,6 +370,18 @@ public final class Duels {
         arenas.saveNow();
         kits.saveNow();
         database.close();
+    }
+
+    /** Settings from config.yml, after moving the kit rule defaults of an older file to {@code rules.kit-defaults}. */
+    private Settings loadSettings() {
+        if (Settings.migrate(config.get())) {
+            plugin.getLogger().info("Moved the kit rule defaults of config.yml to " + Settings.KIT_DEFAULTS);
+            config.save().exceptionally(error -> {
+                plugin.getLogger().log(Level.WARNING, "Could not save config.yml", error);
+                return null;
+            });
+        }
+        return Settings.load(config.get(), plugin.getLogger());
     }
 
     /** Kill messages of config.yml without a text in messages.yml are not offered. */

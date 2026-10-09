@@ -83,12 +83,12 @@ final class SeasonAdminCommand {
                 .sub("divisions", null, (sender, args) -> divisions(sender, false))
                 .sub("compare", null, this::compare, (sender, args) -> args.length <= 2 ? Args.filter(seasonNumbers(true), args) : List.of())
                 .sub("kits", null, this::kits, (sender, args) -> args.length == 1 ? Args.filter(seasonNumbers(true), args) : List.of())
-                .sub("end", null, this::end, (sender, args) -> args.length == 1 ? Args.filter(List.of(PREVIEW, CONFIRM), args) : List.of())
-                .sub("schedule", null, this::schedule, (sender, args) -> args.length == 1
+                .sub("end", SeasonEnder.MANAGE, this::end, (sender, args) -> args.length == 1 ? Args.filter(List.of(PREVIEW, CONFIRM), args) : List.of())
+                .sub("schedule", SeasonEnder.MANAGE, this::schedule, (sender, args) -> args.length == 1
                         ? Args.filter(List.of("30", "60", "90", "off", LocalDate.now().plusMonths(1).format(DATE)), args) : List.of())
-                .sub("auto", null, this::auto, (sender, args) -> args.length == 1 ? Args.filter(AUTO, args) : List.of())
-                .sub("name", null, this::name, (sender, args) -> args.length == 1 ? Args.filter(seasonNumbers(true), args) : List.of())
-                .sub("export", null, this::export, (sender, args) -> args.length == 1 ? Args.filter(seasonNumbers(true), args) : List.of());
+                .sub("auto", SeasonEnder.MANAGE, this::auto, (sender, args) -> args.length == 1 ? Args.filter(AUTO, args) : List.of())
+                .sub("name", SeasonEnder.MANAGE, this::name, (sender, args) -> args.length == 1 ? Args.filter(seasonNumbers(true), args) : List.of())
+                .sub("export", SeasonEnder.MANAGE, this::export, (sender, args) -> args.length == 1 ? Args.filter(seasonNumbers(true), args) : List.of());
     }
 
     /** The season running: its name, dates, numbers and leaders. */

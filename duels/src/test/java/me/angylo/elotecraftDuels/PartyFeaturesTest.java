@@ -168,4 +168,16 @@ class PartyFeaturesTest extends DuelsTestBase {
 
         assertEquals(party(alex), party(steve));
     }
+
+    @Test
+    void publicPartiesAndPartyChatHaveTheirOwnPermissions() {
+        alex.addAttachment(plugin, "duels.party.public", false);
+        alex.addAttachment(plugin, "duels.party.chat", false);
+        alex.performCommand("party create");
+
+        assertSays(alex, "party public", "You don't have permission");
+        assertSays(alex, "party chat hi", "You don't have permission");
+        assertSays(alex, "pc hi", "You don't have permission");
+        assertSays(alex, "party info", "Alex");
+    }
 }

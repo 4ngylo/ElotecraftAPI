@@ -38,6 +38,10 @@ public final class KitRegistry {
 
     private static final Pattern PERMISSION = Pattern.compile("[a-z0-9_.-]{1,64}");
     private static final String ROOT = "kits";
+    /** Keys of kits.yml from before build and damage were rules. */
+    private static final String LEGACY_BUILD = "build";
+    private static final String LEGACY_DAMAGE = "damage";
+    private static final String EFFECTS = "effects";
 
     private final Logger logger;
     private final ConfigFile file;
@@ -145,6 +149,7 @@ public final class KitRegistry {
         if (root == null) {
             return;
         }
+        boolean legacy = false;
         for (String name : root.getKeys(false)) {
             ConfigurationSection section = root.getConfigurationSection(name);
             if (!ArenaRegistry.validName(name) || section == null || Kit.CUSTOM.equals(name)) {
@@ -155,11 +160,20 @@ public final class KitRegistry {
             try {
                 ItemStack[] items = ItemStack.deserializeItemsFromBytes(Base64.getDecoder().decode(section.getString("items", "")));
                 kits.put(name, new Kit(name, section.getString("display-name", name), icon(section),
-                        permission(section), Arrays.asList(items), section.getBoolean("build", false), arenaCategories(section),
-                        section.getBoolean("damage", true), rules(section), rewards(section), effects(section), mode(section)));
+                        permission(section), Arrays.asList(items), arenaCategories(section), rules(section), rewards(section),
+                        effects(section), mode(section)));
+                legacy |= section.contains(LEGACY_BUILD) || section.contains(LEGACY_DAMAGE) || section.isList(EFFECTS);
             } catch (RuntimeException e) {
                 logger.warning("Skipping kit '" + name + "' in kits.yml: its items could not be read (" + e.getMessage() + ")");
             }
+        }
+        if (legacy) {
+            kits.values().forEach(this::write);
+            file.save().exceptionally(error -> {
+                logger.log(Level.WARNING, "Could not save kits.yml", error);
+                return null;
+            });
+            logger.info("Updated kits.yml: build and damage are kit rules, effects have an amplifier and seconds");
         }
     }
 
@@ -189,10 +203,7 @@ public final class KitRegistry {
     private Map<KitRule, Object> rules(ConfigurationSection section) {
         Map<KitRule, Object> rules = new EnumMap<>(KitRule.class);
         ConfigurationSection raw = section.getConfigurationSection("rules");
-        if (raw == null) {
-            return rules;
-        }
-        for (String key : raw.getKeys(false)) {
+        for (String key : raw == null ? Set.<String>of() : raw.getKeys(false)) {
             Optional<KitRule> rule = KitRule.byKey(key);
             Object value = raw.get(key);
             if (rule.isEmpty() || !rule.get().accepts(value)) {
@@ -201,21 +212,50 @@ public final class KitRegistry {
             }
             rules.put(rule.get(), value);
         }
+        // kits.yml from before build and damage were rules: keep what they changed from the defaults.
+        if (section.getBoolean(LEGACY_BUILD, false)) {
+            rules.putIfAbsent(KitRule.BUILD, true);
+        }
+        if (!section.getBoolean(LEGACY_DAMAGE, true)) {
+            rules.putIfAbsent(KitRule.DAMAGE, false);
+        }
         return rules;
     }
 
-    /** {@code effects: ["speed 2", "jump_boost 1"]}: an effect name and its level. */
+    /**
+     * {@code effects: {speed: {amplifier: 1, seconds: 0}}}, seconds 0 for the whole fight; or the older list of an effect
+     * and its level, {@code ["speed 2"]}, read as amplifier level - 1 (at most {@value Kit#MAX_AMPLIFIER}) for the whole fight.
+     */
     private List<PotionEffect> effects(ConfigurationSection section) {
         List<PotionEffect> effects = new ArrayList<>();
-        for (String raw : section.getStringList("effects")) {
-            String[] parts = raw.strip().split("\\s+");
-            Optional<PotionEffectType> type = Kit.effectType(parts[0]);
-            int level = parts.length == 2 && parts[1].matches("\\d{1,2}") ? Integer.parseInt(parts[1]) : -1;
-            if (type.isEmpty() || level < 1 || level > Kit.MAX_EFFECT_LEVEL) {
-                logger.warning("Kit '" + section.getName() + "' has an invalid effect '" + raw + "' (use e.g. \"speed 2\"); skipping it");
+        if (section.isList(EFFECTS)) {
+            for (String raw : section.getStringList(EFFECTS)) {
+                String[] parts = raw.strip().split("\\s+");
+                Optional<PotionEffectType> type = Kit.effectType(parts[0]);
+                int level = parts.length == 2 && parts[1].matches("\\d{1,2}") ? Integer.parseInt(parts[1]) : 0;
+                if (type.isEmpty() || level < 1) {
+                    logger.warning("Kit '" + section.getName() + "' has an invalid effect '" + raw + "'; skipping it");
+                    continue;
+                }
+                if (level - 1 > Kit.MAX_AMPLIFIER) {
+                    logger.warning("Kit '" + section.getName() + "' effect '" + raw + "' is above level " + (Kit.MAX_AMPLIFIER + 1)
+                            + "; lowering it to amplifier " + Kit.MAX_AMPLIFIER);
+                }
+                effects.add(Kit.effect(type.get(), Math.min(level - 1, Kit.MAX_AMPLIFIER), 0));
+            }
+            return effects;
+        }
+        ConfigurationSection raw = section.getConfigurationSection(EFFECTS);
+        for (String key : raw == null ? Set.<String>of() : raw.getKeys(false)) {
+            Optional<PotionEffectType> type = Kit.effectType(key);
+            int amplifier = raw.getInt(key + ".amplifier", -1);
+            int seconds = raw.getInt(key + ".seconds", -1);
+            if (type.isEmpty() || amplifier < 0 || amplifier > Kit.MAX_AMPLIFIER || seconds < 0 || seconds > Kit.MAX_EFFECT_SECONDS) {
+                logger.warning("Kit '" + section.getName() + "' has an invalid effect '" + key + "' (amplifier 0 to " + Kit.MAX_AMPLIFIER
+                        + ", seconds 0 to " + Kit.MAX_EFFECT_SECONDS + "); skipping it");
                 continue;
             }
-            effects.add(Kit.effect(type.get(), level));
+            effects.add(Kit.effect(type.get(), amplifier, seconds));
         }
         return effects;
     }
@@ -252,8 +292,6 @@ public final class KitRegistry {
         yaml.set(path + ".display-name", kit.displayName());
         yaml.set(path + ".icon", kit.icon().name());
         yaml.set(path + ".permission", kit.permission() == null ? "" : kit.permission());
-        yaml.set(path + ".build", kit.build());
-        yaml.set(path + ".damage", kit.damage());
         if (kit.mode() != Kit.Mode.NORMAL) {
             yaml.set(path + ".mode", kit.mode().key());
         }
@@ -264,9 +302,10 @@ public final class KitRegistry {
                 yaml.set(path + ".rules." + rule.key(), value);
             }
         }
-        if (!kit.effects().isEmpty()) {
-            yaml.set(path + ".effects", kit.effects().stream()
-                    .map(effect -> effect.getType().getKey().getKey() + " " + (effect.getAmplifier() + 1)).toList());
+        for (PotionEffect effect : kit.effects()) {
+            String effectPath = path + "." + EFFECTS + "." + Kit.effectName(effect.getType());
+            yaml.set(effectPath + ".amplifier", effect.getAmplifier());
+            yaml.set(effectPath + ".seconds", Kit.seconds(effect));
         }
         writeReward(yaml, path + ".rewards.win", kit.rewards().win());
         writeReward(yaml, path + ".rewards.loss", kit.rewards().loss());

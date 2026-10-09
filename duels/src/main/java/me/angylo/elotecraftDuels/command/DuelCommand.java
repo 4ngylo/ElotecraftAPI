@@ -116,7 +116,7 @@ public final class DuelCommand {
                         ? Args.filter(Stream.concat(Stream.of("save", "cancel", "reset"), usableKits(sender).stream()).toList(), args)
                         : args.length == 2 && args[0].equalsIgnoreCase("reset") ? Args.filter(usableKits(sender), args) : List.of())
                 .playerSub("customkit", "duels.kit.custom", this::customKit, (sender, args) -> args.length == 1
-                        ? Args.filter(Stream.concat(Stream.of("items"), IntStream.rangeClosed(1, duels.customKits().slots())
+                        ? Args.filter(Stream.concat(Stream.of("items"), IntStream.rangeClosed(1, sender instanceof Player player ? duels.customKits().slots(player) : 0)
                                 .mapToObj(String::valueOf)).toList(), args) : List.of())
                 .playerSub("spectate", "duels.spectate", this::spectate, (sender, args) -> Args.players(args))
                 .sub("stats", "duels.stats", (sender, args) -> limited(sender, () -> stats(sender, args)),

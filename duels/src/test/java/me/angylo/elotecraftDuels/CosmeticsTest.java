@@ -160,7 +160,7 @@ class CosmeticsTest extends DuelsTestBase {
 
     @Test
     void aTeammateNeverGetsTheKill() {
-        setConfig("parties.friendly-fire", true);
+        setConfig("rules.kit-defaults.friendly-fire", true);
         TestPlayer ann = join("Ann");
         Cosmetics.choose(alex, Kind.KILL_MESSAGE, cosmetic(Kind.KILL_MESSAGE, "slain"));
         assertTrue(duels.matches().start(List.of(List.<Player>of(alex, ann), List.<Player>of(steve)), kit, arena,

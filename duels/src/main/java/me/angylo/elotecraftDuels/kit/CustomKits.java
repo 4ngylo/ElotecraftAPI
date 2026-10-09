@@ -1,5 +1,6 @@
 package me.angylo.elotecraftDuels.kit;
 
+import me.angylo.elotecraftDuels.PermissionLimits;
 import me.angylo.elotecraftDuels.Settings;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
@@ -13,7 +14,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Players' custom kits: up to {@code custom-kits.slots} each, built in the {@link KitEditor} from the items of the
+ * Players' custom kits: up to {@code custom-kits.slots} each (more with {@code duels.kit.custom.slots.<n>}), built in the {@link KitEditor} from the items of the
  * base kit ({@code custom-kits.base-kit}) and stored with the kit layouts under {@code custom:<slot>}. A custom kit
  * is the base kit with the player's items ({@link Kit#custom}); one holding an item the base kit no longer has is
  * not offered until it is built again. Main thread only.
@@ -40,8 +41,13 @@ public final class CustomKits {
         return options.enabled() ? kits.get(options.baseKit()).filter(kit -> !kit.isEmpty()) : Optional.empty();
     }
 
-    public int slots() {
-        return settings.get().customKits().slots();
+    /**
+     * How many custom kits {@code player} keeps: config.yml {@code custom-kits.slots}, raised by their
+     * {@code duels.kit.custom.slots.<n>} permission. Kits in slots past it are kept but not offered.
+     */
+    public int slots(Player player) {
+        return PermissionLimits.highest(player, PermissionLimits.CUSTOM_KIT_SLOTS, settings.get().customKits().slots(),
+                Settings.MAX_CUSTOM_KITS);
     }
 
     /** The base kit's items, each once: what custom kits are built from. */
@@ -76,7 +82,7 @@ public final class CustomKits {
     /** {@code player}'s custom kits they can use now, by slot. */
     public List<Kit> of(Player player) {
         List<Kit> custom = new ArrayList<>();
-        for (int slot = 1; slot <= slots(); slot++) {
+        for (int slot = 1; slot <= slots(player); slot++) {
             get(player, slot).filter(kit -> kit.canUse(player)).ifPresent(custom::add);
         }
         return custom;
@@ -85,7 +91,7 @@ public final class CustomKits {
     /** The arguments naming {@code player}'s usable custom kits, for tab completion. */
     public List<String> arguments(Player player) {
         List<String> names = new ArrayList<>();
-        for (int slot = 1; slot <= slots(); slot++) {
+        for (int slot = 1; slot <= slots(player); slot++) {
             if (get(player, slot).filter(kit -> kit.canUse(player)).isPresent()) {
                 names.add(KEY + slot);
             }
@@ -107,7 +113,7 @@ public final class CustomKits {
 
     /** What {@code player} stored in {@code slot}, unchecked; empty if nothing. */
     public List<ItemStack> items(Player player, int slot) {
-        if (slot < 1 || slot > slots()) {
+        if (slot < 1 || slot > slots(player)) {
             return List.of();
         }
         return layouts.stored(player.getUniqueId(), KEY + slot).orElse(List.of());

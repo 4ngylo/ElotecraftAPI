@@ -7,7 +7,6 @@ import me.angylo.elotecraftDuels.Cosmetics;
 import me.angylo.elotecraftDuels.Settings;
 import me.angylo.elotecraftDuels.match.Match.EndReason;
 import me.angylo.elotecraftDuels.stats.Divisions;
-import net.kyori.adventure.bossbar.BossBar;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.JoinConfiguration;
 import net.kyori.adventure.text.event.ClickEvent;
@@ -25,7 +24,7 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Supplier;
 
-/** Everything players see and hear during a match: chat, titles, the boss bar and effects. */
+/** Everything players see and hear during a match: chat, titles and effects. */
 final class MatchDisplay {
 
     private final Messages messages;
@@ -69,28 +68,6 @@ final class MatchDisplay {
         for (Player fighter : match.fighters()) {
             title(fighter, "match.fight-title", "match.fight-subtitle", opponent(match, fighter));
             settings.get().effects().play(fighter, "fight-start");
-        }
-        if (settings.get().bossBar()) {
-            BossBar bar = BossBar.bossBar(timeLeftText(match.maxFightSeconds()), 1f, settings.get().bossBarColor(),
-                    BossBar.Overlay.PROGRESS);
-            match.bossBar(bar);
-            match.participants().forEach(player -> player.showBossBar(bar));
-        }
-    }
-
-    void timeLeft(Match match, int seconds) {
-        BossBar bar = match.bossBar();
-        if (bar != null) {
-            bar.name(timeLeftText(seconds));
-            bar.progress(Math.clamp((float) seconds / Math.max(1, match.maxFightSeconds()), 0f, 1f));
-        }
-    }
-
-    void removeBossBar(Match match) {
-        BossBar bar = match.bossBar();
-        if (bar != null) {
-            match.participants().forEach(player -> player.hideBossBar(bar));
-            match.bossBar(null);
         }
     }
 
@@ -306,9 +283,6 @@ final class MatchDisplay {
                 settings.get().titleTimes()));
     }
 
-    private Component timeLeftText(int seconds) {
-        return messages.get("match.boss-bar", Placeholder.unparsed("time", Durations.format(Duration.ofSeconds(seconds))));
-    }
 
     private static TagResolver host(Match match) {
         return Placeholder.unparsed("host", match.options().host());

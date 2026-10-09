@@ -148,7 +148,7 @@ class KitEditorTest extends DuelsTestBase {
 
         assertTrue(alex.getInventory().contains(Material.DIRT, 5));
         assertEquals(GameMode.SURVIVAL, alex.getGameMode());
-        duels = Duels.start(plugin);
+        duels = Duels.start(plugin, worldEdit);
         await(duels.ready());
     }
 
@@ -159,7 +159,7 @@ class KitEditorTest extends DuelsTestBase {
         server.getScheduler().waitAsyncTasksFinished();
 
         duels.shutdown();
-        duels = Duels.start(plugin);
+        duels = Duels.start(plugin, worldEdit);
         await(duels.ready());
         tickUntil(() -> {
             server.getScheduler().waitAsyncTasksFinished();

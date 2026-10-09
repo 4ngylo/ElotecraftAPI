@@ -65,7 +65,7 @@ command:
     <yellow>/duels arena setcorner <name> <1|2></yellow> <dark_gray>-</dark_gray> <gray>opposite corners around the whole arena
     <yellow>/duels arena setgoal|setbed <name> <1|2></yellow> <dark_gray>-</dark_gray> <gray>a side's bridge goal where you stand, or the bed you look at
     <yellow>/duels arena setbox <name></yellow> <dark_gray>-</dark_gray> <gray>both corners from your WorldEdit selection
-    <yellow>/duels arena import <name> <file.schem></yellow> <dark_gray>-</dark_gray> <gray>new arena from a schematic in the arenas world
+    <yellow>/duels arena import <name> <file.schem></yellow> <dark_gray>-</dark_gray> <gray>new arena from a schematic in plugins/ElotecraftDuels/schematics
     <yellow>/duels arena setspectator <name></yellow> <dark_gray>-</dark_gray> <gray>where spectators appear (optional)
     <yellow>/duels arena addspawn|clearspawns <name></yellow> <dark_gray>-</dark_gray> <gray>spawns for party FFAs (one per player)
     <yellow>/duels arena setcenter <name></yellow> <dark_gray>-</dark_gray> <gray>middle of the arena; spectators appear there if no spectator spawn (optional)
@@ -73,9 +73,9 @@ command:
     <yellow>/duels arena buildlimit <name> <y|none></yellow> <dark_gray>-</dark_gray> <gray>highest Y fighters may place blocks at
     <yellow>/duels arena seticon <name></yellow> <dark_gray>-</dark_gray> <gray>menu icon: the item in your hand
     <yellow>/duels arena setname <name> <text></yellow> <dark_gray>-</dark_gray> <gray>name shown to players
-    <yellow>/duels arena snapshot <name></yellow> <dark_gray>-</dark_gray> <gray>save its blocks, to rebuild it after a crash
+    <yellow>/duels arena snapshot <name></yellow> <dark_gray>-</dark_gray> <gray>save its blocks: copies are pasted from them, and it is rebuilt from them after a crash
     <yellow>/duels arena reset <name></yellow> <dark_gray>-</dark_gray> <gray>put its blocks back as in the snapshot
-    <yellow>/duels arena pregen <name> <count|clear></yellow> <dark_gray>-</dark_gray> <gray>copies in the arenas world, one duel each
+    <yellow>/duels arena pool <name> [clear]</yellow> <dark_gray>-</dark_gray> <gray>its copies in the arenas world; clear removes the free ones
     <yellow>/duels arena toggle|info|tp|delete <name></yellow> <dark_gray>·</dark_gray> <yellow>/duels arena list</yellow>
   hologram-help: |-
     <gradient:#f7971e:#ffd200><bold>Leaderboard holograms</bold></gradient> <dark_gray>(the lines of /duel top, read every minute)</dark_gray>
@@ -192,7 +192,6 @@ match:
   round-countdown-subtitle: "<gray>Round <white><round></white> <dark_gray>·</dark_gray> <white><score>"
   fight-title: "<gradient:#ff416c:#ff4b2b><bold>FIGHT!"
   fight-subtitle: "<gray>Good luck"
-  boss-bar: "<gray>Time left <dark_gray>·</dark_gray> <white><time>"
   victory-title: "<gradient:#56ab2f:#a8e063><bold>VICTORY"
   victory-subtitle: "<gray>You defeated <white><opponent>"
   defeat-title: "<gradient:#cb2d3e:#ef473a><bold>DEFEAT"
@@ -209,6 +208,8 @@ match:
   respawned-title: "<gray>Respawned"
   respawned-subtitle: ""
   scored: "<prefix><gold><bold>GOAL!</bold></gold> <white><player></white> <gray>scored."
+  # Above each bridge goal (modes.bridge.goal-hologram).
+  goal-hologram: "<yellow><bold>JUMP"
   # <team> is the names of the side whose bed broke, <player> who broke it.
   bed-broken: "<prefix><red><bold>BED DESTROYED</bold></red> <gray><white><player></white> broke the bed of <white><team></white>."
   bed-broken-title: "<red><bold>BED DESTROYED"
@@ -235,6 +236,7 @@ match:
   cancelled-admin: "<prefix><red>An admin stopped the duel."
   teleport-failed: "<prefix><red>Couldn't teleport everyone to the arena, so the duel was cancelled."
   arena-failed: "<prefix><red>The arena couldn't be prepared, so the duel didn't start. Try another arena or tell an admin."
+  preparing-arena: "<prefix><gray>Preparing a copy of the arena..."
   rematch-offer: "<prefix><rematch><gold><bold>[REMATCH]</bold></gold></rematch> <gray>Challenge <white><opponent></white> again"
   rematch-hover: "<gold>Click to request a rematch"
   out-of-bounds: "<prefix><red>You can't leave the arena."
@@ -496,10 +498,10 @@ admin:
     not-ready: "<prefix><red><arena> isn't ready: <problems>"
     info: |-
       <gradient:#4facfe:#00f2fe><bold><arena></bold></gradient> <dark_gray>(<id>)</dark_gray>
-       <gray>World: <white><world></white> <dark_gray>·</dark_gray> <gray>Enabled: <white><enabled></white> <dark_gray>·</dark_gray> <gray>In use: <white><in-use></white><copy>
+       <gray>World: <white><world></white> <dark_gray>·</dark_gray> <gray>Enabled: <white><enabled></white> <dark_gray>·</dark_gray> <gray>In use: <white><in-use></white>
+       <gray>Copies: <copies>
        <gray>Categories: <white><categories></white> <dark_gray>·</dark_gray> <gray>Build limit: <white><build-limit></white> <dark_gray>·</dark_gray> <gray>Extra spawns: <white><extra-spawns>
        <gray>Status: <status>
-    copy-of: " <dark_gray>·</dark_gray> <gray>Copy of <white><source>"
     ready: "<green>ready"
     center-set: "<prefix><green>Set the center of <white><arena></white>."
     extra-spawn-added: "<prefix><green>Added spawn <white><count></white> to <white><arena></white> for fights with more than two sides."
@@ -514,14 +516,12 @@ admin:
     build-limit-set: "<prefix><green>Fighters in <white><arena></white> can place blocks up to Y <white><y></white>."
     build-limit-cleared: "<prefix><green>Fighters in <white><arena></white> can place blocks anywhere inside it."
     build-limit-outside: "<prefix><red>Use a Y from <min> to <max>, inside <arena>, or none."
-    is-copy: "<prefix><red><arena> is a copy of <white><source></white>; change that arena, then make its copies again."
-    has-copies: "<prefix><red><arena> has copies; remove them first with <white>/duels arena pregen <id> clear</white>."
-    no-copies: "<prefix><gray><arena> has no copies."
+    no-copies: "<prefix><gray><arena> has no free copies."
     no-arenas-world: "<prefix><red>The arenas world <world> couldn't be loaded, so copies can't be made; check the console."
-    name-too-long: "<prefix><red>The copies of <arena> would have names over 32 characters; use a shorter arena name."
-    pregen-count: "<prefix><red>Make 1 to <max> copies, or use clear."
-    pregen-blocks-only: "<prefix><gray>Without FastAsyncWorldEdit or WorldEdit, copies don't keep chest contents or sign text."
-    no-worldedit: "<prefix><red>This needs FastAsyncWorldEdit or WorldEdit."
+    pool: "<prefix><gray>Copies of <white><arena></white>: <copies>"
+    copies: "<white><in-use></white> <gray>in use, <white><free></white> <gray>free (at most <white><max></white>)"
+    copies-no-snapshot: "<yellow>none until <white>/duels arena snapshot</white> saves its blocks"
+    copies-no-world: "<red>none: the arenas world <world> isn't loaded"
     no-selection: "<prefix><red>Select a cuboid with WorldEdit first, e.g. with //wand."
     box-set: "<prefix><green>Set both corners of <white><arena></white> from your selection."
     bad-schematic: "<prefix><red>Use the name of a .schem file in plugins/ElotecraftDuels/schematics, e.g. <white>desert.schem</white>: lowercase letters, digits, - and _."
@@ -529,15 +529,11 @@ admin:
     importing: "<prefix><gray>Importing <white><file></white> as arena <white><id></white>..."
     imported: "<prefix><green>Imported arena <white><id></white> in <white><world></white> at <x> <y> <z>. <gray>Set its spawns, then snapshot it."
     import-failed: "<prefix><red>Couldn't import <file>; check the console."
-    pregen-started: "<prefix><gray>Pasting <white><count></white> copies of <white><arena></white> in <white><world></white>..."
-    pregen-progress: "<prefix><gray>Pasted copy <white><done></white> of <count>."
-    pregen-done: "<prefix><green>Made <white><count></white> copies of <white><arena></white> in <white><world></white>; each takes duels."
-    pregen-failed: "<prefix><red>Making copies of <arena> stopped; check the console. Copies pasted so far are kept."
-    copies-cleared: "<prefix><green>Removed <white><count></white> copies of <white><arena></white>; their blocks are being cleared."
+    copies-cleared: "<prefix><green>Removed <white><count></white> free copies of <white><arena></white>; their blocks are being cleared."
     list-header: "<prefix><gray>Arenas (<count>):"
     list-entry: " <dark_gray>▪</dark_gray> <arena> <dark_gray>(<id>)</dark_gray> <status>"
     list-empty: "<prefix><gray>No arenas yet. Create one with <white>/duels arena create <name>"
-    snapshot-saved: "<prefix><green>Saved the blocks of <white><arena></white>. <gray>If a crash cuts a build duel short, it is rebuilt from them."
+    snapshot-saved: "<prefix><green>Saved the blocks of <white><arena></white>. <gray>Its copies are pasted from them, and a crash mid build duel rebuilds it from them."
     too-big: "<prefix><red><arena> is too big to save: at most 256 x 256 blocks across and 8388608 blocks in all."
     snapshot-fixed: "<prefix><green>Saved the blocks of <white><arena></white> and marked it as fixed; it takes duels again."
     reset-started: "<prefix><gray>Putting <white><arena></white> back..."
@@ -559,7 +555,6 @@ admin:
     prompt-category-add: "<prefix><gray>Type a category to add to <white><arena></white>, or <white>cancel</white>."
     prompt-category-remove: "<prefix><gray>Type a category to remove from <white><arena></white>, or <white>cancel</white>."
     prompt-build-limit: "<prefix><gray>Type the highest Y fighters may build at in <white><arena></white>, <white>none</white>, or <white>cancel</white>."
-    prompt-pregen: "<prefix><gray>Type how many copies of <white><arena></white> to make, or <white>cancel</white>."
   kit:
     created: "<prefix><green>Created kit <white><id></white> from your inventory."
     exists: "<prefix><red>Kit <id> already exists; use /duels kit save to overwrite it."

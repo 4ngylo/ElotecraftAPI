@@ -10,6 +10,7 @@ import me.angylo.elotecraftDuels.arena.ArenaRegistry;
 import me.angylo.elotecraftDuels.kit.Kit;
 import me.angylo.elotecraftDuels.kit.KitLayouts;
 import me.angylo.elotecraftDuels.kit.KitRule;
+import me.angylo.elotecraftDuels.kit.TeamColors;
 import me.angylo.elotecraftDuels.match.Match.EndReason;
 import me.angylo.elotecraftDuels.match.Match.State;
 import me.angylo.elotecraftDuels.match.Match.Type;
@@ -150,12 +151,12 @@ public final class MatchManager {
         return 2 * (int) running.stream().filter(match -> match.kit().name().equals(kit)).count();
     }
 
-    /** Whether a duel can start in {@code arena} now: it is ready and free, or has a copy to spare. */
+    /** Whether a duel can start in {@code arena} now: it is ready and free, or a copy of it can be had. */
     public boolean isArenaFree(Arena arena) {
         return instances.available(arena);
     }
 
-    /** Whether any duel uses {@code arena}, or it is still being put back after one. */
+    /** Whether any duel uses {@code arena} or a copy of it, or one is still being put back after a duel. */
     public boolean isArenaInUse(String arena) {
         return instances.inUse(arena) > 0;
     }
@@ -251,13 +252,22 @@ public final class MatchManager {
         }
         running.add(match);
         display.starting(match);
-        saved.whenComplete((ignored, error) -> guarded(match, () -> {
+        if (!instance.ready().isDone()) {
+            fighters.forEach(fighter -> messages.send(fighter, "match.preparing-arena"));
+        }
+        // A copy of the arena may still be pasting; the fighters wait for both.
+        CompletableFuture.allOf(saved, instance.ready()).whenComplete((ignored, error) -> guarded(match, () -> {
             if (match.isOver()) {
                 return;
             }
-            if (error != null) {
+            if (saved.isCompletedExceptionally()) {
                 logger.log(Level.SEVERE, "Could not save " + names + " before their duel, so it was cancelled", error);
                 cancel(match, "general.storage-error");
+                return;
+            }
+            if (error != null) {
+                logger.log(Level.SEVERE, "Could not prepare a copy of arena " + arena.name() + " for " + names, error);
+                cancel(match, "match.arena-failed");
                 return;
             }
             teleportFighters(match);
@@ -412,9 +422,6 @@ public final class MatchManager {
                     return;
                 }
                 spectator.setGameMode(GameMode.SPECTATOR);
-                if (match.bossBar() != null) {
-                    spectator.showBossBar(match.bossBar());
-                }
                 messages.send(spectator, "spectate.started", Placeholder.unparsed("player", match.first().getName()));
                 for (Player fighter : match.fighters()) {
                     if (match.isParticipant(fighter)) {
@@ -446,7 +453,6 @@ public final class MatchManager {
             if (match.task() != null) {
                 match.task().cancel();
             }
-            display.removeBossBar(match);
             for (Player participant : match.participants()) {
                 messages.send(participant, "match.cancelled");
                 // No respawn listener after disable: bring a dead player back now so they can be restored.
@@ -526,6 +532,9 @@ public final class MatchManager {
 
     private void beginCountdown(Match match) {
         Settings current = settings.get();
+        if (match.mode() == Kit.Mode.BRIDGE && current.modes().goalHologram()) {
+            GoalHolograms.show(plugin, match, messages.get("match.goal-hologram"));
+        }
         for (Player fighter : match.fighters()) {
             equip(match, fighter, current);
         }
@@ -546,6 +555,9 @@ public final class MatchManager {
             fighter.setMaximumNoDamageTicks(COMBO_NO_DAMAGE_TICKS);
         }
         layouts.apply(fighter, match.kit());
+        if (match.mode() != Kit.Mode.NORMAL) {
+            TeamColors.apply(fighter.getInventory(), match.teamOf(fighter.getUniqueId()));
+        }
         match.kit().applyStatus(fighter, current);
     }
 
@@ -572,7 +584,6 @@ public final class MatchManager {
                 if (left <= 0) {
                     end(match, List.of(), EndReason.TIMEOUT);
                 } else {
-                    display.timeLeft(match, left);
                     if (match.border() != null) {
                         match.border().tick(match, match.fightSeconds());
                     }
@@ -636,7 +647,8 @@ public final class MatchManager {
         equip(match, fighter, settings.get());
         Tasks.later(plugin, () -> {
             if (match.isFighting(fighter)) {
-                fighter.teleportAsync(match.spawnOf(fighter), TeleportCause.PLUGIN);
+                // Not PLUGIN: Essentials' teleport-invulnerability would stop them hitting or being hit for seconds.
+                fighter.teleportAsync(match.spawnOf(fighter), TeleportCause.UNKNOWN);
             }
         }, 1);
     }
@@ -649,6 +661,13 @@ public final class MatchManager {
         }
         int team = match.teamOf(scorer.getUniqueId());
         display.scored(match, scorer);
+        // Watches from the middle until the next round brings everyone back, or the fight ends.
+        scorer.setGameMode(GameMode.SPECTATOR);
+        Tasks.later(plugin, () -> {
+            if (byPlayer.get(scorer.getUniqueId()) == match) {
+                scorer.teleportAsync(match.instance().middle(), TeleportCause.UNKNOWN);
+            }
+        }, 1);
         if (match.winRound(team) < match.roundsToWin()) {
             roundOver(match, team);
         } else {
@@ -685,7 +704,6 @@ public final class MatchManager {
     /** {@code team} won a round but not the fight yet: a pause, then {@link #nextRound}. */
     private void roundOver(Match match, int team) {
         match.state(State.ROUND_OVER);
-        display.removeBossBar(match);
         display.roundWon(match, team);
         match.secondsLeft(settings.get().roundDelaySeconds());
     }
@@ -724,7 +742,6 @@ public final class MatchManager {
         }
         match.state(State.ENDING);
         match.result(winnerTeams, reason);
-        display.removeBossBar(match);
         outcomes.record(match, winnerTeams, reason);
         match.secondsLeft(settings.get().endDelaySeconds());
         if (match.secondsLeft() <= 0) {
@@ -755,7 +772,7 @@ public final class MatchManager {
         if (match.task() != null) {
             match.task().cancel();
         }
-        display.removeBossBar(match);
+        GoalHolograms.remove(match);
         for (Player spectator : match.spectators()) {
             messages.send(spectator, "spectate.ended");
         }
@@ -775,9 +792,6 @@ public final class MatchManager {
     /** Takes {@code player} out of {@code match} and restores their snapshot. */
     private void release(Match match, Player player, boolean teleportNow) {
         byPlayer.remove(player.getUniqueId(), match);
-        if (match.bossBar() != null) {
-            player.hideBossBar(match.bossBar());
-        }
         if (match.border() != null && match.isFighter(player)) {
             FightBorder.hide(player);
         }

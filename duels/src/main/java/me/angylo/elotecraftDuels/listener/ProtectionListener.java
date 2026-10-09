@@ -3,11 +3,13 @@ package me.angylo.elotecraftDuels.listener;
 import com.destroystokyo.paper.event.player.PlayerSetSpawnEvent;
 import me.angylo.elotecraftAPI.util.Messages;
 import me.angylo.elotecraftDuels.Settings;
+import me.angylo.elotecraftDuels.arena.ArenaInstances;
 import me.angylo.elotecraftDuels.kit.KitRule;
 import me.angylo.elotecraftDuels.match.Match;
 import me.angylo.elotecraftDuels.match.MatchManager;
 import me.angylo.elotecraftDuels.menu.InMatchMenu;
 import org.bukkit.Bukkit;
+import org.bukkit.World;
 import org.bukkit.command.Command;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Item;
@@ -21,6 +23,7 @@ import org.bukkit.event.block.Action;
 import org.bukkit.event.block.BlockFertilizeEvent;
 import org.bukkit.event.entity.EntityChangeBlockEvent;
 import org.bukkit.event.entity.EntityPickupItemEvent;
+import org.bukkit.event.entity.EntityPortalEvent;
 import org.bukkit.event.entity.EntityPlaceEvent;
 import org.bukkit.event.entity.ItemMergeEvent;
 import org.bukkit.event.hanging.HangingBreakByEntityEvent;
@@ -35,7 +38,9 @@ import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerInteractAtEntityEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.event.player.PlayerPortalEvent;
 import org.bukkit.event.player.PlayerTeleportEvent;
+import org.bukkit.event.world.PortalCreateEvent;
 
 import java.util.List;
 import java.util.Locale;
@@ -45,8 +50,9 @@ import java.util.function.Supplier;
 /**
  * Keeps kit items inside duels and duels from touching the world. Players in a duel (fighting or
  * spectating) cannot drop, pick up, store or trade items, use blocks, entities or bone meal, use other
- * commands than {@code /duel} and the configured ones, or teleport out of their arena. Placing and
- * breaking blocks is up to {@link BuildListener}.
+ * commands than {@code /duel} and the configured ones, or teleport out of their arena. Nobody and nothing
+ * goes through a nether or end portal from a duel or the arenas world, and no portal is lit there. Placing
+ * and breaking blocks is up to {@link BuildListener}.
  * <p>
  * Fighters of a kit with {@link KitRule#ITEM_DROPS} drop items; with it, {@link KitRule#BLOCK_DROPS} or
  * {@link KitRule#DEATH_DROPS} they pick items up inside their arena. Items
@@ -55,6 +61,8 @@ import java.util.function.Supplier;
  */
 public final class ProtectionListener implements Listener {
 
+    /** Runs any command in a duel. */
+    private static final String BYPASS_COMMANDS = "duels.bypass.commands";
     private static final Set<InventoryType> OWN_INVENTORY = Set.of(InventoryType.CRAFTING, InventoryType.PLAYER);
     private static final String DUEL_DROP_TAG = "elotecraft-duels-drop";
     /** Any of them lets fighters pick items up; throwing items needs {@code item-drops}. */
@@ -63,13 +71,16 @@ public final class ProtectionListener implements Listener {
     private final Messages messages;
     private final Supplier<Settings> settings;
     private final MatchManager matches;
+    private final ArenaInstances instances;
     private final Command duelCommand;
 
     /** @param duelCommand the registered {@code /duel}, always allowed */
-    public ProtectionListener(Messages messages, Supplier<Settings> settings, MatchManager matches, Command duelCommand) {
+    public ProtectionListener(Messages messages, Supplier<Settings> settings, MatchManager matches, ArenaInstances instances,
+                              Command duelCommand) {
         this.messages = messages;
         this.settings = settings;
         this.matches = matches;
+        this.instances = instances;
         this.duelCommand = duelCommand;
     }
 
@@ -224,13 +235,13 @@ public final class ProtectionListener implements Listener {
     @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
     public void onCommand(PlayerCommandPreprocessEvent event) {
         Player player = event.getPlayer();
-        if (matches.isRestricted(player) && !allowed(event.getMessage())) {
+        if (matches.isRestricted(player) && !player.hasPermission(BYPASS_COMMANDS) && !allowed(event.getMessage())) {
             event.setCancelled(true);
             messages.send(player, "match.blocked-command");
         }
     }
 
-    /** Pearls and chorus fruit work inside the arena; nothing (commands, other plugins, portals) gets out. */
+    /** Pearls and chorus fruit work inside the arena; nothing (commands, other plugins, end gateways) gets out. */
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onTeleport(PlayerTeleportEvent event) {
         Player player = event.getPlayer();
@@ -239,6 +250,40 @@ public final class ProtectionListener implements Listener {
             event.setCancelled(true);
             messages.send(player, "match.blocked-teleport");
         }
+    }
+
+    /**
+     * No nether or end portal in a duel or the arenas world. A portal event has its own handler list, so
+     * {@link #onTeleport} never sees it. Nobody is told: bridge goals are end portals, and in creative a portal
+     * fires every tick.
+     */
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onPortal(PlayerPortalEvent event) {
+        Player player = event.getPlayer();
+        if (matches.isRestricted(player) || inArenasWorld(player.getWorld())) {
+            event.setCancelled(true);
+        }
+    }
+
+    /** Items, pearls, mobs and vehicles stay too. */
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onEntityPortal(EntityPortalEvent event) {
+        if (inArenasWorld(event.getFrom().getWorld()) || instances.at(event.getFrom()).isPresent()) {
+            event.setCancelled(true);
+        }
+    }
+
+    /** E.g. obsidian and flint and steel from a build kit. */
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onPortalCreate(PortalCreateEvent event) {
+        if (inArenasWorld(event.getWorld())
+                || event.getBlocks().stream().anyMatch(block -> instances.at(block.getLocation()).isPresent())) {
+            event.setCancelled(true);
+        }
+    }
+
+    private boolean inArenasWorld(World world) {
+        return world != null && world.getName().equals(settings.get().arenasWorld());
     }
 
     private void cancelIfBusy(Player player, Cancellable event) {

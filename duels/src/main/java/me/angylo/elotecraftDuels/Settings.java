@@ -3,7 +3,6 @@ package me.angylo.elotecraftDuels;
 import me.angylo.elotecraftAPI.util.Durations;
 import me.angylo.elotecraftDuels.event.HostedEvent;
 import me.angylo.elotecraftDuels.stats.Divisions;
-import net.kyori.adventure.bossbar.BossBar;
 import net.kyori.adventure.title.Title;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.MemoryConfiguration;
@@ -27,12 +26,12 @@ import java.util.stream.Stream;
  * Typed view of config.yml, rebuilt on every reload. A bad value is logged with its path and replaced
  * by the built-in default, so a typo never stops the plugin.
  */
-public record Settings(int countdownSeconds, Duration maxDuration, int endDelaySeconds, int roundDelaySeconds, boolean bossBar,
-                BossBar.Color bossBarColor, boolean logResults, boolean arrowHealth, Duration requestExpiry, Duration requestCooldown,
+public record Settings(int countdownSeconds, Duration maxDuration, int endDelaySeconds, int roundDelaySeconds,
+                boolean logResults, boolean arrowHealth, Duration requestExpiry, Duration requestCooldown,
                 Duration rematchWindow, boolean hunger, boolean naturalRegeneration, Set<String> allowedCommands,
                 Reward winReward, Reward lossReward, Title.Times titleTimes, Effects effects,
                 boolean breakArenaBlocks, int regenBlocksPerTick, boolean voidEliminates, String arenasWorld,
-                int pregenSpacing, int maxCopies, int partyMaxSize, Duration partyInviteExpiry, boolean partyFriendlyFire, Duration kitEditorTimeout, Ranked ranked,
+                Pool pool, int partyMaxSize, Duration partyInviteExpiry, boolean partyFriendlyFire, Duration kitEditorTimeout, Ranked ranked,
                 Sidebars sidebars, int hologramLines, LobbyItems lobbyItems, Events events, Cosmetics cosmetics, Bets bets,
                 CustomKitOptions customKits, Modes modes) {
 
@@ -104,10 +103,19 @@ public record Settings(int countdownSeconds, Duration maxDuration, int endDelayS
     }
 
     /**
-     * The bridge kit mode: a fighter scores within {@code goalRadius} blocks (across) of the other side's goal point, and
-     * nobody places blocks within {@code protectRadius} blocks of a spawn or goal, so they cannot be walled off.
+     * Arena copies pasted on demand in the arenas world: {@code spacing} empty blocks between copies, at most
+     * {@code maxCopies} per arena, {@code warm} places kept ready per arena (the arena itself counts while free),
+     * and copies free for {@code idleTimeout} beyond those are removed.
      */
-    public record Modes(int goalRadius, int protectRadius) {
+    public record Pool(int spacing, int maxCopies, int warm, Duration idleTimeout) {
+    }
+
+    /**
+     * The bridge kit mode: a fighter scores within {@code goalRadius} blocks (across) of the other side's goal point, and
+     * nobody places blocks within {@code protectRadius} blocks of a spawn or goal, so they cannot be walled off;
+     * {@code goalHologram} shows {@code match.goal-hologram} above each goal.
+     */
+    public record Modes(int goalRadius, int protectRadius, boolean goalHologram) {
     }
 
     /**
@@ -178,8 +186,6 @@ public record Settings(int countdownSeconds, Duration maxDuration, int endDelayS
                 duration(config, logger, "match.max-duration", Duration.ofMinutes(5), Duration.ofSeconds(10)),
                 integer(config, logger, "match.end-delay-seconds", 4, 0, 30),
                 integer(config, logger, "match.round-delay-seconds", 3, 1, 30),
-                config.getBoolean("match.boss-bar", true),
-                bossBarColor(config, logger),
                 config.getBoolean("match.log-results", true),
                 config.getBoolean("match.arrow-health", true),
                 duration(config, logger, "requests.expiry", Duration.ofSeconds(30), Duration.ofSeconds(5)),
@@ -202,8 +208,11 @@ public record Settings(int countdownSeconds, Duration maxDuration, int endDelayS
                 integer(config, logger, "regen.blocks-per-tick", 2000, 1, 100_000),
                 config.getBoolean("rules.void-eliminates", true),
                 worldName(config, logger),
-                integer(config, logger, "arenas.pregen-spacing", 64, 16, 1024),
-                integer(config, logger, "arenas.max-copies", 32, 1, 256),
+                new Pool(
+                        integer(config, logger, "arenas.pool.spacing", 64, 16, 1024),
+                        integer(config, logger, "arenas.pool.max-copies", 32, 0, 256),
+                        integer(config, logger, "arenas.pool.warm", 1, 0, 16),
+                        duration(config, logger, "arenas.pool.idle-timeout", Duration.ofMinutes(2), Duration.ofSeconds(10))),
                 integer(config, logger, "parties.max-size", 8, 2, 100),
                 duration(config, logger, "parties.invite-expiry", Duration.ofSeconds(60), Duration.ofSeconds(5)),
                 config.getBoolean("parties.friendly-fire", false),
@@ -230,7 +239,8 @@ public record Settings(int countdownSeconds, Duration maxDuration, int endDelayS
                         integer(config, logger, "custom-kits.slots", 3, 1, MAX_CUSTOM_KITS),
                         config.getString("custom-kits.display-name", "<yellow><player>'s custom kit <slot>")),
                 new Modes(integer(config, logger, "modes.bridge.goal-radius", 2, 0, MAX_MODE_RADIUS),
-                        integer(config, logger, "modes.bridge.protect-radius", 3, 0, MAX_MODE_RADIUS)));
+                        integer(config, logger, "modes.bridge.protect-radius", 3, 0, MAX_MODE_RADIUS),
+                        config.getBoolean("modes.bridge.goal-hologram", true)));
     }
 
     private static Events events(ConfigurationSection config, Logger logger) {
@@ -362,15 +372,6 @@ public record Settings(int countdownSeconds, Duration maxDuration, int endDelayS
         return fallback;
     }
 
-    private static BossBar.Color bossBarColor(ConfigurationSection config, Logger logger) {
-        String raw = config.getString("match.boss-bar-color", "RED");
-        try {
-            return BossBar.Color.valueOf(raw.strip().toUpperCase(Locale.ROOT));
-        } catch (IllegalArgumentException e) {
-            logger.warning("config.yml match.boss-bar-color '" + raw + "' is not a boss bar color; using RED");
-            return BossBar.Color.RED;
-        }
-    }
 
     private static Reward reward(ConfigurationSection config, Logger logger, String path) {
         return Reward.load(config, logger, "config.yml", path);

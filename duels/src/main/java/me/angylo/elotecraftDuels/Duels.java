@@ -6,7 +6,7 @@ import me.angylo.elotecraftAPI.util.Messages;
 import me.angylo.elotecraftAPI.util.Tasks;
 import me.angylo.elotecraftDuels.arena.Arena;
 import me.angylo.elotecraftDuels.arena.ArenaInstances;
-import me.angylo.elotecraftDuels.arena.ArenaPregen;
+import me.angylo.elotecraftDuels.arena.ArenaPool;
 import me.angylo.elotecraftDuels.arena.ArenaRegistry;
 import me.angylo.elotecraftDuels.arena.ArenaWorld;
 import me.angylo.elotecraftDuels.command.AdminCommand;
@@ -61,8 +61,11 @@ import org.bukkit.event.Listener;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.scheduler.BukkitTask;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
-import java.util.Optional;
+import java.util.logging.Level;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -72,6 +75,7 @@ import java.util.concurrent.CompletableFuture;
 public final class Duels {
 
     private static final long SECOND_TICKS = 20;
+    private static final String SCHEMATICS = "schematics";
     private static final int SECONDS_PER_RETRY = 60;
 
     private final Plugin plugin;
@@ -90,7 +94,7 @@ public final class Duels {
     private final CustomKits customKits;
     private final ArenaInstances instances;
     private final WorldEditHook worldEdit;
-    private final ArenaPregen pregen;
+    private final ArenaPool pool;
     private final MatchManager matches;
     private final RequestManager requests;
     private final Bets bets;
@@ -109,8 +113,9 @@ public final class Duels {
     private volatile Settings settings;
     private int seconds;
 
-    private Duels(Plugin plugin, ConfigFile config, Database database) {
+    private Duels(Plugin plugin, ConfigFile config, Database database, WorldEditHook worldEdit) {
         this.plugin = plugin;
+        this.worldEdit = worldEdit;
         this.config = config;
         this.database = database;
         this.settings = Settings.load(config.get(), plugin.getLogger());
@@ -124,11 +129,10 @@ public final class Duels {
         this.snapshots = new SnapshotStore(plugin, database);
         this.layouts = new KitLayouts(plugin, database);
         this.customKits = new CustomKits(this::settings, kits, layouts);
-        // Loaded before arenas are rebuilt after a crash: pregen copies live there.
+        createSchematicsFolder();
         World arenasWorld = ArenaWorld.load(plugin, settings.arenasWorld()).orElse(null);
-        this.instances = new ArenaInstances(plugin, this::settings, arenas);
-        this.worldEdit = WorldEditHook.detect(plugin).orElse(null);
-        this.pregen = new ArenaPregen(plugin, this::settings, arenas, arenasWorld, worldEdit);
+        this.pool = new ArenaPool(plugin, this::settings, arenas, arenasWorld, worldEdit);
+        this.instances = new ArenaInstances(plugin, this::settings, arenas, pool);
         this.matches = new MatchManager(plugin, messages, this::settings, arenas, instances, snapshots, stats, history, layouts);
         this.editor = new KitEditor(plugin, messages, this::settings, snapshots, layouts, customKits, matches::isBusy);
         this.bets = new Bets(plugin.getLogger(), messages, this::settings, database, new VaultEconomy(plugin.getLogger()));
@@ -152,7 +156,7 @@ public final class Duels {
                 new OptionsMenu(plugin, messages, menus, this::settings),
                 new CosmeticsMenu(plugin, messages, menus, this::settings),
                 spectateMenu, customKitMenu).register();
-        new AdminCommand(this, new ArenaAdminMenu(plugin, messages, menus, this::settings, arenas),
+        new AdminCommand(this, new ArenaAdminMenu(plugin, messages, menus, this::settings, arenas, pool),
                 new KitAdminMenu(plugin, messages, menus, this::settings, kits)).register();
         new PartyCommand(this, kitMenu, new PartyMenu(plugin, messages, menus, this::settings, parties)).register();
         new EventCommand(this, new EventMenu(plugin, messages, menus, this::settings, events, kits, arenas, matches,
@@ -162,7 +166,7 @@ public final class Duels {
         this.watchItem = new WatchItem(plugin, menus, matches, spectateMenu);
         for (Listener listener : List.of(sessions, parties, layouts, editor, events, lobbyItems, watchItem, customKitMenu,
                 new CombatListener(plugin, messages, this::settings, matches, snapshots),
-                new ProtectionListener(messages, this::settings, matches, duel),
+                new ProtectionListener(messages, this::settings, matches, instances, duel),
                 new BuildListener(this::settings, matches, instances, arenas))) {
             plugin.getServer().getPluginManager().registerEvents(listener, plugin);
         }
@@ -178,7 +182,7 @@ public final class Duels {
         warnMissingKillMessages();
         plugin.getLogger().info("Loaded " + arenas.all().size() + " arenas (" + arenas.all().stream().filter(Arena::isReady).count()
                 + " ready) and " + kits.all().size() + " kits" + (placeholders.registered() ? "; PlaceholderAPI hooked" : "")
-                + (worldEdit != null ? "; " + worldEdit.name() + " pastes arena copies" : ""));
+                + "; " + worldEdit.name() + " pastes arena copies");
     }
 
     /**
@@ -187,10 +191,15 @@ public final class Duels {
      * @throws IllegalStateException if the database cannot be reached
      */
     public static Duels start(Plugin plugin) {
+        return start(plugin, WorldEditHook.create(plugin));
+    }
+
+    /** Like {@link #start(Plugin)}, with the WorldEdit hook given; tests pass a fake. */
+    static Duels start(Plugin plugin, WorldEditHook worldEdit) {
         ConfigFile config = new ConfigFile(plugin, "config.yml");
         Database database = Database.fromConfig(plugin, config.get().getConfigurationSection("database"));
         try {
-            return new Duels(plugin, config, database);
+            return new Duels(plugin, config, database, worldEdit);
         } catch (RuntimeException e) {
             database.close();
             throw e;
@@ -241,13 +250,18 @@ public final class Duels {
         return instances;
     }
 
-    public ArenaPregen pregen() {
-        return pregen;
+    public ArenaPool pool() {
+        return pool;
     }
 
-    /** FastAsyncWorldEdit or WorldEdit, when enabled. */
-    public Optional<WorldEditHook> worldEdit() {
-        return Optional.ofNullable(worldEdit);
+    /** FastAsyncWorldEdit or WorldEdit. */
+    public WorldEditHook worldEdit() {
+        return worldEdit;
+    }
+
+    /** Where {@code /duels arena import} reads schematics from. */
+    public Path schematicsFolder() {
+        return plugin.getDataFolder().toPath().resolve(SCHEMATICS);
     }
 
     public MatchManager matches() {
@@ -347,7 +361,17 @@ public final class Duels {
                         + " has no text in messages.yml kill-messages." + id + "; it is not offered"));
     }
 
+    /** Made at start, so admins have somewhere to put schematics for {@code /duels arena import}. */
+    private void createSchematicsFolder() {
+        try {
+            Files.createDirectories(schematicsFolder());
+        } catch (IOException e) {
+            plugin.getLogger().log(Level.WARNING, "Could not create " + schematicsFolder(), e);
+        }
+    }
+
     private void tick() {
+        instances.tick();
         matches.purgeExpired();
         requests.tick();
         bets.tick();

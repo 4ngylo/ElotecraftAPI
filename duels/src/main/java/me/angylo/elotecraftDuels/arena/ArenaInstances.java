@@ -23,9 +23,10 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
- * Lends arenas to duels. An arena hosts one duel at a time; after a build duel its changed blocks are put
- * back a few per tick before the next duel. Arenas a crash left changed are rebuilt from their template
- * at start. Main thread only.
+ * Lends arenas to duels. An arena hosts one duel at a time, and while it is busy duels get copies of it from
+ * the {@link ArenaPool}; after a build duel the changed blocks are put back a few per tick before the next
+ * duel. Arenas a crash left changed are rebuilt from their template at start; copies are cleared instead.
+ * Main thread only.
  */
 public final class ArenaInstances {
 
@@ -35,26 +36,32 @@ public final class ArenaInstances {
     private final Logger logger;
     private final Supplier<Settings> settings;
     private final ArenaRegistry arenas;
+    private final ArenaPool pool;
     /** Duels running, and arenas still being put back after one. */
     private final List<ArenaInstance> active = new ArrayList<>();
     /** Arenas being rebuilt from their template. */
     private final Set<String> resetting = new HashSet<>();
 
-    public ArenaInstances(Plugin plugin, Supplier<Settings> settings, ArenaRegistry arenas) {
+    public ArenaInstances(Plugin plugin, Supplier<Settings> settings, ArenaRegistry arenas, ArenaPool pool) {
         this.plugin = plugin;
         this.logger = plugin.getLogger();
         this.settings = settings;
         this.arenas = arenas;
+        this.pool = pool;
         resetLeftovers();
     }
 
-    /** Whether a duel can start in {@code arena} now: it is ready and free. */
+    /** Whether a duel can start in {@code arena} now: it is ready, and it or a copy of it is free. */
     public boolean available(Arena arena) {
-        // A mark with no duel left in the arena means a crash left it changed and it was not rebuilt yet.
-        return arena.isReady() && !arenas.needsReset(arena.name()) && inUse(arena.name()) == 0;
+        return arena.isReady() && (baseFree(arena) || pool.canLease(arena));
     }
 
-    /** Duels in {@code arena}, counting ones still being put back, and a rebuild from its template. */
+    /** Whether a duel (running or being put back) or a rebuild uses {@code arena} itself, not a copy. */
+    public boolean baseInUse(String arena) {
+        return resetting.contains(arena) || active.stream().anyMatch(instance -> !instance.isCopy() && instance.arena().name().equals(arena));
+    }
+
+    /** Duels in {@code arena} and its copies, counting ones still being put back, and a rebuild from its template. */
     public int inUse(String arena) {
         int count = resetting.contains(arena) ? 1 : 0;
         for (ArenaInstance instance : active) {
@@ -65,13 +72,22 @@ public final class ArenaInstances {
         return count;
     }
 
+    /** Once a second: copies of busy arenas are pasted ahead, and copies free too long are cleared. */
+    public void tick() {
+        pool.maintain(this::baseFree);
+    }
+
     /**
-     * Reserves {@code arena} for a duel. Callers check {@link #available} first.
+     * Reserves {@code arena} for a duel, or a copy of it while it is busy; a new copy is ready once
+     * {@link ArenaInstance#ready()} completes. Callers check {@link #available} first.
      *
      * @param build whether fighters may change blocks
-     * @return empty if the arena's world is not loaded
+     * @return empty if the arena's world is not loaded or no copy can be had
      */
     public Optional<ArenaInstance> acquire(Arena arena, boolean build) {
+        if (!baseFree(arena)) {
+            return pool.lease(arena).map(lease -> add(new ArenaInstance(lease.arena(), pool.world(), build, lease.ready())));
+        }
         World world = Bukkit.getWorld(arena.world());
         if (world == null) {
             return Optional.empty();
@@ -79,9 +95,7 @@ public final class ArenaInstances {
         if (build) {
             arenas.needsReset(arena.name(), true);
         }
-        ArenaInstance instance = new ArenaInstance(arena, world, build);
-        active.add(instance);
-        return Optional.of(instance);
+        return Optional.of(add(new ArenaInstance(arena, world, build, CompletableFuture.completedFuture(null))));
     }
 
     /**
@@ -97,7 +111,7 @@ public final class ArenaInstances {
         if (instance.isBuild()) {
             regenerate(instance);
         } else {
-            active.remove(instance);
+            done(instance);
         }
     }
 
@@ -155,9 +169,8 @@ public final class ArenaInstances {
     }
 
     /**
-     * Rebuilds {@code arena} from the template saved with {@code /duels arena snapshot}; a pregen copy from
-     * its source arena's template, moved to the copy. It takes no duels meanwhile. Callers check that it is
-     * not in use and its world is loaded.
+     * Rebuilds {@code arena} from the template saved with {@code /duels arena snapshot}. It takes no duels
+     * meanwhile. Callers check that it is not in use and its world is loaded.
      *
      * @return the number of blocks changed; fails with {@link java.nio.file.NoSuchFileException} (as the
      * cause) if no template was saved
@@ -167,18 +180,17 @@ public final class ArenaInstances {
         if (world == null || arena.corner1() == null || arena.corner2() == null || !resetting.add(arena.name())) {
             return CompletableFuture.failedFuture(new IllegalStateException("Arena " + arena.name() + " cannot be reset now"));
         }
-        Arena.Copy copy = arena.copy() != null ? arena.copy() : new Arena.Copy(arena.name(), 0, 0, 0);
         CompletableFuture<Integer> done = new CompletableFuture<>();
-        ArenaTemplate.load(plugin, copy.source()).whenComplete((template, error) -> Tasks.sync(plugin, () -> {
-            Throwable problem = error != null || template.fits(arena, copy.dx(), copy.dy(), copy.dz()) ? error
-                    : new IllegalStateException("The snapshot of arena " + copy.source() + " was taken with other corners; "
-                    + (arena.copy() == null ? "take it again with /duels arena snapshot" : "make its copies again with /duels arena pregen"));
+        ArenaTemplate.load(plugin, arena.name()).whenComplete((template, error) -> Tasks.sync(plugin, () -> {
+            Throwable problem = error != null || template.fits(arena) ? error
+                    : new IllegalStateException("The snapshot of arena " + arena.name() + " was taken with other corners;"
+                    + " take it again with /duels arena snapshot");
             if (problem != null) {
                 resetting.remove(arena.name());
                 done.completeExceptionally(problem);
                 return;
             }
-            paste(arena, world, template, copy, done);
+            paste(arena, world, template, done);
         }));
         return done;
     }
@@ -188,13 +200,33 @@ public final class ArenaInstances {
         for (ArenaInstance instance : List.copyOf(active)) {
             instance.close();
             clearLeftovers(instance);
-            if (instance.isBuild()) {
+            // Copies are cleared at the next start instead.
+            if (instance.isBuild() && !instance.isCopy()) {
                 restore(instance, Integer.MAX_VALUE);
             }
         }
         active.clear();
         // An unfinished rebuild keeps its mark and runs again on the next start.
         resetting.clear();
+    }
+
+    /** Whether {@code arena} itself (not a copy) can take a duel now. */
+    private boolean baseFree(Arena arena) {
+        // A mark with no duel left in the arena means a crash left it changed and it was not rebuilt yet.
+        return !arenas.needsReset(arena.name()) && !baseInUse(arena.name());
+    }
+
+    private ArenaInstance add(ArenaInstance instance) {
+        active.add(instance);
+        return instance;
+    }
+
+    /** The arena is free for the next duel; a copy goes back to the pool. */
+    private void done(ArenaInstance instance) {
+        active.remove(instance);
+        if (instance.isCopy()) {
+            pool.giveBack(instance.arena());
+        }
     }
 
     /** Rebuilds the arenas a crash left changed. */
@@ -218,14 +250,14 @@ public final class ArenaInstances {
         }
     }
 
-    private void paste(Arena arena, World world, ArenaTemplate template, Arena.Copy copy, CompletableFuture<Integer> done) {
+    private void paste(Arena arena, World world, ArenaTemplate template, CompletableFuture<Integer> done) {
         if (!resetting.contains(arena.name())) {
             done.completeExceptionally(new IllegalStateException("Stopped by shutdown"));
             return;
         }
         try {
-            if (!template.paste(world, settings.get().regenBlocksPerTick(), copy.dx(), copy.dy(), copy.dz())) {
-                Tasks.later(plugin, () -> paste(arena, world, template, copy, done), NEXT_TICK);
+            if (!template.paste(world, settings.get().regenBlocksPerTick())) {
+                Tasks.later(plugin, () -> paste(arena, world, template, done), NEXT_TICK);
                 return;
             }
         } catch (RuntimeException e) {
@@ -244,9 +276,9 @@ public final class ArenaInstances {
             return;
         }
         if (restore(instance, settings.get().regenBlocksPerTick())) {
-            active.remove(instance);
             // Sand or gravel still falling when the duel ended has landed by now.
             clearLeftovers(instance);
+            done(instance);
         } else {
             Tasks.later(plugin, () -> regenerate(instance), NEXT_TICK);
         }
@@ -261,7 +293,7 @@ public final class ArenaInstances {
             logger.log(Level.SEVERE, "Could not put a block of arena " + instance.arena().name() + " back", e);
             done = instance.changes().size() == 0;
         }
-        if (done) {
+        if (done && !instance.isCopy()) {
             arenas.needsReset(instance.arena().name(), false);
         }
         return done;

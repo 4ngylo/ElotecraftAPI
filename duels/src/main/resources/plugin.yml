@@ -5,8 +5,9 @@ description: 1v1 duels with kits, arenas, queues, spectators and stats.
 
 main: me.angylo.elotecraftDuels.ElotecraftDuels
 api-version: '1.21.11'
-depend: [ElotecraftAPI]
-softdepend: [Vault, PlaceholderAPI, FastAsyncWorldEdit, WorldEdit]
+# FastAsyncWorldEdit provides WorldEdit, so either one satisfies it.
+depend: [ElotecraftAPI, WorldEdit]
+softdepend: [Vault, PlaceholderAPI]
 
 # Commands (/duel, /duels) are registered at runtime by ElotecraftAPI's CommandBuilder.
 permissions:
@@ -94,6 +95,7 @@ permissions:
       duels.queue.ranked.unlimited: true
       duels.admin.stop: true
       duels.bypass.cooldown: true
+      duels.bypass.commands: true
   duels.admin.arena:
     description: Create and edit arenas.
     default: op
@@ -114,6 +116,9 @@ permissions:
     default: op
   duels.queue.ranked.unlimited:
     description: No ranked.daily-limit.
+    default: op
+  duels.bypass.commands:
+    description: Run any command during a duel, not only /duel and rules.allowed-commands.
     default: op
   duels.bypass.cooldown:
     description: Send duel requests and host events without waiting for the cooldown.

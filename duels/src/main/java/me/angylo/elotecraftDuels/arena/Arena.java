@@ -20,7 +20,7 @@ import java.util.Set;
  * @param categories  arena pools kits pick from; empty means only kits that accept any arena use it
  * @param center      optional middle of the arena; where spectators appear when no spectator point is set
  * @param buildLimit  highest block Y fighters may place blocks at, or null for the whole box
- * @param copy        where this arena was pasted from by pregen, or null for an arena built by hand
+ * @param copy        for a copy pasted by {@link ArenaPool}, where it was pasted from; null for an arena in arenas.yml
  * @param extraSpawns spawns for fights with more than two sides, e.g. a party FFA; used when there are enough
  * @param points      the goals and beds of the bridge and bed fight kit modes
  */
@@ -56,7 +56,7 @@ public record Arena(String name, String displayName, Material icon, String world
         }
     }
 
-    /** A pregen copy: pasted from arena {@code source}'s snapshot, moved by the offset. */
+    /** A pool copy: pasted from arena {@code source}'s snapshot, moved by the offset. */
     public record Copy(String source, int dx, int dy, int dz) {
     }
 
@@ -166,11 +166,11 @@ public record Arena(String name, String displayName, Material icon, String world
     }
 
     /**
-     * A pregen copy of this arena named {@code copyName} in {@code copyWorld}, every point moved by the
-     * offset. Only for a {@link #isReady() ready} arena.
+     * A copy of this arena in {@code copyWorld}, with its name, every point moved by the offset. Only for a
+     * {@link #isReady() ready} arena.
      */
-    public Arena copyAt(String copyName, String copyWorld, int dx, int dy, int dz) {
-        return new Arena(copyName, displayName, icon, copyWorld, true, spawn1.offset(dx, dy, dz), spawn2.offset(dx, dy, dz),
+    public Arena copyAt(String copyWorld, int dx, int dy, int dz) {
+        return new Arena(name, displayName, icon, copyWorld, true, spawn1.offset(dx, dy, dz), spawn2.offset(dx, dy, dz),
                 offset(spectator, dx, dy, dz), corner1.offset(dx, dy, dz), corner2.offset(dx, dy, dz), categories,
                 offset(center, dx, dy, dz), buildLimit == null ? null : buildLimit + dy, new Copy(name, dx, dy, dz),
                 extraSpawns.stream().map(spawn -> spawn.offset(dx, dy, dz)).toList(), points.offset(dx, dy, dz));
@@ -250,7 +250,12 @@ public record Arena(String name, String displayName, Material icon, String world
      * fighter spawns. Only for a ready arena.
      */
     public Location spectatorSpawn(World in) {
-        Position position = spectator != null ? spectator : center != null ? center : new Position((spawn1.x() + spawn2.x()) / 2,
+        return spectator != null ? spectator.in(in) : middle(in);
+    }
+
+    /** The center in {@code in}, else halfway between the fighter spawns. Only for a ready arena. */
+    public Location middle(World in) {
+        Position position = center != null ? center : new Position((spawn1.x() + spawn2.x()) / 2,
                 (spawn1.y() + spawn2.y()) / 2, (spawn1.z() + spawn2.z()) / 2, spawn1.yaw(), 0);
         return position.in(in);
     }

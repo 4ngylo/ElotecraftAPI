@@ -17,8 +17,6 @@ match:
   max-duration: 5m        # the fight ends in a draw after this
   end-delay-seconds: 4    # 0 to 30; time to celebrate before everyone is sent back
   round-delay-seconds: 3  # 1 to 30; pause after a round of a rounds-to-win kit, before the next countdown
-  boss-bar: true          # show the time left during the fight
-  boss-bar-color: RED     # PINK, BLUE, RED, GREEN, YELLOW, PURPLE or WHITE
   log-results: true       # write every result to the console
   arrow-health: true      # tell archers how much health their arrow left the target
 
@@ -33,6 +31,7 @@ rules:
   hunger: false                # false keeps food full while dueling
   natural-regeneration: true   # false: only potions, golden apples and the like heal
   # Commands fighters and spectators may use besides /duel (their aliases too), without the slash.
+  # duels.bypass.commands (operators by default) allows every command.
   allowed-commands: [msg, tell, w, r, reply]
   # true: a fighter who falls out of the bottom of the arena's box loses, as in the void. Leaving any other
   # way sends them back to their spawn.
@@ -44,14 +43,19 @@ build:
   break-arena-blocks: false
 
 regen:
-  blocks-per-tick: 2000   # 1 to 100000 blocks put back per tick after a build duel or pregen paste; the arena takes no duel until done
+  blocks-per-tick: 2000   # 1 to 100000 blocks put back per tick after a build duel; the arena takes no duel until done
 
 arenas:
-  # An empty void world for arena copies made with /duels arena pregen, away from the lobby. Created at
-  # start if missing; restart to apply a new name.
+  # An empty void world for arena copies and imported schematics, away from the lobby. Created at start
+  # if missing; restart to apply a new name.
   world: duels_arenas
-  pregen-spacing: 64      # 16 to 1024 empty blocks between pregen copies
-  max-copies: 32          # 1 to 256 copies one pregen can make
+  # When every arena a duel could use is busy, WorldEdit pastes a copy of one from its snapshot
+  # (/duels arena snapshot) in the arenas world. Copies come and go with the players.
+  pool:
+    spacing: 64           # 16 to 1024 empty blocks between copies
+    max-copies: 32        # 0 to 256 copies per arena at once; 0 hosts one duel at a time in each arena
+    warm: 1               # 0 to 16 free places kept ready per arena (the arena itself counts while free)
+    idle-timeout: 2m      # at least 10s; a copy free this long is removed, unless it is one of the warm places
 
 ranked:
   # /duel ranked duels move Elo rating: the winner takes it from the loser (forfeits and quits count as
@@ -145,8 +149,9 @@ custom-kits:
 # between rounds. Bed fight: knocked-out fighters come back while their bed (/duels arena setbed) stands.
 modes:
   bridge:
-    goal-radius: 2          # blocks across from the goal point that count as in the goal, 0 to 16
+    goal-radius: 2          # 0 to 16 blocks across (x and z) from the goal point: a flat ring at its layer to pass through
     protect-radius: 3       # no blocks placed this close to a spawn or goal, 0 to 16
+    goal-hologram: true     # messages.yml match.goal-hologram above each goal
 
 # Hotbar items in the lobby that open the queues, events, kit editor and history (menus.yml lobby-items).
 # For practice servers: players' own items are never replaced, but the items take hotbar slots.

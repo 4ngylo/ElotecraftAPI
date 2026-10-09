@@ -129,12 +129,12 @@ final class DefaultKits {
                         .armor("LEATHER", 0).slot(0, item(Material.IRON_SWORD, 1)).slot(1, item(Material.BOW, 1))
                         .slot(2, ench(Material.DIAMOND_PICKAXE, Enchantment.EFFICIENCY, 2)).slot(3, item(Material.BLUE_TERRACOTTA, 64))
                         .slot(4, item(Material.BLUE_TERRACOTTA, 64)).slot(5, item(Material.GOLDEN_APPLE, 8)).slot(8, item(Material.ARROW, 8)))
-                        .withMode(Kit.Mode.BRIDGE).withRule(KitRule.ROUNDS_TO_WIN, BRIDGE_GOALS),
+                        .withMode(Kit.Mode.BRIDGE).withRule(KitRule.ROUNDS_TO_WIN, BRIDGE_GOALS).withRule(KitRule.ARENA_BOUNDS, false),
                 kit("bedfight", "<red>Bed Fight", Material.RED_BED, true, Set.of("bedfight"), new Loadout()
                         .armor("LEATHER", 0).slot(0, item(Material.STONE_SWORD, 1)).slot(1, item(Material.WOODEN_PICKAXE, 1))
                         .slot(2, item(Material.SHEARS, 1)).slot(3, item(Material.WHITE_WOOL, 64)).slot(4, item(Material.WHITE_WOOL, 64))
                         .slot(5, item(Material.GOLDEN_APPLE, 4)).slot(8, item(Material.COOKED_BEEF, 64)))
-                        .withMode(Kit.Mode.BED_FIGHT));
+                        .withMode(Kit.Mode.BED_FIGHT).withRule(KitRule.ARENA_BOUNDS, false));
     }
 
     /** NoDebuff: healing splash potions fill the inventory; Debuff adds poison and slowness to throw. */

@@ -1,13 +1,14 @@
 package me.angylo.elotecraftDuels.match;
 
+import me.angylo.elotecraftAPI.hologram.Hologram;
 import me.angylo.elotecraftDuels.PlayerOptions;
 import me.angylo.elotecraftDuels.arena.Arena;
 import me.angylo.elotecraftDuels.arena.ArenaInstance;
 import me.angylo.elotecraftDuels.kit.Kit;
 import me.angylo.elotecraftDuels.kit.KitRule;
 import me.angylo.elotecraftDuels.state.PlayerSnapshot;
-import net.kyori.adventure.bossbar.BossBar;
 import org.bukkit.Location;
+import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitTask;
@@ -107,7 +108,8 @@ public final class Match {
     private int secondsLeft;
     private int fightSeconds;
     private int maxFightSeconds;
-    private BossBar bossBar;
+    /** Bridge: the holograms above the goals, while the fight runs. */
+    private final List<Hologram> goalHolograms = new ArrayList<>();
     private FightBorder border;
     private BukkitTask task;
     private boolean over;
@@ -215,6 +217,10 @@ public final class Match {
         return instance.spectatorSpawn();
     }
 
+    List<Hologram> goalHolograms() {
+        return goalHolograms;
+    }
+
     public Kit kit() {
         return kit;
     }
@@ -310,10 +316,51 @@ public final class Match {
         };
     }
 
-    /** Bridge: whether {@code location} is in the goal of {@code team}, within {@code radius} blocks across and 1 up or down. */
-    public boolean inGoal(int team, Location location, int radius) {
+    /**
+     * Bridge: whether moving from {@code from} to {@code to} passes through the goal of {@code team}, a flat ring:
+     * the goal point's block layer, within {@code radius} blocks across (x and z). A fall through it in one move
+     * counts; passing over or beside it does not.
+     */
+    public boolean crossesGoal(int team, Location from, Location to, int radius) {
         Arena.Position goal = arena().points().goal(team + 1);
-        return goal != null && location.getWorld() == instance.world() && near(goal, location, radius, 1);
+        if (goal == null || to.getWorld() != instance.world()) {
+            return false;
+        }
+        int layer = (int) Math.floor(goal.y());
+        if (Math.min(from.getY(), to.getY()) >= layer + 1 || Math.max(from.getY(), to.getY()) < layer) {
+            return false;
+        }
+        // Where the move is halfway up the layer; a move along the layer is checked where it ends.
+        double rise = to.getY() - from.getY();
+        double along = rise == 0 ? 1 : Math.clamp((layer + 0.5 - from.getY()) / rise, 0, 1);
+        double x = from.getX() + (to.getX() - from.getX()) * along;
+        double z = from.getZ() + (to.getZ() - from.getZ()) * along;
+        return Math.abs((int) Math.floor(x) - (int) Math.floor(goal.x())) <= radius
+                && Math.abs((int) Math.floor(z) - (int) Math.floor(goal.z())) <= radius;
+    }
+
+    /**
+     * Bridge: whether a fighter of {@code team} moving from {@code from} to {@code location} scores: through the
+     * other side's goal, or into an end portal nearer the other side's goal than their own (goals are often end
+     * portals of any size).
+     */
+    public boolean scoresAt(int team, Location from, Location location, int radius) {
+        int other = 1 - team;
+        if (crossesGoal(other, from, location, radius)) {
+            return true;
+        }
+        Arena.Position theirs = arena().points().goal(other + 1);
+        Arena.Position ours = arena().points().goal(team + 1);
+        return theirs != null && ours != null && location.getWorld() == instance.world()
+                && location.getBlock().getType() == Material.END_PORTAL
+                && distanceSquared(theirs, location) < distanceSquared(ours, location);
+    }
+
+    private static double distanceSquared(Arena.Position point, Location location) {
+        double dx = point.x() - location.getX();
+        double dy = point.y() - location.getY();
+        double dz = point.z() - location.getZ();
+        return dx * dx + dy * dy + dz * dz;
     }
 
     /** Bridge: whether {@code location} is within {@code radius} blocks of a spawn or goal, where nobody builds. */
@@ -487,14 +534,6 @@ public final class Match {
 
     void maxFightSeconds(int seconds) {
         maxFightSeconds = seconds;
-    }
-
-    BossBar bossBar() {
-        return bossBar;
-    }
-
-    void bossBar(BossBar bar) {
-        bossBar = bar;
     }
 
     /** The closing border, once the fight started with one; else null. */

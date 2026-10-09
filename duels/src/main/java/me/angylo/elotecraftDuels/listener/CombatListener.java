@@ -13,6 +13,7 @@ import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.attribute.Attribute;
 import org.bukkit.entity.AbstractArrow;
 import org.bukkit.entity.AreaEffectCloud;
 import org.bukkit.entity.EnderPearl;
@@ -30,7 +31,9 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.entity.AreaEffectCloudApplyEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
+import org.bukkit.event.block.Action;
 import org.bukkit.event.entity.EntityRegainHealthEvent;
+import org.bukkit.event.entity.EntityShootBowEvent;
 import org.bukkit.event.entity.FoodLevelChangeEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.entity.PotionSplashEvent;
@@ -208,9 +211,10 @@ public final class CombatListener implements Listener {
             event.setTo(new Location(from.getWorld(), from.getX(), from.getY(), from.getZ(), to.getYaw(), to.getPitch()));
             return;
         }
-        // Bridge: walking into the other side's goal scores.
+        // Bridge: passing through the other side's goal, or into an end portal on its side, scores. The only place
+        // goals are counted: the portal itself is cancelled by ProtectionListener, after this move.
         if (event.hasChangedBlock() && match.mode() == Kit.Mode.BRIDGE && match.isFighting(player)
-                && match.inGoal(1 - match.teamOf(player.getUniqueId()), event.getTo(), settings.get().modes().goalRadius())) {
+                && match.scoresAt(match.teamOf(player.getUniqueId()), event.getFrom(), event.getTo(), settings.get().modes().goalRadius())) {
             matches.score(player);
             return;
         }
@@ -224,17 +228,58 @@ public final class CombatListener implements Listener {
                 return;
             }
             boolean fighter = match.isFighter(player) && player.getGameMode() != GameMode.SPECTATOR;
+            // Kits played over the void let fighters out; they fall and come back from below.
+            if (fighter && !match.kit().flag(KitRule.ARENA_BOUNDS, settings.get())) {
+                return;
+            }
             event.setTo(fighter ? match.spawnOf(player) : match.spectatorSpawn());
             messages.send(player, "match.out-of-bounds");
         }
     }
 
-    /** No item use before the fight or after it ends: no pearls, potions or food. */
+    /**
+     * Bridge: a golden apple heals a fighter fully at once, as instant health would, on top of its own effects;
+     * food and saturation are left as the apple leaves them.
+     */
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onGoldenApple(PlayerItemConsumeEvent event) {
+        Player player = event.getPlayer();
+        if (event.getItem().getType() != Material.GOLDEN_APPLE) {
+            return;
+        }
+        matches.matchOf(player).filter(match -> match.mode() == Kit.Mode.BRIDGE && match.isFighting(player)).ifPresent(match -> {
+            double missing = player.getAttribute(Attribute.MAX_HEALTH).getValue() - player.getHealth();
+            if (missing > 0) {
+                player.heal(missing, EntityRegainHealthEvent.RegainReason.MAGIC);
+            }
+        });
+    }
+
+    /**
+     * No item use before the fight or after it ends: no pearls, potions or food. During the countdown a bow may be
+     * drawn and a crossbow loaded, to shoot when the fight starts; see {@link #onShootBow}.
+     */
     @EventHandler(priority = EventPriority.LOW)
     public void onInteract(PlayerInteractEvent event) {
-        if (frozenFighter(event.getPlayer())) {
+        if (frozenFighter(event.getPlayer()) && !drawsBowInCountdown(event)) {
             event.setCancelled(true);
         }
+    }
+
+    /** An arrow released before the fight is refused; the client is told it still has it. */
+    @EventHandler(priority = EventPriority.LOW, ignoreCancelled = true)
+    public void onShootBow(EntityShootBowEvent event) {
+        if (event.getEntity() instanceof Player player && frozenFighter(player)) {
+            event.setCancelled(true);
+            player.updateInventory();
+        }
+    }
+
+    private boolean drawsBowInCountdown(PlayerInteractEvent event) {
+        Material item = event.getItem() == null ? null : event.getItem().getType();
+        return (item == Material.BOW || item == Material.CROSSBOW)
+                && (event.getAction() == Action.RIGHT_CLICK_AIR || event.getAction() == Action.RIGHT_CLICK_BLOCK)
+                && matches.matchOf(event.getPlayer()).filter(match -> match.state() == Match.State.COUNTDOWN).isPresent();
     }
 
     @EventHandler(priority = EventPriority.LOW, ignoreCancelled = true)

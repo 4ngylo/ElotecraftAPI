@@ -7,6 +7,8 @@ import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.util.Vector;
 
+import java.util.concurrent.CompletableFuture;
+
 /**
  * Where one duel runs: an arena in its world. Borrowed from {@link ArenaInstances} for the length of the
  * duel and, for a build duel, until its blocks are back. Main thread only.
@@ -16,12 +18,14 @@ public final class ArenaInstance {
     private final Arena arena;
     private final World world;
     private final ArenaChanges changes;
+    private final CompletableFuture<Void> ready;
     private boolean closing;
 
-    ArenaInstance(Arena arena, World world, boolean build) {
+    ArenaInstance(Arena arena, World world, boolean build, CompletableFuture<Void> ready) {
         this.arena = arena;
         this.world = world;
         this.changes = build ? new ArenaChanges() : null;
+        this.ready = ready;
     }
 
     public Arena arena() {
@@ -30,6 +34,16 @@ public final class ArenaInstance {
 
     public World world() {
         return world;
+    }
+
+    /** Completes once the arena can be played in: at once, or once a copy is pasted. */
+    public CompletableFuture<Void> ready() {
+        return ready;
+    }
+
+    /** Whether this is a copy pasted for the duel rather than the arena itself. */
+    public boolean isCopy() {
+        return arena.copy() != null;
     }
 
     /** Whether fighters may change blocks here (a build kit). */
@@ -96,6 +110,11 @@ public final class ArenaInstance {
 
     public Location spectatorSpawn() {
         return arena.spectatorSpawn(world);
+    }
+
+    /** The arena's center, else halfway between its spawns. */
+    public Location middle() {
+        return arena.middle(world);
     }
 
     public boolean contains(Location location) {

@@ -107,7 +107,7 @@ class HologramTest extends DuelsTestBase {
         await(duels.holograms().put(new Board("wins", Type.WINS, null, "nowhere", new Position(1.5, 70, -2.5, 0, 0))));
 
         duels.shutdown();
-        duels = Duels.start(plugin);
+        duels = Duels.start(plugin, worldEdit);
         await(duels.ready());
 
         Board board = duels.holograms().get("wins").orElseThrow();

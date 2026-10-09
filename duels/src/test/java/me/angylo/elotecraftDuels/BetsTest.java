@@ -112,13 +112,13 @@ class BetsTest extends DuelsTestBase {
     void stakesOfADuelARestartCutShortAreGivenBack() {
         acceptedBet();
         duels.shutdown();
-        duels = Duels.start(plugin);
+        duels = Duels.start(plugin, worldEdit);
         await(duels.ready());
         tickUntil(() -> balances.get(alex.getUniqueId()) == 500 && balances.get(steve.getUniqueId()) == 500);
 
         // Given back once: a second restart pays nothing more.
         duels.shutdown();
-        duels = Duels.start(plugin);
+        duels = Duels.start(plugin, worldEdit);
         await(duels.ready());
         ticks(40);
         assertEquals(500, balances.get(alex.getUniqueId()));

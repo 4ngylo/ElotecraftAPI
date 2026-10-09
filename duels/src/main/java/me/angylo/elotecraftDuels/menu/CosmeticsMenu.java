@@ -21,7 +21,8 @@ import java.util.function.Supplier;
 
 /**
  * {@code /duel cosmetics}: the kill effects or kill messages of config.yml {@code cosmetics}, one button each.
- * A click picks one, or drops it when it was picked; locked ones need their permission. Layout in menus.yml
+ * A click picks one, or drops it when it was picked; locked ones need their permission; back goes to the
+ * hub's cosmetics menu. Layout in menus.yml
  * {@code kill-effect} and {@code kill-message}.
  */
 public final class CosmeticsMenu {
@@ -50,10 +51,8 @@ public final class CosmeticsMenu {
             PaginatedMenu menu = MenuLayout.frame(plugin, section);
             menu.items(cosmetics.all(kind).stream()
                     .filter(cosmetic -> kind != Kind.KILL_MESSAGE || messages.has("kill-messages." + cosmetic.id())).map(cosmetic -> button(viewer, kind, section, cosmetic, cosmetic.equals(chosen))).toList());
-            Kind other = kind == Kind.KILL_EFFECT ? Kind.KILL_MESSAGE : Kind.KILL_EFFECT;
-            MenuLayout.place(menu, section, "switch", MenuLayout.choose(plugin, effects, player -> open(player, other)));
-            MenuLayout.place(menu, section, "close", MenuLayout.choose(plugin, effects, player -> { }));
-            MenuLayout.fill(menu, section);
+            MenuLayout.place(menu, section, "back", MenuLayout.command(plugin, effects, section, "back"));
+            MenuLayout.place(menu, section, "close", MenuLayout.close(plugin, effects));
             menu.open(viewer);
         } catch (IllegalArgumentException e) {
             MenuLayout.menuError(plugin, messages, viewer, kind.key(), e);

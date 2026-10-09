@@ -33,6 +33,7 @@ command:
     <yellow>/party chat [message]</yellow> <dark_gray>·</dark_gray> <yellow>/pc [message]</yellow> <dark_gray>-</dark_gray> <gray>talk to your party; without a message, your chat goes to the party until you run it again
   help: |-
     <gradient:#ff416c:#ff4b2b><bold>⚔ Duels</bold></gradient>
+    <yellow>/duel</yellow> <dark_gray>-</dark_gray> <gray>the duels menu: play, profile, party, kits, cosmetics and options
     <yellow>/duel <player> [kit] [arena]</yellow> <dark_gray>-</dark_gray> <gray>challenge someone
     <yellow>/duel <player> <kit> [arena] bet <amount></yellow> <dark_gray>-</dark_gray> <gray>challenge for money
     <yellow>/duel accept|deny [player]</yellow> <dark_gray>-</dark_gray> <gray>answer a challenge
@@ -47,16 +48,25 @@ command:
     <yellow>/duel toggle <option></yellow> <dark_gray>-</dark_gray> <gray>turn duel requests or another option off or on
     <yellow>/duel options</yellow> <dark_gray>-</dark_gray> <gray>requests, party invites, sidebar and sounds
     <yellow>/duel cosmetics</yellow> <dark_gray>-</dark_gray> <gray>kill effects and kill messages
+    <yellow>/duel ratings</yellow> <dark_gray>-</dark_gray> <gray>your rating in each kit
     <yellow>/duel stats [player]</yellow> <dark_gray>·</dark_gray> <yellow>/duel top [elo [kit]|season <n>]</yellow> <dark_gray>-</dark_gray> <gray>statistics
     <yellow>/duel history [player]</yellow> <dark_gray>-</dark_gray> <gray>latest duels
   admin-help: |-
     <gradient:#ff416c:#ff4b2b><bold>⚔ Duels admin</bold></gradient>
+    <yellow>/duels</yellow> <dark_gray>-</dark_gray> <gray>the admin menu
     <yellow>/duels arena</yellow> <dark_gray>-</dark_gray> <gray>create and edit arenas
     <yellow>/duels kit</yellow> <dark_gray>-</dark_gray> <gray>create and edit kits
     <yellow>/duels hologram</yellow> <dark_gray>-</dark_gray> <gray>floating leaderboards
-    <yellow>/duels season [end]</yellow> <dark_gray>-</dark_gray> <gray>the rating season; end it to archive and reset ratings
+    <yellow>/duels season</yellow> <dark_gray>-</dark_gray> <gray>the rating season: list, info, top, player, divisions, compare, kits, schedule, auto, name, export, end
+    <yellow>/duels elo <player></yellow> <dark_gray>-</dark_gray> <gray>a player's ratings; set, add or reset them
     <yellow>/duels stop <player></yellow> <dark_gray>-</dark_gray> <gray>stop someone's duel
     <yellow>/duels reload</yellow> <dark_gray>-</dark_gray> <gray>reload config, messages, menus, arenas and kits
+  elo-help: |-
+    <gradient:#ff416c:#ff4b2b><bold>⚔ Ratings</bold></gradient>
+    <yellow>/duels elo <player></yellow> <dark_gray>-</dark_gray> <gray>their rating in each kit and overall
+    <yellow>/duels elo set <player> <kit|all> <rating></yellow> <dark_gray>-</dark_gray> <gray>set it, 0 to 10000
+    <yellow>/duels elo add <player> <kit|all> <points></yellow> <dark_gray>-</dark_gray> <gray>add or take points (e.g. -50)
+    <yellow>/duels elo reset <player> [kit|all]</yellow> <dark_gray>-</dark_gray> <gray>back to 1000, peak included (asks to confirm)
   arena-help: |-
     <gradient:#4facfe:#00f2fe><bold>Arena setup</bold></gradient> <dark_gray>(stand where each point should be)</dark_gray>
     <yellow>/duels arena [name]</yellow> <dark_gray>-</dark_gray> <gray>menu of every arena, or of one arena's settings
@@ -92,10 +102,8 @@ command:
     <yellow>/duels kit seticon <name></yellow> <dark_gray>-</dark_gray> <gray>menu icon: the item in your hand
     <yellow>/duels kit setname <name> <text></yellow> <dark_gray>-</dark_gray> <gray>name shown to players
     <yellow>/duels kit setpermission <name> <permission|none></yellow> <dark_gray>-</dark_gray> <gray>who may use it
-    <yellow>/duels kit build <name></yellow> <dark_gray>-</dark_gray> <gray>let fighters place blocks, or stop it
-    <yellow>/duels kit damage <name></yellow> <dark_gray>-</dark_gray> <gray>knockback-only hits (Sumo), or normal again
     <yellow>/duels kit mode <name> [normal|bridge|bed-fight]</yellow> <dark_gray>-</dark_gray> <gray>goals or beds decide fights
-    <yellow>/duels kit effect <name> [effect level]</yellow> <dark_gray>-</dark_gray> <gray>potion effects for the whole fight (level 0 removes)
+    <yellow>/duels kit effect <name> [effect amplifier [seconds]|effect remove]</yellow> <dark_gray>-</dark_gray> <gray>potion effects: amplifier 0-2, seconds (0: whole fight)
     <yellow>/duels kit rule <name> [rule] [value|default]</yellow> <dark_gray>-</dark_gray> <gray>game rules: hunger, regeneration, pearl cooldown...
     <yellow>/duels kit defaults</yellow> <dark_gray>-</dark_gray> <gray>add the default kits that are missing
     <yellow>/duels kit arenas <name> <category...|any></yellow> <dark_gray>-</dark_gray> <gray>which arena categories its duels use
@@ -116,6 +124,7 @@ general:
   not-dueling: "<prefix><red><player> isn't in a duel."
   storage-error: "<prefix><red>Your duel data couldn't be saved, so nothing changed. Try again or tell an admin."
   menu-error: "<prefix><red>That menu is misconfigured; please tell an admin."
+  no-menu: "<prefix><red>There is no menu called <menu>."
   restored: "<prefix><gray>Your items and position were restored from a duel that didn't finish."
   nothing-to-leave: "<prefix><red>You're not in a queue, an event, a duel or spectating."
   random-arena: "Random arena"
@@ -452,16 +461,107 @@ top:
 season:
   ended: "<prefix><gold>Season <season> is over! <gray>Every rating starts again at 1000 for season <white><next></white>."
   reward: "<prefix><green>Season reward: <white><amount></white>."
+  # A season's name where it has none set with /duels season name.
+  unnamed: "Season <season>"
+  # Before a planned end that ends the season by itself (config.yml seasons.player-warnings).
+  ending-soon: "<prefix><gold>Season <season> ends in <white><time></white>! <gray>Ratings will be archived and division rewards paid."
+  # /duel season: <name>, <age> (how long it has run), <ends> (end-in or no-end), and the player's <elo> and <division>.
+  player-info: |-
+    <prefix><white><name></white> <dark_gray>·</dark_gray> <gray>running for <white><age></white><ends>
+    <prefix><gray>Your rating: <aqua><elo></aqua> <division>
+  end-in: " <dark_gray>·</dark_gray> <gray>ends in <white><time>"
+  no-end: ""
 
 admin:
   season:
-    info: "<prefix><gray>Season <white><season></white> is running. <dark_gray>/duels season end archives and resets every rating."
+    # /duels season: the season running. <name>, <season>, <started> (date), <age>, <since> (start-known or
+    # start-unknown), <ends>, <auto> (on or off), <players> (rated) and <duels> (ranked), then its top 3 (top.elo-line).
+    info: |-
+      <gradient:#f7971e:#ffd200><bold><name></bold></gradient> <dark_gray>(season <season>)
+       <gray>Started <white><started></white> <dark_gray>·</dark_gray> <gray>running for <white><age></white><since>
+       <gray>Planned end: <ends> <dark_gray>·</dark_gray> <gray>ends by itself: <auto>
+       <gray>Rated players <white><players></white> <dark_gray>·</dark_gray> <gray>ranked duels <white><duels>
+    start-known: ""
+    start-unknown: " <dark_gray>(since starts were kept)"
+    no-end: "<gray>none <dark_gray>(/duels season schedule)"
+    end-in: "<white><date></white> <gray>(in <white><time></white>)"
+    end-passed: "<white><date></white> <red>(passed)"
+    "on": "<green>on"
+    "off": "<red>off"
+    none: "none"
+    all-kits: "all kits"
+    top-header: "<gradient:#f7971e:#ffd200><bold>Season <season></bold></gradient> <dark_gray>·</dark_gray> <white><kit>"
+    top-empty: " <gray>No ranked duels yet."
+    # /duels season list: one line per ended season. <name>, <season>, <started>, <ended>, <length>, <players>, <duels>.
+    list-header: "<gradient:#f7971e:#ffd200><bold>Ended seasons"
+    list-line: " <gold>#<season></gold> <white><name></white> <gray><started> → <ended> <dark_gray>(<length>) <gray><players> players, <duels> duels"
+    # /duels season info <n>: the same tags as list-line, then its top 5.
+    ended-info: |-
+      <gradient:#f7971e:#ffd200><bold><name></bold></gradient> <dark_gray>(season <season>, ended)
+       <gray><started> → <ended> <dark_gray>(<length>)
+       <gray>Rated players <white><players></white> <dark_gray>·</dark_gray> <gray>ranked duels <white><duels>
+    no-season: "<prefix><red>Use a season from 1 to <last> (the one running)."
+    player-usage: "<prefix><red>Use /duels season player <player> [season]."
+    player-header: "<gradient:#f7971e:#ffd200><bold><player></bold></gradient> <dark_gray>·</dark_gray> <white>season <season>"
+    player-none: "<prefix><gray><player> has no ratings in season <season>."
+    # /duels season divisions and end preview: <season>, <ratings> (to archive), <players> (rated) and <rewards>
+    # (to pay), with a line per division: <division>, <count> and <reward> (has-reward when it pays one).
+    divisions-header: "<gradient:#f7971e:#ffd200><bold>Divisions</bold></gradient> <dark_gray>·</dark_gray> <white>season <season>"
+    preview: "<gradient:#f7971e:#ffd200><bold>Ending season <season> now</bold></gradient> <gray>would archive <white><ratings></white> ratings:"
+    divisions-line: " <dark_gray>▪</dark_gray> <division> <white><count></white><reward>"
+    has-reward: " <green>(season reward)"
+    divisions-footer: " <gray><white><rewards></white> of <white><players></white> rated players would get a season reward."
+    compare-usage: "<prefix><red>Use /duels season compare <season> <season>."
+    # /duels season compare <a> <b>: <a_...> and <b_...> are players, duels, elo (average) and kit (most played).
+    compare: |-
+      <gradient:#f7971e:#ffd200><bold>Season <a> vs season <b>
+       <gray>Rated players <white><a_players></white> <dark_gray>vs</dark_gray> <white><b_players>
+       <gray>Ranked duels <white><a_duels></white> <dark_gray>vs</dark_gray> <white><b_duels>
+       <gray>Average rating <white><a_elo></white> <dark_gray>vs</dark_gray> <white><b_elo>
+       <gray>Most played <white><a_kit></white> <dark_gray>vs</dark_gray> <white><b_kit>
+    kits-header: "<gradient:#f7971e:#ffd200><bold>Kits played ranked</bold></gradient> <dark_gray>·</dark_gray> <white>season <season>"
+    kits-line: " <dark_gray>▪</dark_gray> <white><kit></white> <gray><duels> duels, <players> players"
+    kits-empty: " <gray>No ranked duels yet."
+    schedule-usage: "<prefix><red>Use /duels season schedule <days from now|yyyy-MM-dd|off>."
+    schedule-past: "<prefix><red>That is not in the future."
+    scheduled: "<prefix><green>Season <season> is planned to end on <white><date></white> (in <time>). <gray>It won't end by itself: /duels season auto on."
+    scheduled-auto: "<prefix><green>Season <season> ends by itself on <white><date></white> (in <time>)."
+    unscheduled: "<prefix><gray>Season <season> has no planned end now."
+    auto-usage: "<prefix><red>Use /duels season auto <on|off|toggle>. <gray>Now: <auto>"
+    auto-on: "<prefix><green>Season <season> now ends by itself on <white><date></white>, and so will the next ones."
+    auto-on-unplanned: "<prefix><green>Seasons now end by itself at their planned end. <gray>Season <season> has none yet: /duels season schedule."
+    auto-off: "<prefix><gray>Seasons no longer end by themselves; end them with /duels season end."
+    name-usage: "<prefix><red>Use /duels season name <season> <name|off>."
+    name-too-long: "<prefix><red>Names are up to <max> characters."
+    named: "<prefix><green>Season <season> is now called <name>."
+    name-cleared: "<prefix><gray>Season <season> no longer has a name."
+    exported: "<prefix><green>Wrote <white><file></white> (<ratings> ratings)."
+    export-failed: "<prefix><red>Couldn't write the file; check the console."
+    # Before a planned end (config.yml seasons.admin-warnings), to players with duels.admin.season.
+    warning: "<prefix><gold>Season <season> reaches its planned end in <white><time></white>. <gray>It won't end by itself: /duels season end."
+    warning-auto: "<prefix><gold>Season <season> ends by itself in <white><time></white>. <gray>/duels season auto off to stop it."
+    overdue: "<prefix><gold>Season <season> is past its planned end. <gray>/duels season end ends it, /duels season schedule moves it."
     confirm: "<prefix><red><bold>This ends season <season> for good:</bold> every kit rating is archived, division rewards are paid and all ratings go back to 1000. Back up the database first. <gray>Run <white>/duels season end confirm</white> within <seconds> seconds."
     not-armed: "<prefix><red>Run /duels season end first, then confirm within 30 seconds."
     busy: "<prefix><red>A season is already ending."
     ending: "<prefix><gray>Ending season <season>..."
     failed: "<prefix><red>Couldn't end the season; nothing was changed. Check the console."
     ended: "<prefix><green>Season <season> ended: <white><ratings></white> ratings archived, <white><rewards></white> rewards paid."
+  # /duels elo: <player>'s overall <elo> and <division>, then stats.kit-line per kit.
+  elo:
+    header: "<gradient:#f7971e:#ffd200><bold><player></bold></gradient> <dark_gray>·</dark_gray> <gray>overall <aqua><elo></aqua> <division>"
+    no-ratings: " <gray>No ranked duels this season."
+    set-usage: "<prefix><red>Use /duels elo set <player> <kit|all> <0-10000>."
+    add-usage: "<prefix><red>Use /duels elo add <player> <kit|all> <points>, e.g. 50 or -50."
+    reset-usage: "<prefix><red>Use /duels elo reset <player> [kit|all]."
+    out-of-range: "<prefix><red>Ratings go from 0 to <max>."
+    busy: "<prefix><red><player> is in a duel or a ranked queue; try again once they're out."
+    reset-confirm: "<prefix><red><bold>This puts <player>'s <kit> rating back to 1000</bold>, peak included. <gray>Run the same command with <white>confirm</white> at the end within <seconds> seconds."
+    reset-not-armed: "<prefix><red>Run the reset without confirm first, then confirm within 30 seconds."
+    nothing: "<prefix><gray><player> has no rating to reset there."
+    changed: "<prefix><green>Changed <white><player></white>'s ratings:"
+    # One per kit changed: <kit>, <before>, <elo> and <division>.
+    changed-line: " <dark_gray>▪</dark_gray> <white><kit></white> <gray><before> → <aqua><elo></aqua> <division>"
   reloaded: "<prefix><green>Reloaded the config, messages, menus, arenas and kits."
   reload-failed: "<prefix><red>Some files failed to load; check the console. Their previous values were kept."
   invalid-name: "<prefix><red>Names use 1 to 32 lowercase letters, digits, - or _."
@@ -571,9 +671,6 @@ admin:
     list-header: "<prefix><gray>Kits (<count>):"
     list-entry: " <dark_gray>▪</dark_gray> <kit> <dark_gray>(<id>)</dark_gray> <gray><permission>"
     list-empty: "<prefix><gray>No kits yet. Create one with <white>/duels kit create <name>"
-    build-on: "<prefix><green>Fighters with <white><kit></white> can now place blocks; arenas are put back after each duel."
-    build-off: "<prefix><green>Fighters with <white><kit></white> can no longer place blocks."
-    damage-on: "<prefix><green>Hits with <white><kit></white> hurt again."
     # /duels kit mode <kit> [mode]; bridge and bed fight also make it a build kit.
     mode-set: "<prefix><green><white><kit></white> is now <white><mode></white>."
     mode-usage: "<prefix><red>Use /duels kit mode <kit> [normal|bridge|bed-fight]."
@@ -581,7 +678,6 @@ admin:
       normal: "a normal kit"
       bridge: "a bridge kit (goals win rounds, fighters respawn)"
       bed-fight: "a bed fight kit (fighters respawn while their bed stands)"
-    damage-off: "<prefix><green>Hits with <white><kit></white> only knock back now; falling off the arena loses."
     defaults-added: "<prefix><green>Added <white><count></white> default kits; existing kits were kept."
     arenas-usage: "<prefix><red>Use /duels kit arenas <name> <category...> or any; categories use lowercase letters, digits, - and _."
     arenas-set: "<prefix><green>Duels with <white><kit></white> now use arenas in: <white><categories></white>."
@@ -592,13 +688,20 @@ admin:
     rule-vanilla: "vanilla"
     rule-set: "<prefix><green><white><rule></white> of <white><kit></white> is now <white><value></white>."
     effects: "<prefix><gray>Effects of <white><kit></white>: <white><effects>"
-    effect-usage: "<prefix><red>Use /duels kit effect <name> <effect> <level>, level 1 to <max>, or 0 to remove it."
-    effect-set: "<prefix><green><white><kit></white> gives <white><effect> <level></white> for the whole fight."
+    effect-usage: "<prefix><red>Use /duels kit effect <name> <effect> <amplifier> [seconds] (amplifier 0 to <max>, 0 is level I; seconds 0 to <max_seconds>, 0 for the whole fight), or <effect> remove."
+    effect-set: "<prefix><green><white><kit></white> gives <white><effect></white>."
+    # <effect> <amplifier> and its <duration>, in effect lists and effect-set.
+    effect-entry: "<effect> <amplifier> <gray>(<duration>)</gray>"
+    effect-whole-fight: "whole fight"
+    effect-seconds: "<seconds>s"
     effect-removed: "<prefix><green><white><kit></white> no longer gives <white><effect></white>."
     rule-usage: "<prefix><red>Use /duels kit rule <name> [rule] [value|default]. Rules: <gray><rules>"
     rule-flag-usage: "<prefix><red><rule> is true, false or default."
     rule-seconds-usage: "<prefix><red><rule> is a number of seconds from 0 to <max>, or default."
     rule-number-usage: "<prefix><red><rule> is a whole number from 0 to <max>, or default."
+    # Titles of the anvils the /duels kit effects menu asks in.
+    prompt-amplifier: "<effect>: amplifier 0-<max>"
+    prompt-seconds: "<effect>: seconds (0 whole fight)"
     # Asked in chat by the /duels kit menus.
     prompt-create: "<prefix><gray>Type a name for the new kit (lowercase letters, digits, - and _), or <white>cancel</white>."
     prompt-name: "<prefix><gray>Type the name to show for <white><kit></white> (e.g. <white>\\<gold>Sword</white>), or <white>cancel</white>."

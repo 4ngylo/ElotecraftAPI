@@ -2,6 +2,7 @@ package me.angylo.elotecraftDuels;
 
 import me.angylo.elotecraftAPI.util.Durations;
 import me.angylo.elotecraftDuels.event.HostedEvent;
+import me.angylo.elotecraftDuels.kit.KitRule;
 import me.angylo.elotecraftDuels.stats.Divisions;
 import net.kyori.adventure.title.Title;
 import org.bukkit.configuration.ConfigurationSection;
@@ -12,6 +13,8 @@ import java.time.LocalTime;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.EnumMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -28,24 +31,33 @@ import java.util.stream.Stream;
  */
 public record Settings(int countdownSeconds, Duration maxDuration, int endDelaySeconds, int roundDelaySeconds,
                 boolean logResults, boolean arrowHealth, Duration requestExpiry, Duration requestCooldown,
-                Duration rematchWindow, boolean hunger, boolean naturalRegeneration, Set<String> allowedCommands,
+                Duration rematchWindow, Map<KitRule, Object> kitDefaults, Set<String> allowedCommands,
                 Reward winReward, Reward lossReward, Title.Times titleTimes, Effects effects,
-                boolean breakArenaBlocks, int regenBlocksPerTick, boolean voidEliminates, String arenasWorld,
-                Pool pool, int partyMaxSize, Duration partyInviteExpiry, boolean partyFriendlyFire, Duration kitEditorTimeout, Ranked ranked,
+                boolean breakArenaBlocks, int regenBlocksPerTick, String arenasWorld,
+                Pool pool, int partyMaxSize, Duration partyInviteExpiry, Duration kitEditorTimeout, Ranked ranked,
                 Sidebars sidebars, int hologramLines, LobbyItems lobbyItems, Events events, Cosmetics cosmetics, Bets bets,
-                CustomKitOptions customKits, Modes modes) {
+                CustomKitOptions customKits, Modes modes, SeasonOptions seasons) {
 
     private static final long MILLIS_PER_TICK = 50;
+    public static final String KIT_DEFAULTS = "rules.kit-defaults";
+    /** A number kit rule's default that leaves the game as it is. */
+    public static final String VANILLA = "vanilla";
+    /** Where older config.yml files kept the defaults of some kit rules. */
+    private static final Map<String, KitRule> OLD_KIT_DEFAULTS = Map.of("rules.hunger", KitRule.HUNGER,
+            "rules.natural-regeneration", KitRule.NATURAL_REGENERATION, "rules.void-eliminates", KitRule.VOID_ELIMINATES,
+            "parties.friendly-fire", KitRule.FRIENDLY_FIRE);
     private static final int MAX_TITLE_TICKS = 200;
     private static final int MAX_ELO_RANGE = 5000;
     private static final int MAX_HOLOGRAM_LINES = 50;
-    private static final int MAX_DAILY_RANKED = 1000;
+    public static final int MAX_DAILY_RANKED = 1000;
     private static final int MAX_EVENT_PLAYERS = 100;
     private static final int MAX_TOURNAMENT_REPLAYS = 10;
-    private static final int MAX_CUSTOM_KITS = 9;
+    public static final int MAX_CUSTOM_KITS = 9;
+    public static final int MAX_PARTY_SIZE = 100;
     private static final int MAX_MODE_RADIUS = 16;
     private static final double MAX_BORDER_DAMAGE = 20;
     private static final int MINUTES_PER_DAY = 24 * 60;
+    private static final int MAX_SEASON_DAYS = 3650;
     private static final double MIN_BET = 0.01;
     private static final double MAX_BET = 1_000_000_000;
     private static final double DEFAULT_MIN_BET = 10;
@@ -137,6 +149,14 @@ public record Settings(int countdownSeconds, Duration maxDuration, int endDelayS
     public record Bets(boolean enabled, double min, double max, double tax) {
     }
 
+    /**
+     * @param defaultLength  the planned length of a season that starts when one ends; zero for none
+     * @param adminWarnings  how long before a planned end admins are told, longest first
+     * @param playerWarnings how long before a planned end everyone is told, longest first
+     */
+    public record SeasonOptions(Duration defaultLength, List<Duration> adminWarnings, List<Duration> playerWarnings) {
+    }
+
     /** An event the server hosts every day at {@code at} (server time, to the minute). */
     public record Scheduled(LocalTime at, String kit, HostedEvent.Mode mode) {
     }
@@ -180,6 +200,24 @@ public record Settings(int countdownSeconds, Duration maxDuration, int endDelayS
         }
     }
 
+    /**
+     * Moves the kit rule defaults of an older config.yml ({@code rules.hunger}, {@code rules.natural-regeneration},
+     * {@code rules.void-eliminates}, {@code parties.friendly-fire}) to {@code rules.kit-defaults}, replacing the
+     * bundled values the newer keys were filled with. Returns whether anything moved, so the caller saves.
+     */
+    public static boolean migrate(ConfigurationSection config) {
+        boolean moved = false;
+        for (Map.Entry<String, KitRule> old : OLD_KIT_DEFAULTS.entrySet()) {
+            // isSet ignores the bundled defaults, which no longer have these keys: only the file's own count.
+            if (config.isSet(old.getKey())) {
+                config.set(KIT_DEFAULTS + "." + old.getValue().key(), config.get(old.getKey()));
+                config.set(old.getKey(), null);
+                moved = true;
+            }
+        }
+        return moved;
+    }
+
     public static Settings load(ConfigurationSection config, Logger logger) {
         return new Settings(
                 integer(config, logger, "match.countdown-seconds", 5, 1, 30),
@@ -191,8 +229,7 @@ public record Settings(int countdownSeconds, Duration maxDuration, int endDelayS
                 duration(config, logger, "requests.expiry", Duration.ofSeconds(30), Duration.ofSeconds(5)),
                 duration(config, logger, "requests.cooldown", Duration.ofSeconds(5), Duration.ZERO),
                 duration(config, logger, "requests.rematch-window", Duration.ofSeconds(30), Duration.ofSeconds(5)),
-                config.getBoolean("rules.hunger", false),
-                config.getBoolean("rules.natural-regeneration", true),
+                kitDefaults(config, logger),
                 config.getStringList("rules.allowed-commands").stream()
                         .map(label -> label.strip().toLowerCase(Locale.ROOT).replaceFirst("^/", ""))
                         .filter(label -> !label.isEmpty())
@@ -206,16 +243,14 @@ public record Settings(int countdownSeconds, Duration maxDuration, int endDelayS
                 Effects.load(config.getConfigurationSection("effects"), logger),
                 config.getBoolean("build.break-arena-blocks", false),
                 integer(config, logger, "regen.blocks-per-tick", 2000, 1, 100_000),
-                config.getBoolean("rules.void-eliminates", true),
                 worldName(config, logger),
                 new Pool(
                         integer(config, logger, "arenas.pool.spacing", 64, 16, 1024),
                         integer(config, logger, "arenas.pool.max-copies", 32, 0, 256),
                         integer(config, logger, "arenas.pool.warm", 1, 0, 16),
                         duration(config, logger, "arenas.pool.idle-timeout", Duration.ofMinutes(2), Duration.ofSeconds(10))),
-                integer(config, logger, "parties.max-size", 8, 2, 100),
+                integer(config, logger, "parties.max-size", 8, 2, MAX_PARTY_SIZE),
                 duration(config, logger, "parties.invite-expiry", Duration.ofSeconds(60), Duration.ofSeconds(5)),
-                config.getBoolean("parties.friendly-fire", false),
                 duration(config, logger, "kit-editor.timeout", Duration.ofMinutes(5), Duration.ofSeconds(30)),
                 new Ranked(
                         integer(config, logger, "ranked.k-factor", 32, 1, 100),
@@ -240,7 +275,28 @@ public record Settings(int countdownSeconds, Duration maxDuration, int endDelayS
                         config.getString("custom-kits.display-name", "<yellow><player>'s custom kit <slot>")),
                 new Modes(integer(config, logger, "modes.bridge.goal-radius", 2, 0, MAX_MODE_RADIUS),
                         integer(config, logger, "modes.bridge.protect-radius", 3, 0, MAX_MODE_RADIUS),
-                        config.getBoolean("modes.bridge.goal-hologram", true)));
+                        config.getBoolean("modes.bridge.goal-hologram", true)),
+                new SeasonOptions(Duration.ofDays(integer(config, logger, "seasons.default-length-days", 0, 0, MAX_SEASON_DAYS)),
+                        durations(config, logger, "seasons.admin-warnings"), durations(config, logger, "seasons.player-warnings")));
+    }
+
+    /** A list of durations (e.g. 24h, 10m), longest first; bad entries are logged and left out. */
+    private static List<Duration> durations(ConfigurationSection config, Logger logger, String path) {
+        List<Duration> durations = new ArrayList<>();
+        for (String raw : config.getStringList(path)) {
+            try {
+                Duration value = Durations.parse(raw);
+                if (value.isPositive()) {
+                    durations.add(value);
+                    continue;
+                }
+            } catch (IllegalArgumentException e) {
+                // Logged below with the same message as a zero duration.
+            }
+            logger.warning("config.yml " + path + " '" + raw + "' must be a duration (e.g. 24h, 10m); left out");
+        }
+        durations.sort(Comparator.reverseOrder());
+        return List.copyOf(durations);
     }
 
     private static Events events(ConfigurationSection config, Logger logger) {
@@ -335,6 +391,33 @@ public record Settings(int countdownSeconds, Duration maxDuration, int endDelayS
             return fallback;
         }
         return value;
+    }
+
+    /** Each kit rule's value for kits that do not set it; numbers may be {@value #VANILLA}, left out of the map. */
+    private static Map<KitRule, Object> kitDefaults(ConfigurationSection config, Logger logger) {
+        ConfigurationSection section = config.getConfigurationSection(KIT_DEFAULTS);
+        if (section != null) {
+            section.getKeys(false).stream().filter(key -> KitRule.byKey(key).isEmpty())
+                    .forEach(key -> logger.warning("config.yml " + KIT_DEFAULTS + "." + key + " is not a kit rule; ignoring it"));
+        }
+        Map<KitRule, Object> defaults = new EnumMap<>(KitRule.class);
+        for (KitRule rule : KitRule.values()) {
+            String path = KIT_DEFAULTS + "." + rule.key();
+            Object value = config.get(path);
+            if (rule.accepts(value)) {
+                defaults.put(rule, value);
+                continue;
+            }
+            boolean vanilla = !rule.isFlag() && (value == null || VANILLA.equals(value));
+            if (!vanilla && value != null) {
+                logger.warning("config.yml " + path + " must be " + (rule.isFlag() ? "true or false"
+                        : "a whole number from 0 to " + rule.max() + " or " + VANILLA) + "; using " + (rule.isFlag() ? rule.builtIn() : VANILLA));
+            }
+            if (rule.isFlag()) {
+                defaults.put(rule, rule.builtIn());
+            }
+        }
+        return Map.copyOf(defaults);
     }
 
     private static int integer(ConfigurationSection config, Logger logger, String path, int fallback, int min, int max) {

@@ -75,9 +75,10 @@ class PartyFightTest extends DuelsTestBase {
         server.dispatchCommand(ann, "party split sword");
 
         Inventory top = ann.getOpenInventory().getTopInventory();
-        List<List<String>> lores = IntStream.range(0, 4).mapToObj(slot -> top.getItem(slot))
-                .peek(head -> assertEquals(Material.PLAYER_HEAD, head.getType()))
+        List<List<String>> lores = IntStream.range(0, top.getSize()).mapToObj(top::getItem)
+                .filter(item -> item != null && item.getType() == Material.PLAYER_HEAD)
                 .map(head -> head.getItemMeta().lore().stream().map(Text::plain).toList()).toList();
+        assertEquals(4, lores.size());
         assertEquals(2, lores.stream().filter(lore -> lore.contains("▪ Red team")).count());
         assertEquals(2, lores.stream().filter(lore -> lore.contains("▪ Blue team")).count());
         assertTrue(duels.matches().matchOf(ann).isEmpty());
@@ -179,7 +180,7 @@ class PartyFightTest extends DuelsTestBase {
         ticks(20 * duels.settings().countdownSeconds());
 
         assertTrue(bob.simulateDamage(1, ann).isCancelled());
-        setConfig("parties.friendly-fire", true);
+        setConfig("rules.kit-defaults.friendly-fire", true);
         assertFalse(bob.simulateDamage(1, ann).isCancelled());
     }
 

@@ -103,7 +103,7 @@ class PlayerSettingsTest extends DuelsTestBase {
 
         cid.performCommand("duel spectate");
         tick();
-        click(cid, 0);
+        click(cid, firstItemSlot(cid));
 
         tickUntil(() -> match.isSpectator(cid));
     }
@@ -117,7 +117,7 @@ class PlayerSettingsTest extends DuelsTestBase {
         cid.performCommand("duel spectate");
         tick();
         assertInstanceOf(InMatchMenu.class, cid.getOpenInventory().getTopInventory().getHolder());
-        click(cid, 1);
+        click(cid, slotNamed(cid, "Steve"));
 
         assertEquals(steve.getLocation(), cid.getLocation());
         assertTrue(match.isSpectator(cid));

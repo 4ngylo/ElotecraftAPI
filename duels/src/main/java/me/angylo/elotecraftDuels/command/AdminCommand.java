@@ -12,6 +12,7 @@ import me.angylo.elotecraftDuels.arena.ArenaRegistry;
 import me.angylo.elotecraftDuels.arena.ArenaTemplate;
 import me.angylo.elotecraftDuels.hook.WorldEditHook;
 import me.angylo.elotecraftDuels.menu.ArenaAdminMenu;
+import me.angylo.elotecraftDuels.menu.HubMenu;
 import me.angylo.elotecraftDuels.menu.KitAdminMenu;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
@@ -46,7 +47,7 @@ import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.regex.Pattern;
 
-/** {@code /duels}: arena setup, reload and stopping duels, with kit setup in {@link KitAdminCommand}. Admin permissions only. */
+/** {@code /duels}: arena setup, reload and stopping duels, with kit setup in {@link KitAdminCommand}. Needs {@code duels.staff} (granted by {@code duels.admin}), and each part its own permission. */
 public final class AdminCommand {
 
     private static final List<String> NUMBERS = List.of("1", "2");
@@ -65,15 +66,17 @@ public final class AdminCommand {
     private final ArenaRegistry arenas;
     private final ArenaAdminMenu arenaMenu;
     private final KitAdminMenu kitMenu;
+    private final HubMenu hubMenu;
     /** Arenas whose snapshot is being written, so two cannot write the same file at once. */
     private final Set<String> snapshotting = new HashSet<>();
 
-    public AdminCommand(Duels duels, ArenaAdminMenu arenaMenu, KitAdminMenu kitMenu) {
+    public AdminCommand(Duels duels, ArenaAdminMenu arenaMenu, KitAdminMenu kitMenu, HubMenu hubMenu) {
         this.duels = duels;
         this.messages = duels.messages();
         this.arenas = duels.arenas();
         this.arenaMenu = arenaMenu;
         this.kitMenu = kitMenu;
+        this.hubMenu = hubMenu;
     }
 
     public void register() {
@@ -83,10 +86,11 @@ public final class AdminCommand {
 
         CommandBuilder.create("duels")
                 .description(Text.plain(messages.get("command.admin-description")))
-                .permission("duels.admin")
+                .permission("duels.staff")
                 .messages(sender -> messages.get(sender, "command.no-permission"),
                         sender -> messages.get(sender, "command.player-only"))
-                .executes((sender, args) -> messages.send(sender, "command.admin-help"))
+                .executes(this::hubOrHelp)
+                .sub("help", null, (sender, args) -> messages.send(sender, "command.admin-help"))
                 .sub(CommandBuilder.create("arena").permission("duels.admin.arena")
                         .executes(menu(messages, "command.arena-help", arenaMenu::openList,
                                 (player, args) -> withArena(player, args, (arena, rest) -> arenaMenu.openSettings(player, arena.name()))), arenaNames)
@@ -137,7 +141,8 @@ public final class AdminCommand {
                         .sub("reset", null, (sender, args) -> withArena(sender, args, (arena, rest) -> reset(sender, arena)), arenaNames))
                 .sub(new KitAdminCommand(this, duels, kitMenu).node())
                 .sub(new HologramAdminCommand(this, duels).node())
-                .sub(new SeasonAdminCommand(duels).node())
+                .sub(new SeasonAdminCommand(duels, duels.seasonEnder()).node())
+                .sub(new EloAdminCommand(duels).node())
                 .sub("reload", "duels.admin.reload", (sender, args) ->
                         messages.send(sender, duels.reload() ? "admin.reloaded" : "admin.reload-failed"))
                 .sub("stop", "duels.admin.stop", this::stop, (sender, args) -> Args.players(args))
@@ -483,6 +488,15 @@ public final class AdminCommand {
     }
 
     /** {@code arena|kit [name]}: the list or one entry's settings menu for players, the help for the console. */
+    /** {@code /duels}: the admin menu; the help for the console and for players who may not open menus now. */
+    private void hubOrHelp(CommandSender sender, String[] args) {
+        if (sender instanceof Player player && !duels.matches().isRestricted(player)) {
+            hubMenu.open(player, HubMenu.ADMIN);
+        } else {
+            messages.send(sender, "command.admin-help");
+        }
+    }
+
     static BiConsumer<CommandSender, String[]> menu(Messages messages, String helpKey, Consumer<Player> list,
                                                             BiConsumer<Player, String[]> one) {
         return (sender, args) -> {

@@ -228,12 +228,14 @@ public final class MatchManager {
             taken.put(fighter.getUniqueId(), PlayerSnapshot.capture(fighter));
         }
         // Reserved only now: nothing above may leave the arena reserved if it throws.
-        ArenaInstance instance = instances.acquire(arena, kit.build()).orElse(null);
+        Settings current = settings.get();
+        ArenaInstance instance = instances.acquire(arena, kit.flag(KitRule.BUILD, current)).orElse(null);
         if (instance == null) {
             fighters.forEach(fighter -> messages.send(fighter, "match.arena-failed"));
             return true;
         }
-        Match match = new Match(instance, kit, teams, type, ranked && type == Type.DUEL, options);
+        Match match = new Match(instance, kit, teams, type, ranked && type == Type.DUEL, options,
+                kit.number(KitRule.ROUNDS_TO_WIN, current).orElse(1));
         for (Player fighter : fighters) {
             match.addSnapshot(fighter, taken.get(fighter.getUniqueId()));
         }
@@ -570,6 +572,7 @@ public final class MatchManager {
                 } else {
                     match.state(State.FIGHTING);
                     match.fightSeconds(0);
+                    match.fighters().stream().filter(match::isFighting).forEach(match.kit()::applyTimedEffects);
                     display.fightStarted(match);
                     if (match.options().border()) {
                         FightBorder border = FightBorder.around(match.arena().bounds(), settings.get().events().border());

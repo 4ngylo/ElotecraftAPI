@@ -3,6 +3,7 @@ package me.angylo.elotecraftDuels.party;
 import me.angylo.elotecraftAPI.util.Cooldowns;
 import me.angylo.elotecraftAPI.util.Messages;
 import me.angylo.elotecraftAPI.util.Text;
+import me.angylo.elotecraftDuels.PermissionLimits;
 import me.angylo.elotecraftDuels.PlayerOptions;
 import me.angylo.elotecraftDuels.Settings;
 import io.papermc.paper.event.player.AsyncChatEvent;
@@ -89,7 +90,7 @@ public final class PartyManager implements Listener {
             messages.send(player, "party.invites-disabled", name(target));
             return;
         }
-        if (party != null && party.size() >= settings.get().partyMaxSize()) {
+        if (party != null && party.size() >= maxSize(party)) {
             messages.send(player, "party.full");
             return;
         }
@@ -123,7 +124,7 @@ public final class PartyManager implements Listener {
             return;
         }
         Party party = found.get();
-        if (party.size() >= settings.get().partyMaxSize()) {
+        if (party.size() >= maxSize(party)) {
             party.removeInvite(player.getUniqueId());
             messages.send(player, "party.full");
             return;
@@ -212,12 +213,23 @@ public final class PartyManager implements Listener {
             return;
         }
         messages.send(player, "party.info-header", Placeholder.unparsed("size", String.valueOf(party.size())),
-                Placeholder.unparsed("max", String.valueOf(settings.get().partyMaxSize())));
+                Placeholder.unparsed("max", String.valueOf(maxSize(party))));
         for (UUID member : party.members()) {
             Player online = Bukkit.getPlayer(member);
             messages.send(player, party.isLeader(member) ? "party.info-leader" : "party.info-member",
                     Placeholder.unparsed("player", online == null ? member.toString() : online.getName()));
         }
+    }
+
+    /**
+     * How many players {@code party} may hold: config.yml {@code parties.max-size}, raised by its leader's
+     * {@code duels.party.size.<n>} permission; the config value for no party.
+     */
+    public int maxSize(Party party) {
+        int configured = settings.get().partyMaxSize();
+        Player leader = party == null ? null : Bukkit.getPlayer(party.leader());
+        return leader == null ? configured
+                : PermissionLimits.highest(leader, PermissionLimits.PARTY_SIZE, configured, Settings.MAX_PARTY_SIZE);
     }
 
     /**
@@ -259,7 +271,7 @@ public final class PartyManager implements Listener {
             messages.send(player, "party.not-open", name(leader));
             return;
         }
-        if (party.size() >= settings.get().partyMaxSize()) {
+        if (party.size() >= maxSize(party)) {
             messages.send(player, "party.full");
             return;
         }

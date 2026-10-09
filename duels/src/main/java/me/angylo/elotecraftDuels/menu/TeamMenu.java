@@ -22,7 +22,6 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
-import java.util.logging.Level;
 
 /** Lets a party leader put each member on the red or the blue team before a split. Layout in menus.yml {@code teams}. */
 public final class TeamMenu {
@@ -49,8 +48,7 @@ public final class TeamMenu {
         try {
             new Picker(menus.get().getConfigurationSection("teams"), settings.get().effects(), members, onStart).open(viewer);
         } catch (IllegalArgumentException e) {
-            plugin.getLogger().log(Level.WARNING, "Invalid teams menu in menus.yml: " + e.getMessage());
-            messages.send(viewer, "general.menu-error");
+            MenuLayout.menuError(plugin, messages, viewer, "teams", e);
         }
     }
 
@@ -76,9 +74,8 @@ public final class TeamMenu {
                 shuffle();
                 draw();
             });
-            MenuLayout.place(menu, section, "close", MenuLayout.choose(plugin, effects, player -> { }));
+            MenuLayout.place(menu, section, "close", MenuLayout.close(plugin, effects));
             draw();
-            MenuLayout.fill(menu, section);
         }
 
         void open(Player viewer) {

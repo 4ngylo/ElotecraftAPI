@@ -40,24 +40,24 @@ class DefaultKitsTest extends DuelsTestBase {
         Kit noDebuff = duels.kits().get("nodebuff").orElseThrow();
         assertTrue(noDebuff.items().stream().filter(item -> item.getType() == Material.SPLASH_POTION).count() > 20);
         assertEquals(Material.DIAMOND_HELMET, noDebuff.items().get(39).getType());
-        assertTrue(duels.kits().get("vanilla").orElseThrow().build());
+        assertTrue(duels.kits().get("vanilla").orElseThrow().flag(KitRule.BUILD, duels.settings()));
         assertEquals(Material.TOTEM_OF_UNDYING, duels.kits().get("vanilla").orElseThrow().items().get(40).getType());
-        assertFalse(duels.kits().get("sumo").orElseThrow().damage());
+        assertFalse(duels.kits().get("sumo").orElseThrow().flag(KitRule.DAMAGE, duels.settings()));
         assertEquals(Set.of("sumo"), duels.kits().get("sumo").orElseThrow().arenaCategories());
         Kit uhc = duels.kits().get("uhc").orElseThrow();
         assertFalse(uhc.flag(KitRule.NATURAL_REGENERATION, duels.settings()));
         assertTrue(uhc.flag(KitRule.HUNGER, duels.settings()));
-        assertEquals(15, noDebuff.number(KitRule.PEARL_COOLDOWN).orElseThrow());
-        assertEquals(2, duels.kits().get("sumo").orElseThrow().number(KitRule.ROUNDS_TO_WIN).orElseThrow());
+        assertEquals(15, noDebuff.number(KitRule.PEARL_COOLDOWN, duels.settings()).orElseThrow());
+        assertEquals(2, duels.kits().get("sumo").orElseThrow().number(KitRule.ROUNDS_TO_WIN, duels.settings()).orElseThrow());
         Kit boxing = duels.kits().get("boxing").orElseThrow();
-        assertFalse(boxing.damage());
-        assertEquals(100, boxing.number(KitRule.HITS_TO_WIN).orElseThrow());
+        assertFalse(boxing.flag(KitRule.DAMAGE, duels.settings()));
+        assertEquals(100, boxing.number(KitRule.HITS_TO_WIN, duels.settings()).orElseThrow());
         assertFalse(duels.kits().get("combo").orElseThrow().flag(KitRule.HIT_DELAY, duels.settings()));
         assertEquals(Material.DIAMOND_SPEAR, duels.kits().get("spear").orElseThrow().items().get(0).getType());
         Kit bridge = duels.kits().get("bridge").orElseThrow();
         assertEquals(Kit.Mode.BRIDGE, bridge.mode());
-        assertTrue(bridge.build());
-        assertEquals(5, bridge.number(KitRule.ROUNDS_TO_WIN).orElseThrow());
+        assertTrue(bridge.flag(KitRule.BUILD, duels.settings()));
+        assertEquals(5, bridge.number(KitRule.ROUNDS_TO_WIN, duels.settings()).orElseThrow());
         assertEquals(Kit.Mode.BED_FIGHT, duels.kits().get("bedfight").orElseThrow().mode());
     }
 
@@ -77,7 +77,7 @@ class DefaultKitsTest extends DuelsTestBase {
     void sumoHitsOnlyKnockBackAndFallingOffLoses() {
         TestPlayer alex = join("Alex");
         TestPlayer steve = join("Steve");
-        Kit sumo = swordKit().withDamage(false);
+        Kit sumo = swordKit().withRule(KitRule.DAMAGE, false);
         await(duels.kits().update(sumo));
         Arena arena = readyArena("pit");
         assertTrue(duels.matches().start(alex, steve, sumo, arena));

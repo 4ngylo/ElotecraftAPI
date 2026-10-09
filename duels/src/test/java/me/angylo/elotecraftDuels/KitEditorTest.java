@@ -33,7 +33,7 @@ class KitEditorTest extends DuelsTestBase {
         steve = join("Steve");
         alex.getInventory().addItem(ItemStack.of(Material.DIRT, 5));
         kit = new Kit("pvp", "<aqua>PvP", Material.DIAMOND_SWORD, null,
-                List.of(ItemStack.of(Material.DIAMOND_SWORD), ItemStack.of(Material.GOLDEN_APPLE, 8)), false, Set.of(), true);
+                List.of(ItemStack.of(Material.DIAMOND_SWORD), ItemStack.of(Material.GOLDEN_APPLE, 8)), Set.of());
         await(duels.kits().update(kit));
         arena = readyArena("pit");
     }
@@ -105,7 +105,7 @@ class KitEditorTest extends DuelsTestBase {
         tickUntil(() -> !duels.matches().isBusy(alex));
 
         await(duels.kits().update(new Kit("pvp", "<aqua>PvP", Material.DIAMOND_SWORD, null,
-                List.of(ItemStack.of(Material.DIAMOND_SWORD), ItemStack.of(Material.GOLDEN_APPLE, 16)), false, Set.of(), true)));
+                List.of(ItemStack.of(Material.DIAMOND_SWORD), ItemStack.of(Material.GOLDEN_APPLE, 16)), Set.of())));
         assertEquals(Material.DIAMOND_SWORD, firstSlotInDuel());
         duels.matches().stop(alex);
         tickUntil(() -> !duels.matches().isBusy(alex));

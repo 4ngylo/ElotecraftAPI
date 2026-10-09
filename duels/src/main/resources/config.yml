@@ -26,16 +26,39 @@ requests:
   rematch-window: 30s     # how long after a duel /duel rematch works
 
 rules:
-  # hunger, natural-regeneration, void-eliminates and parties.friendly-fire are defaults: a kit can set its
-  # own with /duels kit rule <kit> <rule> <value>, along with fall damage, pearl cooldown and more.
-  hunger: false                # false keeps food full while dueling
-  natural-regeneration: true   # false: only potions, golden apples and the like heal
   # Commands fighters and spectators may use besides /duel (their aliases too), without the slash.
   # duels.bypass.commands (operators by default) allows every command.
   allowed-commands: [msg, tell, w, r, reply]
-  # true: a fighter who falls out of the bottom of the arena's box loses, as in the void. Leaving any other
-  # way sends them back to their spawn.
-  void-eliminates: true
+  # Each kit rule's value for every kit that does not set its own with /duels kit rule <kit> <rule> <value>
+  # (the value default goes back to this list). Changing it changes those kits at once.
+  kit-defaults:
+    build: false                 # place blocks, and break the ones placed during the duel
+    damage: true                 # false: knockback only (Sumo), falling off the arena decides
+    hunger: false                # false keeps food full while dueling
+    natural-regeneration: true   # false: only potions, golden apples and the like heal
+    friendly-fire: false         # teammates hurt each other in party fights
+    void-eliminates: true        # falling out of the bottom of the arena's box loses; other ways send back to spawn
+    arena-bounds: true           # leaving the box by the sides or the top sends back to spawn
+    fall-damage: true
+    fire-damage: true
+    explosion-damage: true
+    self-damage: true            # your own arrows and TNT hurt you
+    item-durability: true
+    hit-delay: true              # false: combo mode
+    arrow-pickup: true
+    crafting: true               # the 2x2 crafting grid
+    potions: true                # drinking and throwing potions
+    item-drops: false            # dropping items with Q
+    block-drops: false           # broken blocks drop their item (build kits)
+    death-drops: false           # a knocked-out fighter drops their inventory
+    saturation: false            # food and saturation stay full
+    auto-ignite-tnt: false       # placed TNT is lit at once (build kits)
+    # Numbers: a whole number, or vanilla to leave the game as it is.
+    pearl-cooldown: vanilla      # 0 to 60 seconds between ender pearls (vanilla: 1s)
+    hits-to-win: 0               # 0 to 1000; boxing: hits that knock a fighter out (0: off)
+    rounds-to-win: 1             # 0 to 10; duels only: rounds to win the duel (0 or 1: one round)
+    max-health: 0                # 0 to 200 health points (20 is ten hearts; 0: off)
+    damage-multiplier: 0         # 0 to 500 percent of the damage opponents deal (0: off)
 
 build:
   # Build kits (/duels kit build) let fighters place blocks in the arena and break the ones placed during
@@ -66,7 +89,7 @@ ranked:
   range-growth: 10        # 0 to 1000; added to the range for every second a player waits
   range-max: 1000         # 0 to 5000; the range never grows past this
   # Ranked duels a player may start a day (the server's date), counted per server; 0 for no limit.
-  # Players with duels.queue.ranked.unlimited have none.
+  # duels.queue.ranked.limit.<n> raises it for a player; players with duels.queue.ranked.unlimited have none.
   daily-limit: 0
   # Ratings are per kit; a player's overall rating is the average of the kits they played ranked. Each
   # rating shows the highest division it reaches (MiniMessage names). Use [] to turn divisions off.
@@ -82,10 +105,17 @@ ranked:
     - {name: "<blue>Diamond", min: 1450}
     - {name: "<light_purple>Master", min: 1600}
 
+# Rating seasons (/duels season). A season may have a planned end, set with /duels season schedule; with
+# /duels season auto on it ends by itself then, archiving ratings and paying division rewards like
+# /duels season end. Auto end is off until an admin turns it on.
+seasons:
+  default-length-days: 0  # 0 to 3650; the planned length of each new season; 0 for none
+  admin-warnings: [24h, 1h]  # before a planned end, players with duels.admin.season.manage are told
+  player-warnings: [10m]     # before a planned end that will end the season by itself, everyone is told
+
 parties:
-  max-size: 8             # 2 to 100 players, the leader included
+  max-size: 8             # 2 to 100 players, the leader included; a leader's duels.party.size.<n> raises it
   invite-expiry: 60s      # how long a party invite can be accepted
-  friendly-fire: false    # whether teammates can hurt each other in party splits and party vs party
 
 kit-editor:
   timeout: 5m             # /duel editkit ends without saving after this
@@ -140,7 +170,7 @@ holograms:
 # challenge someone (/duel <player> custom[:slot]) or in party fights, never in queues, events or bets.
 custom-kits:
   base-kit: ""            # the kit whose items players pick from; empty: custom kits are off
-  slots: 3                # custom kits each player keeps, 1 to 9
+  slots: 3                # custom kits each player keeps, 1 to 9; duels.kit.custom.slots.<n> raises it
   # The name duels show; <player> is the builder, <slot> the kit's number.
   display-name: "<yellow><player>'s custom kit <slot>"
 

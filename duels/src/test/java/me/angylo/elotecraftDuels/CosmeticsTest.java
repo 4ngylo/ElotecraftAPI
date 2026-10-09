@@ -23,9 +23,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class CosmeticsTest extends DuelsTestBase {
 
-    /** The first entry of the default menus: config.yml's first kill effect and kill message. */
-    private static final int FIRST = 0;
-
     private TestPlayer alex;
     private TestPlayer steve;
     private Kit kit;
@@ -125,13 +122,26 @@ class CosmeticsTest extends DuelsTestBase {
     }
 
     @Test
-    void clickingAnEntryPicksItAndClickingAgainDropsIt() {
+    void theCosmeticsMenuLeadsToEachKind() {
         alex.performCommand("duel cosmetics");
         tick();
-        click(alex, FIRST);
+        assertEquals("Duels › Cosmetics", menuTitle(alex));
+
+        clickNamed(alex, "Kill messages");
+
+        assertEquals("Cosmetics › Kill messages", menuTitle(alex));
+        clickNamed(alex, "Back");
+        assertEquals("Duels › Cosmetics", menuTitle(alex));
+    }
+
+    @Test
+    void clickingAnEntryPicksItAndClickingAgainDropsIt() {
+        alex.performCommand("duel cosmetics kill-effect");
+        tick();
+        click(alex, firstItemSlot(alex));
         assertEquals("lightning", duels.settings().cosmetics().chosen(alex, Kind.KILL_EFFECT).orElseThrow().id());
 
-        click(alex, FIRST);
+        click(alex, firstItemSlot(alex));
         assertEquals(Optional.empty(), duels.settings().cosmetics().chosen(alex, Kind.KILL_EFFECT));
     }
 
@@ -142,7 +152,7 @@ class CosmeticsTest extends DuelsTestBase {
         tick();
         messages(alex);
 
-        click(alex, FIRST);
+        click(alex, firstItemSlot(alex));
 
         assertTrue(said(messages(alex), "is locked"));
         assertEquals(Optional.empty(), duels.settings().cosmetics().chosen(alex, Kind.KILL_MESSAGE));
@@ -150,7 +160,7 @@ class CosmeticsTest extends DuelsTestBase {
 
     @Test
     void aTeammateNeverGetsTheKill() {
-        setConfig("parties.friendly-fire", true);
+        setConfig("rules.kit-defaults.friendly-fire", true);
         TestPlayer ann = join("Ann");
         Cosmetics.choose(alex, Kind.KILL_MESSAGE, cosmetic(Kind.KILL_MESSAGE, "slain"));
         assertTrue(duels.matches().start(List.of(List.<Player>of(alex, ann), List.<Player>of(steve)), kit, arena,

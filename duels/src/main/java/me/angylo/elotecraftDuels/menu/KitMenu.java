@@ -2,7 +2,6 @@ package me.angylo.elotecraftDuels.menu;
 
 import me.angylo.elotecraftAPI.menu.Button;
 import me.angylo.elotecraftAPI.menu.Menu;
-import me.angylo.elotecraftAPI.menu.MenuConfig;
 import me.angylo.elotecraftAPI.menu.PaginatedMenu;
 import me.angylo.elotecraftAPI.util.ConfigFile;
 import me.angylo.elotecraftAPI.util.Messages;
@@ -10,6 +9,7 @@ import me.angylo.elotecraftAPI.util.Text;
 import me.angylo.elotecraftDuels.Effects;
 import me.angylo.elotecraftDuels.Settings;
 import me.angylo.elotecraftDuels.kit.Kit;
+import me.angylo.elotecraftDuels.kit.KitRule;
 import me.angylo.elotecraftDuels.kit.KitRegistry;
 import me.angylo.elotecraftDuels.match.MatchManager;
 import me.angylo.elotecraftDuels.match.QueueManager;
@@ -28,7 +28,6 @@ import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
-import java.util.logging.Level;
 import java.util.stream.Stream;
 
 /**
@@ -39,7 +38,6 @@ import java.util.stream.Stream;
 public final class KitMenu {
 
     private static final int PREVIEW_ROWS = 6;
-    private static final int BOTTOM_ROW = (PREVIEW_ROWS - 1) * 9;
     private static final String RANKED_PERMISSION = "duels.queue.ranked";
 
     /** What clicking a kit is for; changes its lore. */
@@ -112,11 +110,15 @@ public final class KitMenu {
                                         Placeholder.unparsed("queued", String.valueOf(waiting)),
                                         Placeholder.unparsed("dueling", fighting),
                                         Placeholder.unparsed("fighting", fighting),
-                                        Placeholder.component("building", messages.get(viewer, kit.build() ? "general.kit-build" : "general.kit-no-build")))),
+                                        Placeholder.component("building", messages.get(viewer, kit.flag(KitRule.BUILD, settings.get()) ? "general.kit-build" : "general.kit-no-build")))),
                         click(mode, MenuLayout.choose(plugin, effects, player -> onChoose.accept(kit)),
                                 MenuLayout.choose(plugin, effects, player -> preview(player, kit, mode, onChoose))));
             }).toList());
-            MenuLayout.place(menu, section, "close", MenuLayout.choose(plugin, effects, player -> { }));
+            // Challenges come from a command or another menu, with nothing to go back to.
+            if (mode != Mode.CHALLENGE) {
+                MenuLayout.place(menu, section, "back", MenuLayout.command(plugin, effects, section, "back"));
+            }
+            MenuLayout.place(menu, section, "close", MenuLayout.close(plugin, effects));
             if (ranked) {
                 MenuLayout.place(menu, section, "rating", (player, click) -> { },
                         ratingTags(own.overallElo(kits.names()), null));
@@ -126,11 +128,9 @@ public final class KitMenu {
                 MenuLayout.place(menu, section, "switch",
                         MenuLayout.choose(plugin, effects, player -> player.performCommand(ranked ? "duel queue" : "duel ranked")));
             }
-            MenuLayout.fill(menu, section);
             menu.open(viewer);
         } catch (IllegalArgumentException e) {
-            plugin.getLogger().log(Level.WARNING, "Invalid " + key + " menu in menus.yml: " + e.getMessage());
-            messages.send(viewer, "general.menu-error");
+            MenuLayout.menuError(plugin, messages, viewer, key, e);
         }
     }
 
@@ -156,8 +156,7 @@ public final class KitMenu {
             if (section == null) {
                 throw new IllegalArgumentException("Missing kit-preview section");
             }
-            Menu menu = new Menu(plugin, PREVIEW_ROWS, Text.mm(section.getString("title", ""),
-                    Placeholder.component("kit", Text.mm(kit.displayName()))));
+            Menu menu = new Menu(plugin, PREVIEW_ROWS, Text.mm(section.getString("title", ""), MenuLayout.plain("kit", kit.displayName())));
             List<ItemStack> items = kit.items();
             for (int slot = 0; slot < items.size(); slot++) {
                 int shownAt = previewSlot(slot);
@@ -165,14 +164,9 @@ public final class KitMenu {
                     menu.set(shownAt, items.get(slot));
                 }
             }
-            ConfigurationSection back = section.getConfigurationSection("back");
-            if (back != null) {
-                menu.set(BOTTOM_ROW + back.getInt("slot", 4), Button.of(MenuConfig.item(back),
-                        MenuLayout.choose(plugin, settings.get().effects(), player -> open(player, mode, onChoose))));
-            }
-            if (section.isConfigurationSection("filler")) {
-                menu.fill(MenuConfig.item(section.getConfigurationSection("filler")));
-            }
+            Effects effects = settings.get().effects();
+            MenuLayout.bottom(menu, section, "back", MenuLayout.choose(plugin, effects, player -> open(player, mode, onChoose)));
+            MenuLayout.bottom(menu, section, "close", MenuLayout.close(plugin, effects));
             menu.open(viewer);
         } catch (IllegalArgumentException e) {
             MenuLayout.menuError(plugin, messages, viewer, "kit-preview", e);

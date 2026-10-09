@@ -1,14 +1,18 @@
 package me.angylo.elotecraftDuels;
 
 import me.angylo.elotecraftAPI.CleanupListener;
+import me.angylo.elotecraftAPI.menu.Menu;
 import me.angylo.elotecraftAPI.util.Text;
 import me.angylo.elotecraftDuels.arena.Arena;
 import me.angylo.elotecraftDuels.arena.Arena.Position;
 import me.angylo.elotecraftDuels.kit.Kit;
+import me.angylo.elotecraftDuels.kit.KitRule;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.event.inventory.ClickType;
+import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.InvalidDescriptionException;
 import org.bukkit.plugin.PluginDescriptionFile;
@@ -31,6 +35,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.BooleanSupplier;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.fail;
@@ -101,14 +106,14 @@ abstract class DuelsTestBase {
 
     /** A kit of one diamond sword. */
     protected Kit swordKit() {
-        Kit kit = new Kit("sword", "<aqua>Sword", Material.DIAMOND_SWORD, null, List.of(ItemStack.of(Material.DIAMOND_SWORD)), false, Set.of(), true);
+        Kit kit = new Kit("sword", "<aqua>Sword", Material.DIAMOND_SWORD, null, List.of(ItemStack.of(Material.DIAMOND_SWORD)), Set.of());
         await(duels.kits().update(kit));
         return kit;
     }
 
     /** A build kit of a stack of planks. */
     protected Kit buildKit() {
-        Kit kit = new Kit("bridge", "<gold>Bridge", Material.OAK_PLANKS, null, List.of(ItemStack.of(Material.OAK_PLANKS, 64)), true, Set.of(), true);
+        Kit kit = new Kit("bridge", "<gold>Bridge", Material.OAK_PLANKS, null, List.of(ItemStack.of(Material.OAK_PLANKS, 64)), Set.of()).withRule(KitRule.BUILD, true);
         await(duels.kits().update(kit));
         return kit;
     }
@@ -165,6 +170,65 @@ abstract class DuelsTestBase {
             lines.addAll(messages(player));
             Thread.onSpinWait();
         }
+    }
+
+    /** The title of {@code player}'s open inventory, without formatting. */
+    protected static String menuTitle(TestPlayer player) {
+        return Text.plain(player.getOpenInventory().title());
+    }
+
+    /** The slot of {@code player}'s open menu whose item is named {@code name}, or else the first whose name contains it. */
+    /** The plain names of the open menu's items, slot by slot; "" for a slot without a named item. */
+    protected static List<String> itemNames(TestPlayer player) {
+        Inventory top = player.getOpenInventory().getTopInventory();
+        return IntStream.range(0, top.getSize()).mapToObj(top::getItem)
+                .map(item -> item == null || !item.hasItemMeta() || !item.getItemMeta().hasDisplayName() ? ""
+                        : Text.plain(item.getItemMeta().displayName()))
+                .toList();
+    }
+
+    protected static int slotNamed(TestPlayer player, String name) {
+        List<String> names = itemNames(player);
+        int exact = names.indexOf(name);
+        if (exact >= 0) {
+            return exact;
+        }
+        return IntStream.range(0, names.size()).filter(slot -> names.get(slot).contains(name)).findFirst()
+                .orElseGet(() -> fail("No item named '" + name + "' in " + menuTitle(player) + ": " + names));
+    }
+
+    /** The first slot of {@code player}'s open menu that holds an item: a list menu's first entry. */
+    protected static int firstItemSlot(TestPlayer player) {
+        Inventory top = player.getOpenInventory().getTopInventory();
+        for (int slot = 0; slot < top.getSize(); slot++) {
+            if (top.getItem(slot) != null) {
+                return slot;
+            }
+        }
+        return fail("Nothing in " + menuTitle(player));
+    }
+
+    /** The lore of the item in {@code slot} of {@code player}'s open menu, without formatting. */
+    protected static List<String> loreAt(TestPlayer player, int slot) {
+        return player.getOpenInventory().getTopInventory().getItem(slot).getItemMeta().lore().stream().map(Text::plain).toList();
+    }
+
+    /** Clicks the button in {@code slot} of {@code player}'s open menu (MockBukkit cannot route clicks), then ticks. */
+    protected void clickSlot(TestPlayer player, int slot, ClickType type) {
+        ((Menu) player.getOpenInventory().getTopInventory().getHolder()).button(slot)
+                .orElseThrow(() -> new AssertionError("No button in slot " + slot + " of " + menuTitle(player)))
+                .onClick().accept(player, type);
+        tick();
+    }
+
+    /** Clicks the button whose name contains {@code name} in {@code player}'s open menu, then ticks. */
+    protected void clickNamed(TestPlayer player, String name, ClickType type) {
+        clickSlot(player, slotNamed(player, name), type);
+    }
+
+    /** Left-clicks the button whose name contains {@code name}, then ticks. */
+    protected void clickNamed(TestPlayer player, String name) {
+        clickNamed(player, name, ClickType.LEFT);
     }
 
     protected static List<String> messages(TestPlayer player) {

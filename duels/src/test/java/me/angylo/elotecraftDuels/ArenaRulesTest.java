@@ -136,7 +136,7 @@ class ArenaRulesTest extends DuelsTestBase {
 
     @Test
     void voidEliminationCanBeTurnedOff() {
-        setConfig("rules.void-eliminates", false);
+        setConfig("rules.kit-defaults.void-eliminates", false);
         Match match = fight(sword, readyArena("pit"));
 
         alex.simulatePlayerMove(new Location(arenaWorld, 6, 59, 7));

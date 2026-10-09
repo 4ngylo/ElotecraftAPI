@@ -65,14 +65,14 @@ public final class CustomKitMenu implements Listener {
             Effects effects = settings.get().effects();
             PaginatedMenu menu = MenuLayout.frame(plugin, section);
             List<Button> buttons = new ArrayList<>();
-            for (int slot = 1; slot <= customKits.slots(); slot++) {
+            for (int slot = 1; slot <= customKits.slots(player); slot++) {
                 String command = "duel customkit " + slot;
                 buttons.add(Button.of(slotIcon(section, base.get(), player, slot), MenuLayout.choose(plugin, effects,
                         clicker -> clicker.performCommand(command))));
             }
             menu.items(buttons);
-            MenuLayout.place(menu, section, "close", MenuLayout.choose(plugin, effects, clicker -> { }));
-            MenuLayout.fill(menu, section);
+            MenuLayout.place(menu, section, "back", MenuLayout.command(plugin, effects, section, "back"));
+            MenuLayout.place(menu, section, "close", MenuLayout.close(plugin, effects));
             menu.open(player);
         } catch (IllegalArgumentException e) {
             MenuLayout.menuError(plugin, messages, player, "custom-kits", e);
@@ -117,8 +117,7 @@ public final class CustomKitMenu implements Listener {
                 clicker.getInventory().clear();
             });
             MenuLayout.place(menu, section, "save", MenuLayout.choose(plugin, effects, clicker -> clicker.performCommand("duel editkit save")));
-            MenuLayout.place(menu, section, "close", MenuLayout.choose(plugin, effects, clicker -> { }));
-            MenuLayout.fill(menu, section);
+            MenuLayout.place(menu, section, "close", MenuLayout.close(plugin, effects));
             menu.open(player);
         } catch (IllegalArgumentException e) {
             MenuLayout.menuError(plugin, messages, player, "custom-kit-items", e);

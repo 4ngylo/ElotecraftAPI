@@ -2,7 +2,7 @@
 # <prefix> works in every message. messages_es.yml overrides keys for Spanish clients.
 prefix: "<gradient:gold:yellow><bold>Example</bold></gradient> <dark_gray>» "
 example:
-  help: "<gold>/example</gold> <gray>menu | pages | roulette | shop | give [amount] | sneak | input | hud | hologram | skull [player] | async | blocks [player] | topblocks | admin cooldown <duration> | admin reload"
+  help: "<gold>/example</gold> <gray>menu | pages | roulette | shop | give [amount] | sneak | input | anvil | hud | hologram | skull [player] | async | blocks [player] | topblocks | admin cooldown <duration> | admin reload"
   given: "<green>Gave you <amount> demo diamonds. <gray>(total given: <total>)"
   on-cooldown: "<red>Wait <time> before using this again."
   invalid-amount: "<red>Amount must be a number from 1 to 64."
@@ -35,6 +35,7 @@ example:
   input-ask: "<prefix><yellow>Type a nickname in chat (or 'cancel'); you have 30 seconds."
   input-done: "<prefix><green>Nice to meet you, <white><name></white>!"
   input-cancelled: "<prefix><gray>No nickname then."
+  anvil-title: "<dark_gray>Type a nickname"
   hud-shown: "<prefix><green>Sidebar and boss bar shown. Run it again to hide the sidebar."
   hud-hidden: "<prefix><gray>Sidebar hidden."
   hologram-spawned: "<prefix><green>Hologram spawned in front of you; it disappears in 15 seconds."

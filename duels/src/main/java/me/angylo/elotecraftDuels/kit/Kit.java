@@ -35,22 +35,25 @@ import java.util.Set;
  *
  * @param displayName MiniMessage, set by admins
  * @param permission  needed to pick the kit, or null for everyone
- * @param build       whether fighters may place blocks, and break the ones placed during the duel
  * @param arenaCategories arena categories duels with this kit may use; empty for any arena
- * @param damage      false for knockback-only fights such as Sumo: hits never hurt, falling off the arena loses
- * @param rules       the game rules this kit sets, each value fitting its {@link KitRule}; unset ones use their default
+ * @param rules       the game rules this kit sets ({@link KitRule#BUILD} and {@link KitRule#DAMAGE} among them), each
+ *                    value fitting its {@link KitRule}; unset ones use config.yml {@code rules.kit-defaults}
  * @param rewards     paid for a won duel with this kit on top of config.yml's {@code rewards}
- * @param effects     potion effects fighters have for the whole fight, without particles
+ * @param effects     potion effects fighters get at the countdown, without particles: for the whole fight or some seconds
  * @param mode        how a duel is won: knockouts, or the bridge and bed fight modes (two sides, build kits only)
  */
-public record Kit(String name, String displayName, Material icon, String permission, List<ItemStack> items, boolean build,
-                  Set<String> arenaCategories, boolean damage, Map<KitRule, Object> rules, Rewards rewards,
+public record Kit(String name, String displayName, Material icon, String permission, List<ItemStack> items,
+                  Set<String> arenaCategories, Map<KitRule, Object> rules, Rewards rewards,
                   List<PotionEffect> effects, Mode mode) {
 
     public static final Material DEFAULT_ICON = Material.IRON_SWORD;
     /** The name of every player's custom kit ({@link CustomKits}); admin kits cannot use it. */
     public static final String CUSTOM = "custom";
-    public static final int MAX_EFFECT_LEVEL = 10;
+    /** The highest effect amplifier: 0 is level I, 2 is level III. */
+    public static final int MAX_AMPLIFIER = 2;
+    /** The longest effect in seconds; 0 lasts the whole fight. */
+    public static final int MAX_EFFECT_SECONDS = 9999;
+    private static final int TICKS_PER_SECOND = 20;
 
     /**
      * How a fight with two sides is won. {@code BRIDGE}: knocked-out fighters come back at their spawn, and walking into
@@ -95,26 +98,26 @@ public record Kit(String name, String displayName, Material icon, String permiss
     }
 
     /** A normal kit. */
-    public Kit(String name, String displayName, Material icon, String permission, List<ItemStack> items, boolean build,
-               Set<String> arenaCategories, boolean damage, Map<KitRule, Object> rules, Rewards rewards, List<PotionEffect> effects) {
-        this(name, displayName, icon, permission, items, build, arenaCategories, damage, rules, rewards, effects, Mode.NORMAL);
+    public Kit(String name, String displayName, Material icon, String permission, List<ItemStack> items,
+               Set<String> arenaCategories, Map<KitRule, Object> rules, Rewards rewards, List<PotionEffect> effects) {
+        this(name, displayName, icon, permission, items, arenaCategories, rules, rewards, effects, Mode.NORMAL);
     }
 
     /** A kit without effects. */
-    public Kit(String name, String displayName, Material icon, String permission, List<ItemStack> items, boolean build,
-               Set<String> arenaCategories, boolean damage, Map<KitRule, Object> rules, Rewards rewards) {
-        this(name, displayName, icon, permission, items, build, arenaCategories, damage, rules, rewards, List.of());
+    public Kit(String name, String displayName, Material icon, String permission, List<ItemStack> items,
+               Set<String> arenaCategories, Map<KitRule, Object> rules, Rewards rewards) {
+        this(name, displayName, icon, permission, items, arenaCategories, rules, rewards, List.of());
     }
 
     /** A kit with every game rule at its default and no rewards of its own. */
-    public Kit(String name, String displayName, Material icon, String permission, List<ItemStack> items, boolean build,
-               Set<String> arenaCategories, boolean damage) {
-        this(name, displayName, icon, permission, items, build, arenaCategories, damage, Map.of(), Rewards.NONE);
+    public Kit(String name, String displayName, Material icon, String permission, List<ItemStack> items,
+               Set<String> arenaCategories) {
+        this(name, displayName, icon, permission, items, arenaCategories, Map.of(), Rewards.NONE);
     }
 
     /** A kit holding a copy of everything in {@code inventory}, armor and off hand included. */
     static Kit of(String name, Material icon, PlayerInventory inventory) {
-        return new Kit(name, name, icon, null, Arrays.asList(inventory.getContents()), false, Set.of(), true);
+        return new Kit(name, name, icon, null, Arrays.asList(inventory.getContents()), Set.of());
     }
 
     /**
@@ -122,8 +125,7 @@ public record Kit(String name, String displayName, Material icon, String permiss
      * {@code base}, the kit whose items they were picked from.
      */
     static Kit custom(Kit base, String displayName, List<ItemStack> items) {
-        return new Kit(CUSTOM, displayName, base.icon, base.permission, items, base.build, base.arenaCategories, base.damage,
-                base.rules, base.rewards, base.effects, base.mode);
+        return new Kit(CUSTOM, displayName, base.icon, base.permission, items, base.arenaCategories, base.rules, base.rewards, base.effects, base.mode);
     }
 
     /** Whether this is a player's custom kit, which no registry holds. */
@@ -154,9 +156,9 @@ public record Kit(String name, String displayName, Material icon, String permiss
         return rules.get(rule) instanceof Boolean value ? value : rule.defaultFlag(settings);
     }
 
-    /** The number {@code rule} is set to, or empty to leave the game as it is. */
-    public OptionalInt number(KitRule rule) {
-        return rules.get(rule) instanceof Integer value ? OptionalInt.of(value) : OptionalInt.empty();
+    /** The number {@code rule} for duels with this kit: the kit's value, else its default; empty to leave the game as it is. */
+    public OptionalInt number(KitRule rule, Settings settings) {
+        return rules.get(rule) instanceof Integer value ? OptionalInt.of(value) : rule.defaultNumber(settings);
     }
 
     public boolean isEmpty() {
@@ -199,41 +201,33 @@ public record Kit(String name, String displayName, Material icon, String permiss
     }
 
     public Kit withItems(PlayerInventory inventory) {
-        return new Kit(name, displayName, icon, permission, Arrays.asList(inventory.getContents()), build, arenaCategories, damage, rules, rewards, effects, mode);
+        return new Kit(name, displayName, icon, permission, Arrays.asList(inventory.getContents()), arenaCategories, rules, rewards, effects, mode);
     }
 
     public Kit withMode(Mode newMode) {
-        return new Kit(name, displayName, icon, permission, items, build, arenaCategories, damage, rules, rewards, effects, newMode);
+        return new Kit(name, displayName, icon, permission, items, arenaCategories, rules, rewards, effects, newMode);
     }
 
     public Kit withIcon(Material newIcon) {
-        return new Kit(name, displayName, newIcon, permission, items, build, arenaCategories, damage, rules, rewards, effects, mode);
+        return new Kit(name, displayName, newIcon, permission, items, arenaCategories, rules, rewards, effects, mode);
     }
 
     public Kit withDisplayName(String newDisplayName) {
-        return new Kit(name, newDisplayName, icon, permission, items, build, arenaCategories, damage, rules, rewards, effects, mode);
+        return new Kit(name, newDisplayName, icon, permission, items, arenaCategories, rules, rewards, effects, mode);
     }
 
     /** @param newPermission null for everyone */
     public Kit withPermission(String newPermission) {
-        return new Kit(name, displayName, icon, newPermission, items, build, arenaCategories, damage, rules, rewards, effects, mode);
-    }
-
-    public Kit withBuild(boolean newBuild) {
-        return new Kit(name, displayName, icon, permission, items, newBuild, arenaCategories, damage, rules, rewards, effects, mode);
-    }
-
-    public Kit withDamage(boolean newDamage) {
-        return new Kit(name, displayName, icon, permission, items, build, arenaCategories, newDamage, rules, rewards, effects, mode);
+        return new Kit(name, displayName, icon, newPermission, items, arenaCategories, rules, rewards, effects, mode);
     }
 
     /** @param newCategories empty for any arena */
     public Kit withArenaCategories(Set<String> newCategories) {
-        return new Kit(name, displayName, icon, permission, items, build, newCategories, damage, rules, rewards, effects, mode);
+        return new Kit(name, displayName, icon, permission, items, newCategories, rules, rewards, effects, mode);
     }
 
     public Kit withRewards(Rewards newRewards) {
-        return new Kit(name, displayName, icon, permission, items, build, arenaCategories, damage, rules, newRewards, effects, mode);
+        return new Kit(name, displayName, icon, permission, items, arenaCategories, rules, newRewards, effects, mode);
     }
 
     /**
@@ -248,22 +242,30 @@ public record Kit(String name, String displayName, Material icon, String permiss
         } else {
             changed.put(rule, value);
         }
-        return new Kit(name, displayName, icon, permission, items, build, arenaCategories, damage, changed, rewards, effects, mode);
+        return new Kit(name, displayName, icon, permission, items, arenaCategories, changed, rewards, effects, mode);
     }
 
     /**
-     * @param level 1 and up; 0 removes {@code type}
-     * @throws IllegalArgumentException if {@code level} is below 0 or above {@value #MAX_EFFECT_LEVEL}
+     * Gives {@code type} at {@code amplifier} for {@code seconds}, replacing the kit's effect of that type.
+     *
+     * @param seconds 0 for the whole fight
+     * @throws IllegalArgumentException if {@code amplifier} is not 0 to {@value #MAX_AMPLIFIER} or {@code seconds} not 0
+     *                                  to {@value #MAX_EFFECT_SECONDS}
      */
-    public Kit withEffect(PotionEffectType type, int level) {
-        if (level < 0 || level > MAX_EFFECT_LEVEL) {
-            throw new IllegalArgumentException("Effect level must be 0 to " + MAX_EFFECT_LEVEL + ", got " + level);
-        }
-        List<PotionEffect> changed = new ArrayList<>(effects.stream().filter(effect -> !effect.getType().equals(type)).toList());
-        if (level > 0) {
-            changed.add(effect(type, level));
-        }
-        return new Kit(name, displayName, icon, permission, items, build, arenaCategories, damage, rules, rewards, changed, mode);
+    public Kit withEffect(PotionEffectType type, int amplifier, int seconds) {
+        List<PotionEffect> changed = new ArrayList<>(withoutEffect(type).effects);
+        changed.add(effect(type, amplifier, seconds));
+        return new Kit(name, displayName, icon, permission, items, arenaCategories, rules, rewards, changed, mode);
+    }
+
+    public Kit withoutEffect(PotionEffectType type) {
+        List<PotionEffect> changed = effects.stream().filter(effect -> !effect.getType().equals(type)).toList();
+        return new Kit(name, displayName, icon, permission, items, arenaCategories, rules, rewards, changed, mode);
+    }
+
+    /** The kit's effect of {@code type}, if it gives one. */
+    public Optional<PotionEffect> effectOf(PotionEffectType type) {
+        return effects.stream().filter(effect -> effect.getType().equals(type)).findFirst();
     }
 
     /** The effect called {@code name}, e.g. {@code speed} or {@code minecraft:jump_boost}. */
@@ -272,17 +274,42 @@ public record Kit(String name, String displayName, Material icon, String permiss
         return key == null ? Optional.empty() : Optional.ofNullable(Registry.MOB_EFFECT.get(key));
     }
 
-    /** An endless effect of {@code type} at {@code level} (1 and up), as kits give them. */
-    public static PotionEffect effect(PotionEffectType type, int level) {
-        return new PotionEffect(type, PotionEffect.INFINITE_DURATION, level - 1, false, false, true);
+    /**
+     * An effect as kits give it, without particles.
+     *
+     * @param seconds 0 for the whole fight
+     * @throws IllegalArgumentException if {@code amplifier} or {@code seconds} is out of range
+     */
+    public static PotionEffect effect(PotionEffectType type, int amplifier, int seconds) {
+        if (amplifier < 0 || amplifier > MAX_AMPLIFIER || seconds < 0 || seconds > MAX_EFFECT_SECONDS) {
+            throw new IllegalArgumentException("Effect amplifier must be 0 to " + MAX_AMPLIFIER + " and seconds 0 to "
+                    + MAX_EFFECT_SECONDS + ", got " + amplifier + " and " + seconds);
+        }
+        return new PotionEffect(type, seconds == 0 ? PotionEffect.INFINITE_DURATION : seconds * TICKS_PER_SECOND, amplifier,
+                false, false, true);
+    }
+
+    /** Gives the effects that last some seconds, when the fight starts, so the countdown does not use them up. */
+    public void applyTimedEffects(Player player) {
+        player.addPotionEffects(effects.stream().filter(effect -> !effect.isInfinite()).toList());
+    }
+
+    /** How long a kit's {@code effect} lasts in seconds; 0 for the whole fight. */
+    public static int seconds(PotionEffect effect) {
+        return effect.isInfinite() ? 0 : effect.getDuration() / TICKS_PER_SECOND;
+    }
+
+    /** The name a kit's effect is stored and typed by, e.g. {@code speed}; the namespace only when not minecraft. */
+    public static String effectName(PotionEffectType type) {
+        return type.getKey().asMinimalString();
     }
 
     /**
-     * Readies a fighter after {@link #apply}: this kit's effects, its {@link KitRule#MAX_HEALTH} at full health and the
+     * Readies a fighter after {@link #apply}: this kit's whole-fight effects, its {@link KitRule#MAX_HEALTH} at full health and the
      * {@link KitRule#SATURATION} effect. {@link PlayerSnapshot} undoes the maximum health when the fight ends.
      */
     public void applyStatus(Player player, Settings settings) {
-        OptionalInt maxHealth = number(KitRule.MAX_HEALTH);
+        OptionalInt maxHealth = number(KitRule.MAX_HEALTH, settings);
         AttributeInstance health = player.getAttribute(Attribute.MAX_HEALTH);
         if (maxHealth.isPresent() && maxHealth.getAsInt() > 0 && health != null) {
             health.removeModifier(PlayerSnapshot.KIT_MAX_HEALTH);
@@ -290,7 +317,7 @@ public record Kit(String name, String displayName, Material icon, String permiss
                     AttributeModifier.Operation.ADD_NUMBER));
             player.setHealth(health.getValue());
         }
-        player.addPotionEffects(effects);
+        player.addPotionEffects(effects.stream().filter(PotionEffect::isInfinite).toList());
         if (flag(KitRule.SATURATION, settings)) {
             player.addPotionEffect(new PotionEffect(PotionEffectType.SATURATION, PotionEffect.INFINITE_DURATION, 0, false, false, false));
         }

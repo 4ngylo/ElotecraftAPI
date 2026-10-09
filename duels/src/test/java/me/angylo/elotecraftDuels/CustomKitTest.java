@@ -46,7 +46,7 @@ class CustomKitTest extends DuelsTestBase {
     }
 
     private static Kit pool(List<ItemStack> items) {
-        return new Kit("pool", "<gold>Pool", Material.CHEST, null, items, false, Set.of(), true);
+        return new Kit("pool", "<gold>Pool", Material.CHEST, null, items, Set.of());
     }
 
     private String title(TestPlayer player) {
@@ -69,7 +69,7 @@ class CustomKitTest extends DuelsTestBase {
         alex.performCommand("duel customkit 1");
         tickUntil(() -> duels.editor().buildingFrom(alex).isPresent());
         tick();
-        assertEquals("✎ Pick items", title(alex));
+        assertEquals("Pick items", title(alex));
         click(alex, SWORD);
         click(alex, ARROWS);
         assertSays(alex, "duel editkit save", "Saved custom kit 1");
@@ -143,5 +143,17 @@ class CustomKitTest extends DuelsTestBase {
     void adminKitsCannotBeCalledCustom() {
         assertThrows(IllegalArgumentException.class, () -> duels.kits().create(Kit.CUSTOM, Material.STONE, alex.getInventory()));
         assertFalse(duels.kits().get(Kit.CUSTOM).isPresent());
+    }
+
+    @Test
+    void aPermissionGivesMoreCustomKitSlotsUpToNine() {
+        assertSays(alex, "duel customkit 4", "Pick a custom kit from 1 to 3.");
+
+        alex.addAttachment(plugin, "duels.kit.custom.slots.5", true);
+        assertEquals(5, duels.customKits().slots(alex));
+        assertSays(alex, "duel customkit 6", "Pick a custom kit from 1 to 5.");
+
+        alex.addAttachment(plugin, "duels.kit.custom.slots.99", true);
+        assertEquals(9, duels.customKits().slots(alex));
     }
 }

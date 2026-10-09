@@ -101,8 +101,8 @@ public final class KitEditor implements Listener {
             messages.send(player, "custom-kit.disabled");
         } else if (!base.get().canUse(player)) {
             messages.send(player, "general.kit-locked", kitTag(base.get()));
-        } else if (slot < 1 || slot > customKits.slots()) {
-            messages.send(player, "custom-kit.no-slot", Placeholder.unparsed("slots", String.valueOf(customKits.slots())));
+        } else if (slot < 1 || slot > customKits.slots(player)) {
+            messages.send(player, "custom-kit.no-slot", Placeholder.unparsed("slots", String.valueOf(customKits.slots(player))));
         } else {
             start(player, base.get(), slot);
         }

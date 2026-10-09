@@ -28,6 +28,8 @@ public final class PartyCommand {
 
     private static final String PARTY = "duels.party";
     private static final String FIGHT = "duels.party.fight";
+    private static final String PUBLIC = "duels.party.public";
+    private static final String CHAT = "duels.party.chat";
 
     private final Duels duels;
     private final Messages messages;
@@ -52,10 +54,10 @@ public final class PartyCommand {
                 .executes(this::inviteOrHelp, (sender, args) -> args.length == 1 ? Args.players(args) : List.of())
                 .sub("help", null, (sender, args) -> messages.send(sender, "command.party-help"))
                 .playerSub("create", null, (player, args) -> parties.create(player))
-                .playerSub("public", null, (player, args) -> parties.toggleOpen(player))
+                .playerSub("public", PUBLIC, (player, args) -> parties.toggleOpen(player))
                 .playerSub("join", null, (player, args) -> join(player, args),
                         (sender, args) -> args.length == 1 ? Args.filter(openLeaders(), args) : List.of())
-                .playerSub("chat", null, (player, args) -> parties.chat(player, String.join(" ", args)))
+                .playerSub("chat", CHAT, (player, args) -> parties.chat(player, String.join(" ", args)))
                 .playerSub("invite", null, (player, args) -> invite(player, Args.get(args, 0)), (sender, args) -> Args.players(args))
                 .playerSub("accept", null, (player, args) -> parties.accept(player, Args.get(args, 0)), (sender, args) -> Args.players(args))
                 .playerSub("deny", null, (player, args) -> parties.deny(player, Args.get(args, 0)), (sender, args) -> Args.players(args))
@@ -74,7 +76,7 @@ public final class PartyCommand {
         // /pc <message>: party chat in two letters.
         CommandBuilder.create("pc")
                 .description(Text.plain(messages.get("command.party-chat-description")))
-                .permission(PARTY)
+                .permission(CHAT)
                 .messages(sender -> messages.get(sender, "command.no-permission"),
                         sender -> messages.get(sender, "command.player-only"))
                 .executes((sender, args) -> {

@@ -26,6 +26,8 @@ permissions:
       duels.top: true
       duels.cosmetics: true
       duels.party: true
+      duels.party.public: true
+      duels.party.chat: true
       duels.party.fight: true
       duels.kit.edit: true
       duels.kit.custom: true
@@ -65,6 +67,12 @@ permissions:
   duels.party:
     description: Create, join and manage parties.
     default: true
+  duels.party.public:
+    description: Make your party public with /party public, so anyone may join it (as leader).
+    default: true
+  duels.party.chat:
+    description: Talk to your party with /party chat and /pc.
+    default: true
   duels.party.fight:
     description: Start party splits, party FFAs and party vs party fights (as leader).
     default: true
@@ -83,15 +91,22 @@ permissions:
   duels.cosmetics:
     description: Pick kill effects and kill messages with /duel cosmetics.
     default: true
+  duels.staff:
+    description: Use /duels and its admin menu; give it along with the duels.admin.* permissions a staff rank needs.
+    default: op
   duels.admin:
-    description: Use /duels; grants every admin permission below.
+    description: Every admin permission below.
     default: op
     children:
+      duels.staff: true
       duels.admin.arena: true
       duels.admin.kit: true
       duels.admin.reload: true
       duels.admin.hologram: true
       duels.admin.season: true
+      duels.admin.season.manage: true
+      duels.admin.elo: true
+      duels.admin.elo.edit: true
       duels.queue.ranked.unlimited: true
       duels.admin.stop: true
       duels.bypass.cooldown: true
@@ -112,10 +127,23 @@ permissions:
     description: Place and remove leaderboard holograms.
     default: op
   duels.admin.season:
-    description: End the rating season with /duels season end.
+    description: See the season running, ended ones and their leaderboards with /duels season.
     default: op
+  duels.admin.season.manage:
+    description: End, plan, name and export seasons (/duels season end|schedule|auto|name|export), and get the warnings before a planned end.
+    default: op
+    children:
+      duels.admin.season: true
+  duels.admin.elo:
+    description: See players' ratings with /duels elo <player>.
+    default: op
+  duels.admin.elo.edit:
+    description: Change players' ratings with /duels elo set|add|reset.
+    default: op
+    children:
+      duels.admin.elo: true
   duels.queue.ranked.unlimited:
-    description: No ranked.daily-limit.
+    description: No ranked.daily-limit (duels.queue.ranked.limit.<n> raises it instead).
     default: op
   duels.bypass.commands:
     description: Run any command during a duel, not only /duel and rules.allowed-commands.

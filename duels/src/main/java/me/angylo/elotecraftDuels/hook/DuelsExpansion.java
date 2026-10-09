@@ -6,6 +6,8 @@ import me.angylo.elotecraftDuels.match.Match;
 import me.angylo.elotecraftDuels.match.QueueManager;
 import me.angylo.elotecraftDuels.party.Party;
 import me.angylo.elotecraftDuels.stats.PlayerStats;
+import me.angylo.elotecraftDuels.stats.SeasonEnder;
+import me.angylo.elotecraftDuels.stats.Seasons;
 import me.clip.placeholderapi.expansion.PlaceholderExpansion;
 import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
@@ -55,7 +57,8 @@ final class DuelsExpansion extends PlaceholderExpansion {
     @Override
     public @NotNull List<String> getPlaceholders() {
         return List.of("%duels_wins%", "%duels_losses%", "%duels_win_streak%", "%duels_best_win_streak%",
-                "%duels_win_rate%", "%duels_elo%", "%duels_elo_<kit>%", "%duels_division%", "%duels_division_<kit>%", "%duels_peak%", "%duels_peak_<kit>%", "%duels_season%", "%duels_in_match%", "%duels_opponent%", "%duels_kit%", "%duels_arena%",
+                "%duels_win_rate%", "%duels_elo%", "%duels_elo_<kit>%", "%duels_division%", "%duels_division_<kit>%", "%duels_peak%", "%duels_peak_<kit>%", "%duels_season%", "%duels_season_name%", "%duels_season_days%", "%duels_season_started%",
+                "%duels_season_ends_in%", "%duels_in_match%", "%duels_opponent%", "%duels_kit%", "%duels_arena%",
                 "%duels_queue%", "%duels_queue_type%", "%duels_party_size%", "%duels_party_leader%", "%duels_active_matches%");
     }
 
@@ -63,6 +66,23 @@ final class DuelsExpansion extends PlaceholderExpansion {
     public String onRequest(OfflinePlayer player, @NotNull String params) {
         if (params.equals("active_matches")) {
             return String.valueOf(duels.matches().activeMatches());
+        }
+        Seasons.Info season = duels.seasons().info();
+        switch (params) {
+            case "season_name" -> {
+                return season.name().isEmpty() ? String.valueOf(season.season()) : Text.plain(Text.mm(season.name()));
+            }
+            case "season_days" -> {
+                return String.valueOf(SeasonEnder.days(season));
+            }
+            case "season_started" -> {
+                return SeasonEnder.date(season.startedAt());
+            }
+            case "season_ends_in" -> {
+                return SeasonEnder.left(season).map(SeasonEnder::length).orElse("");
+            }
+            default -> {
+            }
         }
         if (player == null) {
             return "";

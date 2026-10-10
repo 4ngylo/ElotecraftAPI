@@ -33,15 +33,11 @@ permissions:
       duels.kit.custom: true
       duels.event: true
       duels.event.host: true
-      duels.event.host.private: true
   duels.event:
     description: Join and watch player-hosted events with /event.
     default: true
   duels.event.host:
     description: Host events with /event host.
-    default: true
-  duels.event.host.private:
-    description: Make a hosted event private (invited players only).
     default: true
   duels.duel:
     description: Send, accept and deny duel requests and rematches.

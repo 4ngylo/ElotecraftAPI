@@ -41,10 +41,11 @@ import java.util.Set;
  * @param rewards     paid for a won duel with this kit on top of config.yml's {@code rewards}
  * @param effects     potion effects fighters get at the countdown, without particles: for the whole fight or some seconds
  * @param mode        how a duel is won: knockouts, or the bridge and bed fight modes (two sides, build kits only)
+ * @param arena       a custom kit's arena, the only one its duels use; null for any arena it takes
  */
 public record Kit(String name, String displayName, Material icon, String permission, List<ItemStack> items,
                   Set<String> arenaCategories, Map<KitRule, Object> rules, Rewards rewards,
-                  List<PotionEffect> effects, Mode mode) {
+                  List<PotionEffect> effects, Mode mode, String arena) {
 
     public static final Material DEFAULT_ICON = Material.IRON_SWORD;
     /** The name of every player's custom kit ({@link CustomKits}); admin kits cannot use it. */
@@ -97,6 +98,12 @@ public record Kit(String name, String displayName, Material icon, String permiss
         mode = mode == null ? Mode.NORMAL : mode;
     }
 
+    /** A kit that takes any arena of its categories. */
+    public Kit(String name, String displayName, Material icon, String permission, List<ItemStack> items,
+               Set<String> arenaCategories, Map<KitRule, Object> rules, Rewards rewards, List<PotionEffect> effects, Mode mode) {
+        this(name, displayName, icon, permission, items, arenaCategories, rules, rewards, effects, mode, null);
+    }
+
     /** A normal kit. */
     public Kit(String name, String displayName, Material icon, String permission, List<ItemStack> items,
                Set<String> arenaCategories, Map<KitRule, Object> rules, Rewards rewards, List<PotionEffect> effects) {
@@ -121,11 +128,17 @@ public record Kit(String name, String displayName, Material icon, String permiss
     }
 
     /**
-     * A player's custom kit: {@code items} with everything else (rules, arenas, permission, rewards, effects) from
-     * {@code base}, the kit whose items they were picked from.
+     * A player's custom kit: {@code items}, the rules they changed and their arena, with everything else (arena categories,
+     * other rules, permission, rewards, effects, mode) from {@code base}, the custom kits' base kit.
+     *
+     * @param arena null for any arena the base kit takes
      */
-    static Kit custom(Kit base, String displayName, List<ItemStack> items) {
-        return new Kit(CUSTOM, displayName, base.icon, base.permission, items, base.arenaCategories, base.rules, base.rewards, base.effects, base.mode);
+    static Kit custom(Kit base, String displayName, List<ItemStack> items, Map<KitRule, Object> rules, String arena) {
+        Map<KitRule, Object> merged = new EnumMap<>(KitRule.class);
+        merged.putAll(base.rules);
+        merged.putAll(rules);
+        return new Kit(CUSTOM, displayName, base.icon, base.permission, items, base.arenaCategories, merged, base.rewards, base.effects,
+                base.mode, arena);
     }
 
     /** Whether this is a player's custom kit, which no registry holds. */
@@ -134,8 +147,8 @@ public record Kit(String name, String displayName, Material icon, String permiss
     }
 
     /**
-     * Whether duels with this kit may use {@code arena}: the kit takes any arena, or they share a category; and the
-     * arena has the goals or beds the kit's mode needs.
+     * Whether duels with this kit may use {@code arena}: the kit takes any arena, or they share a category; the arena has
+     * the goals or beds the kit's mode needs; and it is the custom kit's own arena, if it has one.
      */
     public boolean accepts(Arena arena) {
         boolean points = switch (mode) {
@@ -143,7 +156,8 @@ public record Kit(String name, String displayName, Material icon, String permiss
             case BRIDGE -> arena.points().hasGoals();
             case BED_FIGHT -> arena.points().hasBeds();
         };
-        return points && (arenaCategories.isEmpty() || !Collections.disjoint(arenaCategories, arena.categories()));
+        return points && (this.arena == null || this.arena.equals(arena.name()))
+                && (arenaCategories.isEmpty() || !Collections.disjoint(arenaCategories, arena.categories()));
     }
 
     @Override
@@ -201,33 +215,38 @@ public record Kit(String name, String displayName, Material icon, String permiss
     }
 
     public Kit withItems(PlayerInventory inventory) {
-        return new Kit(name, displayName, icon, permission, Arrays.asList(inventory.getContents()), arenaCategories, rules, rewards, effects, mode);
+        return withItems(Arrays.asList(inventory.getContents()));
+    }
+
+    /** @param newItems a whole player inventory, slot by slot */
+    public Kit withItems(List<ItemStack> newItems) {
+        return new Kit(name, displayName, icon, permission, newItems, arenaCategories, rules, rewards, effects, mode, arena);
     }
 
     public Kit withMode(Mode newMode) {
-        return new Kit(name, displayName, icon, permission, items, arenaCategories, rules, rewards, effects, newMode);
+        return new Kit(name, displayName, icon, permission, items, arenaCategories, rules, rewards, effects, newMode, arena);
     }
 
     public Kit withIcon(Material newIcon) {
-        return new Kit(name, displayName, newIcon, permission, items, arenaCategories, rules, rewards, effects, mode);
+        return new Kit(name, displayName, newIcon, permission, items, arenaCategories, rules, rewards, effects, mode, arena);
     }
 
     public Kit withDisplayName(String newDisplayName) {
-        return new Kit(name, newDisplayName, icon, permission, items, arenaCategories, rules, rewards, effects, mode);
+        return new Kit(name, newDisplayName, icon, permission, items, arenaCategories, rules, rewards, effects, mode, arena);
     }
 
     /** @param newPermission null for everyone */
     public Kit withPermission(String newPermission) {
-        return new Kit(name, displayName, icon, newPermission, items, arenaCategories, rules, rewards, effects, mode);
+        return new Kit(name, displayName, icon, newPermission, items, arenaCategories, rules, rewards, effects, mode, arena);
     }
 
     /** @param newCategories empty for any arena */
     public Kit withArenaCategories(Set<String> newCategories) {
-        return new Kit(name, displayName, icon, permission, items, newCategories, rules, rewards, effects, mode);
+        return new Kit(name, displayName, icon, permission, items, newCategories, rules, rewards, effects, mode, arena);
     }
 
     public Kit withRewards(Rewards newRewards) {
-        return new Kit(name, displayName, icon, permission, items, arenaCategories, rules, newRewards, effects, mode);
+        return new Kit(name, displayName, icon, permission, items, arenaCategories, rules, newRewards, effects, mode, arena);
     }
 
     /**
@@ -242,7 +261,7 @@ public record Kit(String name, String displayName, Material icon, String permiss
         } else {
             changed.put(rule, value);
         }
-        return new Kit(name, displayName, icon, permission, items, arenaCategories, changed, rewards, effects, mode);
+        return new Kit(name, displayName, icon, permission, items, arenaCategories, changed, rewards, effects, mode, arena);
     }
 
     /**
@@ -255,12 +274,12 @@ public record Kit(String name, String displayName, Material icon, String permiss
     public Kit withEffect(PotionEffectType type, int amplifier, int seconds) {
         List<PotionEffect> changed = new ArrayList<>(withoutEffect(type).effects);
         changed.add(effect(type, amplifier, seconds));
-        return new Kit(name, displayName, icon, permission, items, arenaCategories, rules, rewards, changed, mode);
+        return new Kit(name, displayName, icon, permission, items, arenaCategories, rules, rewards, changed, mode, arena);
     }
 
     public Kit withoutEffect(PotionEffectType type) {
         List<PotionEffect> changed = effects.stream().filter(effect -> !effect.getType().equals(type)).toList();
-        return new Kit(name, displayName, icon, permission, items, arenaCategories, rules, rewards, changed, mode);
+        return new Kit(name, displayName, icon, permission, items, arenaCategories, rules, rewards, changed, mode, arena);
     }
 
     /** The kit's effect of {@code type}, if it gives one. */

@@ -431,8 +431,12 @@ public final class StatsService {
         }
     }
 
-    /** @param table a constant table name, never input */
-    private static boolean hasColumn(Statement statement, String table, String column) throws SQLException {
+    /**
+     * Whether {@code table} has {@code column}, read the same way on SQLite and MySQL.
+     *
+     * @param table a constant table name, never input
+     */
+    public static boolean hasColumn(Statement statement, String table, String column) throws SQLException {
         try (ResultSet none = statement.executeQuery("SELECT * FROM " + table + " WHERE 1 = 0")) {
             ResultSetMetaData columns = none.getMetaData();
             for (int i = 1; i <= columns.getColumnCount(); i++) {

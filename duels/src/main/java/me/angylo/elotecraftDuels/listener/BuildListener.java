@@ -41,6 +41,7 @@ import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.block.BlockSpreadEvent;
 import org.bukkit.event.block.SpongeAbsorbEvent;
 import org.bukkit.event.block.TNTPrimeEvent;
+import org.bukkit.event.entity.CreatureSpawnEvent;
 import org.bukkit.event.entity.EntityChangeBlockEvent;
 import org.bukkit.event.entity.EntityExplodeEvent;
 import org.bukkit.event.player.PlayerBucketEmptyEvent;
@@ -281,6 +282,15 @@ public final class BuildListener implements Listener {
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onPrime(TNTPrimeEvent event) {
         natural(event.getBlock(), event, true);
+    }
+
+    /** Mobs from spawn eggs in a fight belong to it: they are removed with the arena's leftovers. */
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onEggSpawn(CreatureSpawnEvent event) {
+        CreatureSpawnEvent.SpawnReason reason = event.getSpawnReason();
+        if (reason == CreatureSpawnEvent.SpawnReason.SPAWNER_EGG || reason == CreatureSpawnEvent.SpawnReason.DISPENSE_EGG) {
+            instances.at(event.getLocation()).ifPresent(instance -> instances.markLeftover(event.getEntity()));
+        }
     }
 
     /** Sand and gravel falling and landing; changes by players were already cancelled by {@link ProtectionListener}. */

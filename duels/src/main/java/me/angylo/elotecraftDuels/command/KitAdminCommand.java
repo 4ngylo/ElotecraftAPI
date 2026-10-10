@@ -72,6 +72,8 @@ final class KitAdminCommand {
                     }
                     admin.save(player, kits.update(kit.withItems(player.getInventory())), "admin.kit.saved", kitTags(kit));
                 }), kitNames)
+                .playerSub("edit", null, (player, args) -> withKit(player, args, (kit, rest) -> duels.editorMenu().openAdmin(player, kit)),
+                        kitNames)
                 .playerSub("load", null, (player, args) -> withKit(player, args, (kit, rest) -> {
                     if (duels.matches().isBusy(player) || !isEmpty(player.getInventory())) {
                         messages.send(player, "admin.kit.inventory-not-empty");

@@ -216,7 +216,12 @@ public final class HostedEvent {
         if (--secondsToAnnounce > 0) {
             return false;
         }
-        secondsToAnnounce = intervalSeconds;
+        announced(intervalSeconds);
         return true;
+    }
+
+    /** Announced just now: the next one is due in {@code intervalSeconds}. */
+    void announced(int intervalSeconds) {
+        secondsToAnnounce = intervalSeconds;
     }
 }

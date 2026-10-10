@@ -117,9 +117,6 @@ parties:
   max-size: 8             # 2 to 100 players, the leader included; a leader's duels.party.size.<n> raises it
   invite-expiry: 60s      # how long a party invite can be accepted
 
-kit-editor:
-  timeout: 5m             # /duel editkit ends without saving after this
-
 # Player-hosted events (/event): the host picks the kit, arena, rules, teams and winner count while
 # players join, then everyone fights once. Events never change stats or ratings.
 events:
@@ -165,11 +162,12 @@ sidebar:
 holograms:
   lines: 10               # players on each board, 1 to 50
 
-# Kits players build themselves with /duel customkit, picking items from an admin kit: the base kit.
-# Custom kits take the base kit's rules, arenas, permission, rewards and effects; players use them to
-# challenge someone (/duel <player> custom[:slot]) or in party fights, never in queues, events or bets.
+# Kits players build themselves with /duel customkit, picking items in the kit editor (menus.yml
+# kit-editor-categories lists them). Custom kits take the base kit's arena categories, permission, rewards,
+# effects, mode and the rules the player leaves alone; players use them to challenge someone
+# (/duel <player> custom[:slot]) or in party fights, never in queues, events or bets.
 custom-kits:
-  base-kit: ""            # the kit whose items players pick from; empty: custom kits are off
+  base-kit: ""            # the kit custom kits take the rest from (it may hold no items); empty: custom kits are off
   slots: 3                # custom kits each player keeps, 1 to 9; duels.kit.custom.slots.<n> raises it
   # The name duels show; <player> is the builder, <slot> the kit's number.
   display-name: "<yellow><player>'s custom kit <slot>"

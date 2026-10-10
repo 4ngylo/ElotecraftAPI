@@ -52,7 +52,6 @@ public final class EventManager implements Listener {
 
     public static final String JOIN = "duels.event";
     public static final String HOST = "duels.event.host";
-    public static final String HOST_PRIVATE = "duels.event.host.private";
     private static final String BYPASS_COOLDOWN = "duels.bypass.cooldown";
     private static final long MILLIS_PER_TICK = 50;
 
@@ -117,7 +116,8 @@ public final class EventManager implements Listener {
     }
 
     /**
-     * Starts gathering players for an event with {@code kit}, announced to everyone. {@code host} joins it.
+     * Starts gathering players for a private event with {@code kit}; {@code host} joins it, invites players or
+     * makes it public.
      *
      * @return false after telling {@code host} why not
      */
@@ -148,12 +148,12 @@ public final class EventManager implements Listener {
         Settings.Events config = settings.get().events();
         HostedEvent event = new HostedEvent(host.getUniqueId(), host.getName(), kit.name(),
                 (int) config.waitTime().toSeconds(), announceSeconds());
+        event.open(false);
         byHost.put(host.getUniqueId(), event);
         byPlayer.put(host.getUniqueId(), event);
         lastHosted.put(host.getUniqueId(), now);
         queues.handleQuit(host);
         messages.send(host, "event.hosted", kitTag(kit));
-        announce(event);
         return true;
     }
 
@@ -325,17 +325,17 @@ public final class EventManager implements Listener {
         }
     }
 
-    /** Public to private and back; private needs {@link #HOST_PRIVATE}. */
+    /** Private to public and back; going public announces it at once. */
     public void toggleOpen(Player host) {
         HostedEvent event = hosting(host);
         if (event == null) {
             return;
         }
-        if (event.isOpen() && !host.hasPermission(HOST_PRIVATE)) {
-            messages.send(host, "command.no-permission");
-            return;
-        }
         event.open(!event.isOpen());
+        if (event.isOpen()) {
+            event.announced(announceSeconds());
+            announce(event);
+        }
     }
 
     public void toggleSpectating(Player host) {

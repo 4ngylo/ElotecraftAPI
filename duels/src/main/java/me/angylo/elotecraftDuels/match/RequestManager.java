@@ -83,6 +83,10 @@ public final class RequestManager {
      * @param bet 0 for no bet
      */
     public void send(Player sender, Player target, Kit kit, Arena arena, boolean rematch, double bet) {
+        if (arena == null && kit.arena() != null) {
+            // A custom kit with its own arena: the request names it instead of a random one.
+            arena = arenas.get(kit.arena()).filter(Arena::isReady).orElse(null);
+        }
         if (sender.equals(target)) {
             messages.send(sender, "request.self");
             return;

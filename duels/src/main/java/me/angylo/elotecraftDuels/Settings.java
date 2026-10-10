@@ -34,7 +34,7 @@ public record Settings(int countdownSeconds, Duration maxDuration, int endDelayS
                 Duration rematchWindow, Map<KitRule, Object> kitDefaults, Set<String> allowedCommands,
                 Reward winReward, Reward lossReward, Title.Times titleTimes, Effects effects,
                 boolean breakArenaBlocks, int regenBlocksPerTick, String arenasWorld,
-                Pool pool, int partyMaxSize, Duration partyInviteExpiry, Duration kitEditorTimeout, Ranked ranked,
+                Pool pool, int partyMaxSize, Duration partyInviteExpiry, Ranked ranked,
                 Sidebars sidebars, int hologramLines, LobbyItems lobbyItems, Events events, Cosmetics cosmetics, Bets bets,
                 CustomKitOptions customKits, Modes modes, SeasonOptions seasons) {
 
@@ -251,7 +251,6 @@ public record Settings(int countdownSeconds, Duration maxDuration, int endDelayS
                         duration(config, logger, "arenas.pool.idle-timeout", Duration.ofMinutes(2), Duration.ofSeconds(10))),
                 integer(config, logger, "parties.max-size", 8, 2, MAX_PARTY_SIZE),
                 duration(config, logger, "parties.invite-expiry", Duration.ofSeconds(60), Duration.ofSeconds(5)),
-                duration(config, logger, "kit-editor.timeout", Duration.ofMinutes(5), Duration.ofSeconds(30)),
                 new Ranked(
                         integer(config, logger, "ranked.k-factor", 32, 1, 100),
                         integer(config, logger, "ranked.range", 100, 0, MAX_ELO_RANGE),

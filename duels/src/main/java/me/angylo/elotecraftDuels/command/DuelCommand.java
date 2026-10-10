@@ -113,11 +113,11 @@ public final class DuelCommand {
                 .playerSub("cosmetics", "duels.cosmetics", this::cosmetics, (sender, args) -> args.length == 1
                         ? Args.filter(Arrays.stream(Cosmetics.Kind.values()).map(Cosmetics.Kind::key).toList(), args) : List.of())
                 .playerSub("editkit", "duels.kit.edit", this::editKit, (sender, args) -> args.length == 1
-                        ? Args.filter(Stream.concat(Stream.of("save", "cancel", "reset"), usableKits(sender).stream()).toList(), args)
+                        ? Args.filter(Stream.concat(Stream.of("reset"), usableKits(sender).stream()).toList(), args)
                         : args.length == 2 && args[0].equalsIgnoreCase("reset") ? Args.filter(usableKits(sender), args) : List.of())
                 .playerSub("customkit", "duels.kit.custom", this::customKit, (sender, args) -> args.length == 1
-                        ? Args.filter(Stream.concat(Stream.of("items"), IntStream.rangeClosed(1, sender instanceof Player player ? duels.customKits().slots(player) : 0)
-                                .mapToObj(String::valueOf)).toList(), args) : List.of())
+                        ? Args.filter(IntStream.rangeClosed(1, sender instanceof Player player ? duels.customKits().slots(player) : 0)
+                                .mapToObj(String::valueOf).toList(), args) : List.of())
                 .playerSub("spectate", "duels.spectate", this::spectate, (sender, args) -> Args.players(args))
                 .sub("stats", "duels.stats", (sender, args) -> limited(sender, () -> stats(sender, args)),
                         (sender, args) -> Args.players(args))
@@ -168,7 +168,7 @@ public final class DuelCommand {
         action.run();
     }
 
-    /** Opens a hub menu; players in a match or the kit editor, who may not open menus, get the help instead. */
+    /** Opens a hub menu; players in a match, who may not open menus, get the help instead. */
     private void openHub(Player player, String name) {
         if (duels.matches().isRestricted(player)) {
             messages.send(player, "command.help");
@@ -324,27 +324,23 @@ public final class DuelCommand {
         duels.queues().toggle(player, kit.get(), ranked);
     }
 
-    /** {@code /duel editkit [kit] | save | cancel | reset <kit>}; the kit menu opens without a kit. */
+    /** {@code /duel editkit [kit] | reset <kit>}; the kit menu opens without a kit. */
     private void editKit(Player player, String[] args) {
         String first = Args.get(args, 0).toLowerCase(Locale.ROOT);
         switch (first) {
-            case "" -> kitMenu.open(player, KitMenu.Mode.EDIT, kit -> duels.editor().start(player, kit));
-            case "save" -> duels.editor().save(player);
-            case "cancel" -> duels.editor().cancel(player);
+            case "" -> kitMenu.open(player, KitMenu.Mode.EDIT, kit -> duels.editorMenu().openLayout(player, kit));
             case "reset" -> usableKit(player, Args.get(args, 1)).ifPresent(kit -> duels.editor().reset(player, kit));
-            default -> usableKit(player, first).ifPresent(kit -> duels.editor().start(player, kit));
+            default -> usableKit(player, first).ifPresent(kit -> duels.editorMenu().openLayout(player, kit));
         }
     }
 
-    /** {@code /duel customkit [<slot> | items]}: the custom kit menu, building one, or the items to build it from. */
+    /** {@code /duel customkit [slot]}: the custom kit menu, or building one in the kit editor. */
     private void customKit(Player player, String[] args) {
         String first = Args.get(args, 0).toLowerCase(Locale.ROOT);
         if (first.isEmpty()) {
             customKitMenu.openSlots(player);
-        } else if (first.equals("items")) {
-            customKitMenu.openItems(player);
         } else {
-            duels.editor().startCustom(player, first.matches("[1-9]") ? Integer.parseInt(first) : -1);
+            duels.editorMenu().openCustom(player, first.matches("[1-9]") ? Integer.parseInt(first) : -1);
         }
     }
 
@@ -364,7 +360,8 @@ public final class DuelCommand {
         // The editor counts as busy, and the busy message points to /duel leave. Matches go before events:
         // a player between tournament fights who watches one stops watching first.
         if (duels.editor().isEditing(player)) {
-            duels.editor().cancel(player);
+            duels.editor().finish(player);
+            player.closeInventory();
         } else if (!duels.queues().leave(player) && !duels.matches().leave(player) && !duels.events().leave(player)) {
             messages.send(player, "general.nothing-to-leave");
         }

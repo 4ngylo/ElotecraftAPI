@@ -23,6 +23,7 @@ import me.angylo.elotecraftDuels.hud.WatchItem;
 import me.angylo.elotecraftDuels.hud.LobbyVisibility;
 import me.angylo.elotecraftDuels.kit.CustomKits;
 import me.angylo.elotecraftDuels.kit.KitEditor;
+import me.angylo.elotecraftDuels.kit.KitPalette;
 import me.angylo.elotecraftDuels.kit.KitLayouts;
 import me.angylo.elotecraftDuels.kit.KitRegistry;
 import me.angylo.elotecraftDuels.listener.BuildListener;
@@ -44,6 +45,7 @@ import me.angylo.elotecraftDuels.menu.HubMenu;
 import me.angylo.elotecraftDuels.menu.ArenaAdminMenu;
 import me.angylo.elotecraftDuels.menu.EventMenu;
 import me.angylo.elotecraftDuels.menu.KitAdminMenu;
+import me.angylo.elotecraftDuels.menu.KitEditorMenu;
 import me.angylo.elotecraftDuels.menu.KitMenu;
 import me.angylo.elotecraftDuels.menu.OptionsMenu;
 import me.angylo.elotecraftDuels.menu.PartyMenu;
@@ -85,8 +87,8 @@ public final class Duels {
     private static final String SCHEMATICS = "schematics";
     private static final int SECONDS_PER_RETRY = 60;
     private static final String MENUS = "menus.yml";
-    /** The menus.yml version of the centered layout with plain titles; older files are replaced. */
-    private static final int MENUS_VERSION = 3;
+    /** The menus.yml version: 3 is the centered layout with plain titles, 4 adds the kit editor; older files are replaced. */
+    private static final int MENUS_VERSION = 4;
 
     private final Plugin plugin;
     private final ConfigFile config;
@@ -102,6 +104,7 @@ public final class Duels {
     private final SnapshotStore snapshots;
     private final KitLayouts layouts;
     private final KitEditor editor;
+    private final KitEditorMenu editorMenu;
     private final CustomKits customKits;
     private final ArenaInstances instances;
     private final WorldEditHook worldEdit;
@@ -142,21 +145,21 @@ public final class Duels {
                 () -> matches().running().stream().anyMatch(Match::isRanked));
         this.snapshots = new SnapshotStore(plugin, database);
         this.layouts = new KitLayouts(plugin, database);
-        this.customKits = new CustomKits(this::settings, kits, layouts);
+        KitPalette palette = new KitPalette(plugin.getLogger(), menus::get);
+        this.customKits = new CustomKits(this::settings, kits, arenas, layouts, palette);
         createSchematicsFolder();
         World arenasWorld = ArenaWorld.load(plugin, settings.arenasWorld()).orElse(null);
         this.pool = new ArenaPool(plugin, this::settings, arenas, arenasWorld, worldEdit);
         this.instances = new ArenaInstances(plugin, this::settings, arenas, pool);
         this.matches = new MatchManager(plugin, messages, this::settings, arenas, instances, snapshots, stats, history, layouts);
-        this.editor = new KitEditor(plugin, messages, this::settings, snapshots, layouts, customKits, matches::isBusy);
+        this.editor = new KitEditor(plugin, messages, layouts, customKits, kits, matches::isBusy);
         this.bets = new Bets(plugin.getLogger(), messages, this::settings, database, new VaultEconomy(plugin.getLogger()));
         matches.onFinish(bets::finished);
         this.requests = new RequestManager(messages, this::settings, kits, arenas, matches, bets);
         this.queues = new QueueManager(messages, this::settings, kits, matches, stats);
         this.events = new EventManager(plugin.getLogger(), messages, this::settings, kits, arenas, matches, queues, snapshots,
                 new Rewards(plugin, messages, this::settings));
-        matches.busyElsewhere(editor::isEditing);
-        matches.waitingElsewhere(events::isWaiting);
+        matches.waitingElsewhere(player -> events.isWaiting(player) || editor.isEditing(player));
         KitMenu kitMenu = new KitMenu(plugin, messages, menus, this::settings, kits, matches, queues, stats);
         ArenaMenu arenaMenu = new ArenaMenu(plugin, messages, menus, this::settings, arenas, matches);
 
@@ -165,21 +168,23 @@ public final class Duels {
         this.partyFights = new PartyFights(messages, this::settings, kits, arenas, matches, queues, parties, teamMenu);
         SpectateMenu spectateMenu = new SpectateMenu(plugin, messages, menus, this::settings, matches);
         HubMenu hubMenu = new HubMenu(plugin, messages, menus, this::settings, kits, stats, queues, matches, events, seasons);
-        CustomKitMenu customKitMenu = new CustomKitMenu(plugin, messages, menus, this::settings, customKits, editor);
+        CustomKitMenu customKitMenu = new CustomKitMenu(plugin, messages, menus, this::settings, customKits);
+        KitAdminMenu kitAdminMenu = new KitAdminMenu(plugin, messages, menus, this::settings, kits);
+        this.editorMenu = new KitEditorMenu(plugin, messages, menus, this::settings, editor, palette, kits, arenas, kitAdminMenu);
         Command duel = new DuelCommand(this, kitMenu, arenaMenu, new FightInventoryMenu(plugin, messages, menus, this::settings),
                 new HistoryMenu(plugin, messages, menus, this::settings, kits),
                 new OptionsMenu(plugin, messages, menus, this::settings),
                 new CosmeticsMenu(plugin, messages, menus, this::settings),
                 spectateMenu, customKitMenu, hubMenu, new RatingsMenu(plugin, messages, menus, this::settings, kits, stats)).register();
         new AdminCommand(this, new ArenaAdminMenu(plugin, messages, menus, this::settings, arenas, pool),
-                new KitAdminMenu(plugin, messages, menus, this::settings, kits), hubMenu).register();
+                kitAdminMenu, hubMenu).register();
         new PartyCommand(this, kitMenu, new PartyMenu(plugin, messages, menus, this::settings, parties)).register();
         new EventCommand(this, new EventMenu(plugin, messages, menus, this::settings, events, kits, arenas, matches,
                 kitMenu, arenaMenu, teamMenu)).register();
         this.sessions = new SessionListener(plugin, messages, stats, snapshots, matches, requests, queues);
         this.lobbyItems = new LobbyItems(plugin, this::settings, menus, matches, queues);
         this.watchItem = new WatchItem(plugin, menus, matches, spectateMenu);
-        for (Listener listener : List.of(sessions, parties, layouts, editor, events, lobbyItems, watchItem, customKitMenu, seasonEnder,
+        for (Listener listener : List.of(sessions, parties, layouts, editor, editorMenu, events, lobbyItems, watchItem, seasonEnder,
                 new CombatListener(plugin, messages, this::settings, matches, snapshots),
                 new ProtectionListener(messages, this::settings, matches, instances, duel),
                 new BuildListener(this::settings, matches, instances, arenas))) {
@@ -301,6 +306,14 @@ public final class Duels {
 
     public KitEditor editor() {
         return editor;
+    }
+
+    public KitEditorMenu editorMenu() {
+        return editorMenu;
+    }
+
+    public KitLayouts layouts() {
+        return layouts;
     }
 
     public PartyManager parties() {

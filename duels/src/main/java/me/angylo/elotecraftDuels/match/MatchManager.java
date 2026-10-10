@@ -71,9 +71,7 @@ public final class MatchManager {
     private final ArenaInstances instances;
     private final SnapshotStore snapshots;
     private final KitLayouts layouts;
-    /** Players busy outside matches under match rules, such as in the kit editor. */
-    private Predicate<Player> busyElsewhere = player -> false;
-    /** Players waiting for something else, such as an event: busy, but free to do anything else. */
+    /** Players waiting for something else, such as an event or the kit editor: busy, but free to do anything else. */
     private Predicate<Player> waitingElsewhere = player -> false;
     /** Told about every match once it is over and everyone was sent back, such as a tournament's fights. */
     private final List<Consumer<Match>> finished = new ArrayList<>();
@@ -105,16 +103,11 @@ public final class MatchManager {
     }
 
     /**
-     * Whether match rules apply to {@code player}: fighting, spectating or editing a kit. No commands,
+     * Whether match rules apply to {@code player}: fighting or spectating. No commands,
      * other menus, drops or block use.
      */
     public boolean isRestricted(Player player) {
-        return byPlayer.containsKey(player.getUniqueId()) || busyElsewhere.test(player);
-    }
-
-    /** Players {@code busy} names are busy and restricted too: they cannot be queued, challenged or spectate. */
-    public void busyElsewhere(Predicate<Player> busy) {
-        this.busyElsewhere = busy;
+        return byPlayer.containsKey(player.getUniqueId());
     }
 
     /** Players {@code waiting} names are busy, but not {@link #isRestricted restricted}. */

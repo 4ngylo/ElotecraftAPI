@@ -409,7 +409,7 @@ public final class CombatListener implements Listener {
         inventory.clear();
     }
 
-    /** {@code rule} of the kit {@code player} is in a duel with, or its default outside one (the kit editor). */
+    /** {@code rule} of the kit {@code player} is in a duel with, or its default outside one. */
     private boolean rule(Player player, KitRule rule) {
         Settings current = settings.get();
         return matches.matchOf(player).map(match -> match.kit().flag(rule, current)).orElseGet(() -> rule.defaultFlag(current));

@@ -139,7 +139,12 @@ final class MenuLayout {
         }
     }
 
-    private static int slot(Menu menu, ConfigurationSection button) {
+    /**
+     * The button's {@code slot} in {@code menu}.
+     *
+     * @throws IllegalArgumentException if it is outside the menu
+     */
+    static int slot(Menu menu, ConfigurationSection button) {
         int slot = button.getInt("slot", -1);
         if (slot < 0 || slot >= menu.getInventory().getSize()) {
             throw new IllegalArgumentException(button.getCurrentPath() + ".slot must be 0 to " + (menu.getInventory().getSize() - 1));

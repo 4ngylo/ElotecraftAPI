@@ -45,8 +45,10 @@ class EventTest extends DuelsTestBase {
         arena = readyArena("pit");
     }
 
+    /** Ann hosts a sword event and makes it public. */
     private HostedEvent hostEvent() {
         assertSays(ann, "event host sword", "You're hosting a Sword event");
+        duels.events().toggleOpen(ann);
         return duels.events().hostedBy(ann).orElseThrow();
     }
 
@@ -163,9 +165,33 @@ class EventTest extends DuelsTestBase {
     }
 
     @Test
-    void privateEventsNeedAnInvite() {
-        hostEvent();
+    void hostedEventsStartPrivateAndAreAnnouncedOnceMadePublic() {
+        assertSays(ann, "event host sword", "It's private");
+        HostedEvent event = duels.events().hostedBy(ann).orElseThrow();
+        assertFalse(event.isOpen());
+        assertTrue(duels.events().openEvents().isEmpty());
+        assertTrue(messages(bob).stream().noneMatch(line -> line.contains("[JOIN]")));
+
         duels.events().toggleOpen(ann);
+        assertTrue(event.isOpen());
+        assertTrue(messages(bob).stream().anyMatch(line -> line.contains("Ann is hosting a Sword event") && line.contains("[JOIN]")));
+    }
+
+    @Test
+    void onlyTheEventsPlayersHearTheHostCancelIt() {
+        hostEvent();
+        assertSays(bob, "event join Ann", "You joined");
+        messages(cid);
+
+        server.dispatchCommand(ann, "event cancel");
+        assertTrue(messages(ann).stream().anyMatch(line -> line.contains("Ann cancelled their event.")));
+        assertTrue(messages(bob).stream().anyMatch(line -> line.contains("Ann cancelled their event.")));
+        assertTrue(messages(cid).isEmpty());
+    }
+
+    @Test
+    void privateEventsNeedAnInvite() {
+        assertSays(ann, "event host sword", "You're hosting a Sword event");
         assertTrue(duels.events().openEvents().isEmpty());
 
         assertSays(bob, "event join Ann", "Ann's event is private");

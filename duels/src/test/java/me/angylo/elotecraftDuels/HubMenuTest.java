@@ -81,8 +81,9 @@ class HubMenuTest extends DuelsTestBase {
 
     @Test
     void playersWhoMayNotOpenMenusGetTheHelp() {
-        server.dispatchCommand(alex, "duel editkit sword");
-        tickUntil(() -> duels.editor().isEditing(alex));
+        TestPlayer steve = join("Steve");
+        assertTrue(duels.matches().start(alex, steve, duels.kits().get("sword").orElseThrow(), duels.arenas().get("pit").orElseThrow()));
+        tickUntil(() -> duels.matches().isRestricted(alex));
         messages(alex);
 
         server.dispatchCommand(alex, "duel");
@@ -195,7 +196,7 @@ class HubMenuTest extends DuelsTestBase {
 
         assertEquals("Old kits", YamlConfiguration.loadConfiguration(menus.resolveSibling("menus.v1.yml").toFile()).getString("kits.title"));
         YamlConfiguration written = YamlConfiguration.loadConfiguration(menus.toFile());
-        assertEquals(3, written.getInt("version"));
+        assertEquals(4, written.getInt("version"));
         assertEquals("Choose a kit", written.getString("kits.title"));
     }
 
@@ -209,7 +210,7 @@ class HubMenuTest extends DuelsTestBase {
         await(duels.ready());
 
         assertEquals("<bold>Old kits", YamlConfiguration.loadConfiguration(menus.resolveSibling("menus.v2.yml").toFile()).getString("kits.title"));
-        assertEquals(3, YamlConfiguration.loadConfiguration(menus.toFile()).getInt("version"));
+        assertEquals(4, YamlConfiguration.loadConfiguration(menus.toFile()).getInt("version"));
     }
 
     @Test
@@ -224,7 +225,7 @@ class HubMenuTest extends DuelsTestBase {
     @Test
     void aCurrentMenusFileIsKept() throws IOException {
         Path menus = plugin.getDataFolder().toPath().resolve("menus.yml");
-        Files.writeString(menus, "version: 3\nhub:\n  main:\n    title: My hub\n");
+        Files.writeString(menus, "version: 4\nhub:\n  main:\n    title: My hub\n");
         duels.shutdown();
 
         duels = Duels.start(plugin, worldEdit);

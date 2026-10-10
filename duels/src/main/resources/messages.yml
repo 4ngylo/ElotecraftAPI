@@ -98,6 +98,7 @@ command:
     <yellow>/duels kit [name]</yellow> <dark_gray>-</dark_gray> <gray>menu of every kit, or of one kit's settings
     <yellow>/duels kit create <name></yellow> <dark_gray>-</dark_gray> <gray>new kit from your inventory
     <yellow>/duels kit save <name></yellow> <dark_gray>-</dark_gray> <gray>overwrite a kit with your inventory
+    <yellow>/duels kit edit <name></yellow> <dark_gray>-</dark_gray> <gray>pick and arrange a kit's items in the kit editor menu
     <yellow>/duels kit load <name></yellow> <dark_gray>-</dark_gray> <gray>put a kit in your empty inventory to edit it
     <yellow>/duels kit seticon <name></yellow> <dark_gray>-</dark_gray> <gray>menu icon: the item in your hand
     <yellow>/duels kit setname <name> <text></yellow> <dark_gray>-</dark_gray> <gray>name shown to players
@@ -275,28 +276,24 @@ spectate:
   none: "<prefix><gray>There's no fight you can watch right now."
 
 editor:
-  started: "<prefix><gray>Arrange <white><kit></white> in your inventory, then <save><green><bold>[SAVE]</bold></green></save> or <cancel><red><bold>[CANCEL]</bold></red></cancel> <dark_gray>(/duel editkit save|cancel)"
-  save-hover: "<green>Click to save this layout"
-  cancel-hover: "<red>Click to stop without saving"
   saved: "<prefix><green>Saved your layout of <white><kit></white>; your duels with it use it."
-  invalid: "<prefix><red>Your inventory must hold exactly the items of <kit>: put everything back and try again."
-  cancelled: "<prefix><gray>Stopped editing; nothing was saved."
-  timed-out: "<prefix><gray>The kit editor timed out; nothing was saved."
-  already: "<prefix><red>You're already editing a kit: <white>/duel editkit save</white> or <white>cancel</white>."
-  not-editing: "<prefix><red>You're not editing a kit."
+  invalid: "<prefix><red>Your layout must hold exactly the items of <kit>; nothing was saved."
   reset: "<prefix><green>Your layout of <white><kit></white> is gone; you get the kit as made again."
-  # Building a custom kit (/duel customkit) from the items of <kit>, the base kit; <slot> is its number.
-  custom-started: "<prefix><gray>Building custom kit <white><slot></white>: pick <items><aqua><bold>[ITEMS]</bold></aqua></items> from <white><kit></white>, arrange them, then <save><green><bold>[SAVE]</bold></green></save> or <cancel><red><bold>[CANCEL]</bold></red></cancel>"
-  items-hover: "<aqua>Click to pick items"
   custom-saved: "<prefix><green>Saved custom kit <white><slot></white>. <gray>Use it as the kit <white>custom:<slot></white> when you challenge someone."
   custom-deleted: "<prefix><gray>Custom kit <white><slot></white> was empty, so it is gone."
-  custom-invalid: "<prefix><red>Only items from <kit> can go in a custom kit: take out the others and try again."
+  custom-invalid: "<prefix><red>Your custom kit holds an item the editor no longer offers; nothing was saved."
+  admin-saved: "<prefix><green>Saved the items of kit <white><kit></white>."
+  # Titles of the anvils the editor asks in; <min> and <max> bound the number, <rule> is a rule's name.
+  anvil-name: "Kit name"
+  anvil-durability: "Durability (<min>-<max>)"
+  anvil-count: "Count (<min>-<max>)"
+  anvil-rule: "<rule> (<min>-<max>)"
+  bad-name: "<prefix><red>A kit name is 1 to <max> characters."
+  bad-number: "<prefix><red>Type a whole number from <min> to <max>."
 
 custom-kit:
   disabled: "<prefix><red>Custom kits are off on this server."
   no-slot: "<prefix><red>Pick a custom kit from 1 to <slots>."
-  not-building: "<prefix><red>You're not building a custom kit: <white>/duel customkit</white>."
-  inventory-full: "<prefix><red>Your inventory is full: click an item in it to take it out."
 
 party:
   created: "<prefix><green>Created a party. <gray>Invite players with <white>/party <player></white>."
@@ -363,7 +360,7 @@ event:
   mode-double: "Double elimination"
   # The host of events config.yml events.schedule starts.
   server-host: "Server"
-  hosted: "<prefix><green>You're hosting a <white><kit></white> event. <gray>Change it in the menu or with <white>/event settings</white>; start it with <white>/event start</white>."
+  hosted: "<prefix><green>You're hosting a <white><kit></white> event. <gray>It's private: invite players with <white>/event invite</white> or make it public in the menu (<white>/event settings</white>); start it with <white>/event start</white>."
   announce: "<prefix><white><host></white> <gray>is hosting a <white><kit></white> event <dark_gray>(<mode> · <arena> · <players>/<max> · starts in <time>)</dark_gray> <join><green><bold>[JOIN]</bold></green></join>"
   join-hover: "<green>Click to join"
   joined: "<prefix><green>You joined <white><host></white>'s event <gray>(<players>/<max>). <dark_gray>Use /event leave to leave."
@@ -700,8 +697,8 @@ admin:
     rule-seconds-usage: "<prefix><red><rule> is a number of seconds from 0 to <max>, or default."
     rule-number-usage: "<prefix><red><rule> is a whole number from 0 to <max>, or default."
     # Titles of the anvils the /duels kit effects menu asks in.
-    prompt-amplifier: "<effect>: amplifier 0-<max>"
-    prompt-seconds: "<effect>: seconds (0 whole fight)"
+    anvil-amplifier: "Amplifier: 0-<max>"
+    anvil-duration: "Duration: 0-<max_seconds>"
     # Asked in chat by the /duels kit menus.
     prompt-create: "<prefix><gray>Type a name for the new kit (lowercase letters, digits, - and _), or <white>cancel</white>."
     prompt-name: "<prefix><gray>Type the name to show for <white><kit></white> (e.g. <white>\\<gold>Sword</white>), or <white>cancel</white>."

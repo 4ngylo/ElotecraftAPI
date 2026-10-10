@@ -15,6 +15,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Deque;
 import java.util.List;
@@ -101,11 +102,19 @@ class KitAdminMenuTest extends DuelsTestBase {
         assertTrue(loreHas(KitRule.BUILD.key(), "▪ set for this kit"));
     }
 
-    /** Answers the menu's anvils from {@code answers}, in order; an empty answer is a closed anvil. */
+    private final List<String> anvilTitles = new ArrayList<>();
+
+    /**
+     * Answers the menu's anvils from {@code answers}, in order, each typed after the starting {@code #}; an empty answer is a
+     * closed anvil. Titles go to {@link #anvilTitles}.
+     */
     private void answerAnvils(String... answers) {
         Deque<String> left = new ArrayDeque<>(List.of(answers));
-        KitAdminMenu.anvil = (owner, player, title, initialText) ->
-                CompletableFuture.completedFuture(Optional.ofNullable(left.poll()).filter(answer -> !answer.isEmpty()));
+        KitAdminMenu.anvil = (owner, player, title, initialText) -> {
+            anvilTitles.add(Text.plain(title));
+            return CompletableFuture.completedFuture(Optional.ofNullable(left.poll()).filter(answer -> !answer.isEmpty())
+                    .map(answer -> initialText + answer));
+        };
     }
 
     @AfterEach
@@ -124,6 +133,7 @@ class KitAdminMenuTest extends DuelsTestBase {
         ticks(2);
 
         assertEquals(List.of(Kit.effect(PotionEffectType.ABSORPTION, 1, 30)), sword().effects());
+        assertEquals(List.of("Amplifier: 0-2", "Duration: 0-9999"), anvilTitles);
         assertEquals("Sword › Effects", menuTitle(admin));
         // Slot 10 is the first of a full centered row: the kit's own effects come first.
         assertEquals("absorption", itemNames(admin).get(10));

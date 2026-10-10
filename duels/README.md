@@ -105,35 +105,45 @@ or graves plugin, exclude the arena regions; duels never fire death events, but 
 **A kit** is a full inventory, armor and off hand included:
 
 1. Put the items in your inventory and run `/duels kit create archer`. The item in your hand becomes its icon.
-2. Edit it later: empty your inventory, `/duels kit load archer`, change it, `/duels kit save archer`.
+2. Edit it later in the kit editor menu (`/duels kit edit archer`), or: empty your inventory, `/duels kit load archer`,
+   change it, `/duels kit save archer` (for items the editor does not offer, such as named or custom items).
 3. Optional: `/duels kit setname archer <green>Archer`, `/duels kit setpermission archer duels.kit.archer`.
 
 **Or use the menus:** `/duels kit` lists every kit (with buttons for a new kit and the default kits),
 and `/duels kit <kit>` opens one kit's settings: icon, name, permission, arena categories, mode,
-save or load its items, delete (asks to confirm), a game rules submenu with every rule, `build` and
+edit its items in the kit editor, save or load its items, delete (asks to confirm), a game rules submenu with every rule, `build` and
 `damage` included (left-click switches, right-click resets), and a potion effects submenu. Names and
 values are typed in chat, effect amplifiers and seconds in anvils. Each button runs the
 matching command, so the same permission and checks apply. `/duels kit help` lists the commands.
 
 Kits are stored in `kits.yml` with Paper's item format, so they survive server updates.
 
-**Own layouts.** Players arrange a kit's items their way with `/duel editkit [kit]` (permission
-`duels.kit.edit`): their inventory is saved, the kit is put in it, and `/duel editkit save` (or the
-[SAVE] button) keeps the layout if it holds exactly the kit's items; `cancel` or a timeout
-(`kit-editor.timeout`) changes nothing, and their own items always come back, even after a crash. Every
-duel with the kit then uses their layout. When an admin changes a kit's items, old layouts are dropped;
-`/duel editkit reset <kit>` drops one by hand.
+**The kit editor.** A chest menu laid out like an inventory (menus.yml `kit-editor`): armor in the second row
+(helmet to boots, then the off hand), storage in rows 3 to 5, the hotbar at the bottom, and buttons for the map,
+rules, info, reset and the kit's name. The player's own inventory is never touched, and closing the editor saves
+it (also on quit or shutdown). It edits three things:
 
-**Custom kits.** With config.yml `custom-kits.base-kit` set to a kit, players build their own kits from its
-items with `/duel customkit` (permission `duels.kit.custom`): a menu of their `custom-kits.slots` kits (3 by
-default); a click opens the kit editor with that kit (or nothing) and the base kit's items in a menu
-(`/duel customkit items`). A click on an item puts a copy in the inventory, a click on an item in the inventory
-below the menu takes it out; arrange them, then [SAVE]. Only the base kit's items can be saved (an empty kit is
-deleted). Players challenge with the kit `custom:<number>` (`custom` alone is the first), or pick it in the
-kit menu when challenging; both fighters get the builder's items, with the base kit's rules, arenas,
-permission, rewards and effects. Custom kits are for challenges and party fights only: not for queues,
-events or bets. A custom kit holding an item the base kit no longer has is not offered until it is built
-again. They are stored with the kit layouts.
+- **Own layouts.** `/duel editkit [kit]` (permission `duels.kit.edit`): a click picks an item up, the next puts it
+  in the clicked slot (swapping); the armor stays where it is. Every duel with the kit then uses the layout, which
+  may also get a name. When an admin changes a kit's items, old layouts are dropped; `/duel editkit reset <kit>`
+  drops one by hand.
+- **Custom kits.** With config.yml `custom-kits.base-kit` set to a kit, players build their own kits with
+  `/duel customkit` (permission `duels.kit.custom`): a menu of their `custom-kits.slots` kits (3 by default); a
+  click opens one in the editor. Left-click a slot to pick an item (armor slots show that slot's armor; the others
+  item categories: menus.yml `kit-editor-categories`), shift-left-click to empty it, right-click to enchant it
+  (items enchantable in survival: a row of books per enchantment, plus mending and the curses, unbreakable and
+  durability) or change its count (presets or a typed number), shift-right-click to copy the last item. The map
+  button picks one arena the base kit takes (or Random), the rules button the kit's own game rules. Only the
+  offered items, with fair enchantments, counts and durability, can be saved (an empty kit is deleted). Players
+  challenge with the kit `custom:<number>` (`custom` alone is the first), or pick it in the kit menu when
+  challenging; both fighters get the builder's items, with their rules and arena, and the base kit's arena
+  categories, permission, rewards, effects, mode and other rules (the base kit may hold no items). Custom kits are
+  for challenges and party fights only: not for queues, events or bets. A custom kit holding an item the editor
+  no longer offers is not offered until it is built again. They are stored with the kit layouts. Spawn eggs
+  from the editor (horses with armor, a charged creeper) carry their mob, and mobs hatched in a fight are
+  removed with the arena's leftovers.
+- **Admin kits.** `/duels kit edit <kit>` or the Edit items button: the same clicks on the kit itself; the rules
+  button opens the kit's rules menu.
 
 **Default kits.** A first start (no `kits.yml` yet) adds 20 kits after the most played practice modes:
 NoDebuff, Debuff, Gapple, BuildUHC, Classic, Archer, Sumo, Boxing, Combo, Vanilla (crystals and anchors), UHC,
@@ -293,7 +303,7 @@ with their arena and limited to 256 x 256 blocks across.
 | `/duel <player> [kit] [arena]` | `duels.duel` | Challenge; without a kit the kit menu opens, then the arena menu |
 | `/duel <player> <kit> [arena] bet <amount>` | `duels.bet` | Challenge for money: each player stakes `<amount>`, the winner takes both ([bets](#bets)) |
 | `/duel accept [player]`, `/duel deny [player]` | `duels.duel` | Answer a challenge (clickable in chat too) |
-| `/duel customkit [<number> \| items]` | `duels.kit.custom` | Your [custom kits](#setting-up): a menu of them, building one, or the items to build it from |
+| `/duel customkit [number]` | `duels.kit.custom` | Your [custom kits](#setting-up): a menu of them, or one in the kit editor |
 | `/duel rematch` | `duels.duel` | Challenge your last opponent again, or accept their rematch |
 | `/duel queue [kit]` | `duels.queue` | Join or leave a kit's unranked queue (menu without a kit) |
 | `/duel ranked [kit]` | `duels.queue.ranked` | Join or leave a kit's ranked queue (menu without a kit) |
@@ -320,9 +330,9 @@ with their arena and limited to 256 x 256 blocks across.
 | `/event` | `duels.event` | Events to join or watch; your event's settings while you host one |
 | `/event join <host>`, `/event leave` | `duels.event` | Join or leave an event that has not started (`/duel leave` works too) |
 | `/event host [kit]` | `duels.event.host` | Host an event (kit menu without a kit), then set it up in its menu |
-| `/event settings\|start\|cancel`, `/event invite <player>` | `duels.event.host` | Run your event; invite players to a private one (`duels.event.host.private` makes it private) |
+| `/event settings\|start\|cancel`, `/event invite <player>` | `duels.event.host` | Run your event; invite players while it is private |
 | `/duels arena ...` | `duels.admin.arena` | menus: no argument or an arena name; `help`, `create`, `delete`, `setspawn`, `setcorner`, `setgoal`, `setbed`, `setbox`, `import`, `setspectator`, `setcenter`, `seticon`, `setname`, `category`, `buildlimit`, `toggle`, `info`, `tp`, `list`, `snapshot`, `reset`, `pool` |
-| `/duels kit ...` | `duels.admin.kit` | menus: no argument or a kit name; `help`, `create`, `save`, `load`, `delete`, `seticon`, `setname`, `setpermission`, `mode`, `effect`, `rule`, `arenas`, `defaults`, `list` |
+| `/duels kit ...` | `duels.admin.kit` | menus: no argument or a kit name; `help`, `create`, `save`, `edit`, `load`, `delete`, `seticon`, `setname`, `setpermission`, `mode`, `effect`, `rule`, `arenas`, `defaults`, `list` |
 | `/duels hologram create <name> <wins\|elo> [kit]`, `delete <name>`, `list` | `duels.admin.hologram` | [Leaderboard holograms](#leaderboard-holograms) where you stand |
 | `/duels` | `duels.staff` | The admin menu: arenas, kits, season, holograms, ratings, reload (asks to confirm); the help for the console. `/duels help` shows the help |
 | `/duels season [list \| info <n> \| top [n] [kit] \| player <player> [n] \| divisions \| compare <a> <b> \| kits [n]]` | `duels.admin.season` | The [season](#seasons) running, ended ones, leaderboards, a player's ratings, divisions, two seasons side by side, the kits played |
@@ -550,8 +560,9 @@ again. No hologram plugin is needed.
 
 ## Events
 
-Players host events with `/event host [kit]`. The event is announced to everyone with a clickable
-[JOIN] (again every `events.announce-interval`) and listed in `/event`. While players gather, the host
+Players host events with `/event host [kit]`. A new event is private: only players the host invites can
+join. Once the host makes it public it is announced to everyone with a clickable [JOIN] (again every
+`events.announce-interval`) and listed in `/event`. Scheduled events start public. While players gather, the host
 sets it up in the event settings menu (`/event settings`):
 
 - **Kit** and **arena** (random by default; choosing one needs `duels.select-arena`).
@@ -565,8 +576,8 @@ sets it up in the event settings menu (`/event settings`):
 - **Border**: closes in on the fighters (`events.border`): it starts around the arena, waits `delay`
   into the fight, then shrinks to `min-size` blocks across over `shrink-time`; fighters outside lose
   `damage` health a second. Each fighter is shown their own border, so the world border is untouched.
-- **Players and spectators** (a submenu): **Public** off makes it private, for players invited with `/event
-  invite` (or the Invite button) only, not announced or listed; **Spectators** off stops anyone but staff from
+- **Players and spectators** (a submenu): **Public** (off at first) lets anyone join, announced and listed;
+  off, only players invited with `/event invite` (or the Invite button) can; **Spectators** off stops anyone but staff from
   watching it.
 
 Cancelling it from the menu asks to confirm. It starts when the host clicks Start (`/event start`), at once when `events.max-players` have joined, or
@@ -637,15 +648,17 @@ The automated tests run on MockBukkit, which cannot click menus. Before a releas
   `/party ffa` with 3+ players on extra spawns and without them, `/party duel` between two parties;
   knocked-out fighters watch until one side is left, teammates can't hurt each other, everyone gets their
   own items back; the leader quitting mid-fight hands the party over
-- [ ] `/duel editkit`: rearrange, [SAVE], the next duel uses the layout; [CANCEL] and `/stop` while
-  editing give your own items back
+- [ ] `/duel editkit`: swap two items, close the menu, the next duel uses the layout; your own inventory never
+  changes
 - [ ] Bridge (`smoke.js bridgeExtras`): JUMP over the goals, red and blue armor and terracotta, a golden apple
   heals fully, an end portal goal scores once with no message, the scorer watches from the middle until the next round
 - [ ] Kit modes in an arena with goals and beds: a bridge goal wins the round and placed blocks stay, `/kill`
   brings a fighter back at their spawn with the kit; in a bed fight your own bed can't be broken, the enemy's
   can (both halves come back after the duel), and that side is out the next time
-- [ ] Custom kits (`custom-kits.base-kit` set): `/duel customkit`, build kit 1 from the items menu, take one out
-  with a click below, [SAVE]; `/duel <player> custom:1` gives both fighters those items; `... bet 100` is refused
+- [ ] Custom kits (`custom-kits.base-kit` set): `/duel customkit`, build kit 1 in the editor (every category,
+  the potion form buttons, enchant a sword, change a count, anvils for durability, counts and the name, map and
+  rules), close it; `/duel <player> custom:1` gives both fighters those items in the picked arena; `... bet 100` is
+  refused; a horse egg spawns a horse with its armor, gone after the duel
 - [ ] Kit rules on a real client: `hit-delay false` combos, `pearl-cooldown 15` shows the cooldown on the
   pearl, `natural-regeneration false` stops healing on a full hunger bar, `crafting false` blocks the 2x2 grid
 - [ ] `/duel`: every hub button and back button, the profile head and stats, `/duel ratings`; menus look centered

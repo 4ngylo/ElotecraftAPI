@@ -85,7 +85,7 @@ public final class LobbyItems implements Listener {
 
     /**
      * Gives {@code player} the items their state calls for and takes away the tagged items it does not: all of
-     * them outside the lobby, in a match or the kit editor, or with the feature off.
+     * them outside the lobby, in a match, or with the feature off.
      */
     public void sync(Player player) {
         Settings current = settings.get();

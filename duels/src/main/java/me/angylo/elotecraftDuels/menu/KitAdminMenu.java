@@ -51,6 +51,7 @@ import static me.angylo.elotecraftDuels.menu.MenuLayout.with;
 public final class KitAdminMenu {
 
     private static final Duration ANVIL_TIME = Duration.ofSeconds(60);
+    private static final String ANVIL_TEXT = "#";
 
     private final Plugin plugin;
     private final Messages messages;
@@ -147,16 +148,16 @@ public final class KitAdminMenu {
     public static AnvilAsk anvil = (plugin, player, title, initialText) -> AnvilInput.ask(plugin, player, title, initialText, ANVIL_TIME);
 
     /**
-     * Asks in an anvil titled {@code titleKey}; the answer goes to {@code onAnswer} a tick later, outside the anvil's click
-     * event, and closing the anvil runs {@code onCancel} instead.
+     * Asks in an anvil titled {@code titleKey}, its text starting as {@link #ANVIL_TEXT}; the answer, without that mark, goes
+     * to {@code onAnswer} a tick later, outside the anvil's click event, and closing the anvil runs {@code onCancel} instead.
      */
-    private void askAnvil(Player player, String titleKey, TagResolver[] tags, String initialText, Consumer<String> onAnswer,
-                          Consumer<Player> onCancel) {
-        anvil.ask(plugin, player, messages.get(player, titleKey, tags), initialText).thenAccept(answer -> {
+    private void askAnvil(Player player, String titleKey, TagResolver[] tags, Consumer<String> onAnswer, Consumer<Player> onCancel) {
+        anvil.ask(plugin, player, messages.get(player, titleKey, tags), ANVIL_TEXT).thenAccept(answer -> {
             if (plugin.isEnabled()) {
                 Tasks.sync(plugin, () -> {
                     if (player.isOnline()) {
-                        answer.ifPresentOrElse(onAnswer, () -> onCancel.accept(player));
+                        answer.map(text -> text.replace(ANVIL_TEXT, "").strip())
+                                .ifPresentOrElse(onAnswer, () -> onCancel.accept(player));
                     }
                 });
             }
@@ -263,6 +264,8 @@ public final class KitAdminMenu {
                     prompt("arenas", "", "admin.kit.prompt-arenas", kit));
             MenuLayout.put(menu, section, "mode", entry("mode", kit, value(section, "mode-" + kit.mode().key())), change("mode"));
             MenuLayout.put(menu, section, "save", entry("save", kit, Component.empty()), change("save"));
+            MenuLayout.put(menu, section, "edit", entry("edit", kit, Component.empty()),
+                    MenuLayout.choose(plugin, effects, player -> run(player, "edit " + name)));
             MenuLayout.put(menu, section, "rules", MenuConfig.item(section.getConfigurationSection("rules"), with(kitTags(kit),
                     Placeholder.unparsed("rules", String.valueOf(kit.rules().size())))),
                     MenuLayout.choose(plugin, effects, player -> openRules(player, name)));
@@ -380,17 +383,16 @@ public final class KitAdminMenu {
         }
 
         private void askAmplifier(Player player, Kit kit, PotionEffectType type) {
-            Optional<PotionEffect> given = kit.effectOf(type);
             TagResolver[] tags = with(kitTags(kit), Placeholder.unparsed("effect", Kit.effectName(type)),
                     Placeholder.unparsed("max", String.valueOf(Kit.MAX_AMPLIFIER)),
                     Placeholder.unparsed("max_seconds", String.valueOf(Kit.MAX_EFFECT_SECONDS)));
-            askAnvil(player, "admin.kit.prompt-amplifier", tags, String.valueOf(given.map(PotionEffect::getAmplifier).orElse(0)), amplifier -> {
+            askAnvil(player, "admin.kit.anvil-amplifier", tags, amplifier -> {
                 if (Args.integer(amplifier, 0, Kit.MAX_AMPLIFIER).isEmpty()) {
                     messages.send(player, "admin.kit.effect-usage", tags);
                     reopen(player);
                     return;
                 }
-                askAnvil(player, "admin.kit.prompt-seconds", tags, String.valueOf(given.map(Kit::seconds).orElse(0)), seconds -> {
+                askAnvil(player, "admin.kit.anvil-duration", tags, seconds -> {
                     run(player, "effect " + name + " " + Kit.effectName(type) + " " + amplifier + " " + seconds);
                     reopen(player);
                 }, this::reopen);

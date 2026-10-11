@@ -12,9 +12,10 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * The 18 kits a fresh install starts with, after the most played practice modes: the classic ones
+ * The kits a fresh install starts with, after the most played practice modes: the classic ones
  * (NoDebuff, Debuff, Gapple, BuildUHC, Classic, Archer, Sumo, Boxing, Combo), the MCTiers ones (Vanilla,
- * UHC, Pot, NethOP, SMP, Sword, Axe, Mace) and Spear. Admins edit them like any kit.
+ * UHC, Pot, NethOP, SMP, Sword, Axe, Mace), Spear, and the mode kits (Bridge, Bed Fight, MLG Rush, Fireball Fight,
+ * BattleRush, Spleef, TNT Sumo, Pearl Fight). Admins edit them like any kit.
  */
 final class DefaultKits {
 
@@ -31,6 +32,12 @@ final class DefaultKits {
     private static final int BOXING_HITS = 100;
     /** Bridge: the first to score 5 goals wins, as on most practice servers. */
     private static final int BRIDGE_GOALS = 5;
+    /** MLG Rush: the first to break 5 beds wins. */
+    private static final int MLG_RUSH_BEDS = 5;
+    /** BattleRush: the first to score 3 goals wins. */
+    private static final int BATTLE_RUSH_GOALS = 3;
+    /** Golden heads in the UHC kits. */
+    private static final int GOLDEN_HEADS = 3;
 
     private DefaultKits() {
     }
@@ -51,7 +58,8 @@ final class DefaultKits {
                         .slot(5, item(Material.COBBLESTONE, 64)).slot(6, item(Material.OAK_PLANKS, 64))
                         .slot(7, ench(Material.DIAMOND_PICKAXE, Enchantment.EFFICIENCY, 3)).slot(8, item(Material.COOKED_BEEF, 64))
                         .slot(9, item(Material.ARROW, 64)).slot(10, item(Material.LAVA_BUCKET, 1)).slot(11, item(Material.WATER_BUCKET, 1))
-                        .slot(12, ench(Material.DIAMOND_AXE, Enchantment.EFFICIENCY, 3))).withRule(KitRule.HUNGER, true)
+                        .slot(12, ench(Material.DIAMOND_AXE, Enchantment.EFFICIENCY, 3)).slot(13, GoldenHeads.create(GOLDEN_HEADS)))
+                        .withRule(KitRule.HUNGER, true)
                         .withRule(KitRule.NATURAL_REGENERATION, false),
                 kit("classic", "<aqua>Classic", Material.IRON_SWORD, false, Set.of(), new Loadout()
                         .armor("DIAMOND", 2).slot(0, ench(Material.DIAMOND_SWORD, Enchantment.SHARPNESS, 2))
@@ -78,7 +86,8 @@ final class DefaultKits {
                         .slot(3, item(Material.CROSSBOW, 1)).slot(4, item(Material.LAVA_BUCKET, 1)).slot(5, item(Material.WATER_BUCKET, 1))
                         .slot(6, item(Material.COBWEB, 16)).slot(7, item(Material.GOLDEN_APPLE, 16)).slot(8, item(Material.COBBLESTONE, 64))
                         .slot(9, item(Material.ARROW, 32)).slot(10, item(Material.LAVA_BUCKET, 1)).slot(11, item(Material.WATER_BUCKET, 1))
-                        .slot(12, item(Material.DIAMOND_PICKAXE, 1)).slot(OFF_HAND, item(Material.SHIELD, 1)))
+                        .slot(12, item(Material.DIAMOND_PICKAXE, 1)).slot(13, GoldenHeads.create(GOLDEN_HEADS))
+                        .slot(OFF_HAND, item(Material.SHIELD, 1)))
                         .withRule(KitRule.HUNGER, true).withRule(KitRule.NATURAL_REGENERATION, false),
                 kit("pot", "<red>Pot", Material.BREWING_STAND, false, Set.of(), new Loadout()
                         .armor("DIAMOND", 4).slot(0, ench(Material.DIAMOND_SWORD, Enchantment.SHARPNESS, 5, Enchantment.UNBREAKING, 3))
@@ -134,7 +143,33 @@ final class DefaultKits {
                         .armor("LEATHER", 0).slot(0, item(Material.STONE_SWORD, 1)).slot(1, item(Material.WOODEN_PICKAXE, 1))
                         .slot(2, item(Material.SHEARS, 1)).slot(3, item(Material.WHITE_WOOL, 64)).slot(4, item(Material.WHITE_WOOL, 64))
                         .slot(5, item(Material.GOLDEN_APPLE, 4)).slot(8, item(Material.COOKED_BEEF, 64)))
-                        .withMode(Kit.Mode.BED_FIGHT).withRule(KitRule.ARENA_BOUNDS, false));
+                        .withMode(Kit.Mode.BED_FIGHT).withRule(KitRule.ARENA_BOUNDS, false),
+                kit("mlgrush", "<gold>MLG Rush", Material.STICK, true, Set.of("mlgrush"), new Loadout()
+                        .slot(0, ench(Material.STICK, Enchantment.KNOCKBACK, 1)).slot(1, ench(Material.WOODEN_PICKAXE, Enchantment.EFFICIENCY, 2))
+                        .slot(2, item(Material.SANDSTONE, 64)).slot(3, item(Material.SANDSTONE, 64)))
+                        .withMode(Kit.Mode.MLG_RUSH).withRule(KitRule.DAMAGE, false).withRule(KitRule.ROUNDS_TO_WIN, MLG_RUSH_BEDS)
+                        .withRule(KitRule.ARENA_BOUNDS, false),
+                kit("fireball", "<red>Fireball Fight", Material.FIRE_CHARGE, true, Set.of("bedfight"), new Loadout()
+                        .armor("LEATHER", 0).slot(0, item(Material.STONE_SWORD, 1)).slot(1, item(Material.FIRE_CHARGE, 16))
+                        .slot(2, item(Material.TNT, 8)).slot(3, item(Material.WHITE_WOOL, 64)).slot(4, item(Material.WHITE_WOOL, 64))
+                        .slot(5, item(Material.WOODEN_PICKAXE, 1)).slot(6, item(Material.SHEARS, 1)).slot(7, item(Material.GOLDEN_APPLE, 4))
+                        .slot(8, item(Material.COOKED_BEEF, 64)))
+                        .withMode(Kit.Mode.BED_FIGHT).withRule(KitRule.FIREBALLS, true).withRule(KitRule.AUTO_IGNITE_TNT, true)
+                        .withRule(KitRule.ARENA_BOUNDS, false),
+                kit("battlerush", "<aqua>BattleRush", Material.CYAN_TERRACOTTA, true, Set.of("bridge"), new Loadout()
+                        .slot(0, ench(Material.STICK, Enchantment.KNOCKBACK, 1)).slot(1, item(Material.CYAN_TERRACOTTA, 64))
+                        .slot(2, ench(Material.STONE_PICKAXE, Enchantment.EFFICIENCY, 2)))
+                        .withMode(Kit.Mode.BRIDGE).withRule(KitRule.DAMAGE, false).withRule(KitRule.ROUNDS_TO_WIN, BATTLE_RUSH_GOALS)
+                        .withRule(KitRule.ARENA_BOUNDS, false),
+                kit("spleef", "<white>Spleef", Material.DIAMOND_SHOVEL, true, Set.of("spleef"), new Loadout()
+                        .slot(0, ench(Material.DIAMOND_SHOVEL, Enchantment.EFFICIENCY, 5)))
+                        .withMode(Kit.Mode.SPLEEF).withRule(KitRule.DAMAGE, false).withRule(KitRule.ROUNDS_TO_WIN, SUMO_ROUNDS),
+                kit("tntsumo", "<red>TNT Sumo", Material.TNT, true, Set.of("sumo"), new Loadout()
+                        .slot(0, item(Material.TNT, 64)))
+                        .withRule(KitRule.DAMAGE, false).withRule(KitRule.AUTO_IGNITE_TNT, true).withRule(KitRule.ROUNDS_TO_WIN, SUMO_ROUNDS),
+                kit("pearlfight", "<dark_purple>Pearl Fight", Material.ENDER_PEARL, false, Set.of("sumo"), new Loadout()
+                        .slot(0, ench(Material.STICK, Enchantment.KNOCKBACK, 1)).slot(1, item(Material.ENDER_PEARL, 16)))
+                        .withRule(KitRule.DAMAGE, false).withRule(KitRule.ROUNDS_TO_WIN, SUMO_ROUNDS));
     }
 
     /** NoDebuff: healing splash potions fill the inventory; Debuff adds poison and slowness to throw. */

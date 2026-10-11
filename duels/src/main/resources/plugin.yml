@@ -20,6 +20,7 @@ permissions:
       duels.bet: true
       duels.queue: true
       duels.queue.ranked: true
+      duels.ffa: true
       duels.spectate: true
       duels.stats: true
       duels.history: true
@@ -49,7 +50,10 @@ permissions:
     description: Challenge someone for money with /duel <player> <kit> bet <amount>.
     default: true
   duels.queue:
-    description: Join unranked matchmaking queues.
+    description: Join unranked matchmaking queues, 2v2 queues included.
+    default: true
+  duels.ffa:
+    description: Join kits' free-for-all arenas with /duel ffa and see their stats.
     default: true
   duels.queue.ranked:
     description: Join ranked matchmaking queues, which move the Elo rating.

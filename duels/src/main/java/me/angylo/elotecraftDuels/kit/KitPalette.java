@@ -12,9 +12,12 @@ import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.Damageable;
 import org.bukkit.inventory.meta.PotionMeta;
+import org.bukkit.potion.PotionEffect;
+import org.bukkit.potion.PotionEffectType;
 import org.bukkit.potion.PotionType;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Locale;
@@ -31,9 +34,23 @@ public final class KitPalette {
 
     /** The armor slots of the editor, helmet first, and their menus.yml keys. */
     public static final List<EquipmentSlot> ARMOR = List.of(EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS, EquipmentSlot.FEET);
+    /** The palette entry of a golden head, which is no material. */
+    private static final String GOLDEN_HEAD = "golden_head";
     private static final List<String> ARMOR_KEYS = List.of("helmet", "chestplate", "leggings", "boots");
     /** Potions with no effect: left out of the potions and tipped arrows. */
     private static final Set<PotionType> PLAIN = Set.of(PotionType.WATER, PotionType.MUNDANE, PotionType.THICK, PotionType.AWKWARD);
+    /** Potion types in the creative menu's order; the registry has none. Types not listed come last, by name. */
+    private static final List<String> POTION_ORDER = List.of("night_vision", "invisibility", "leaping", "fire_resistance",
+            "swiftness", "slowness", "turtle_master", "water_breathing", "healing", "harming", "poison", "regeneration",
+            "strength", "weakness", "luck", "slow_falling", "wind_charged", "weaving", "oozing", "infested");
+    private static final List<String> POTION_FORMS = List.of("", "long_", "strong_");
+    private static final Comparator<PotionType> POTION_SORT = Comparator
+            .comparingInt((PotionType type) -> {
+                int index = POTION_ORDER.indexOf(potionBase(type));
+                return index < 0 ? POTION_ORDER.size() : index;
+            })
+            .thenComparing(KitPalette::potionBase)
+            .thenComparingInt(type -> POTION_FORMS.indexOf(potionForm(type)));
     private static final Registry<Enchantment> ENCHANTMENTS = RegistryAccess.registryAccess().getRegistry(RegistryKey.ENCHANTMENT);
     private static final Set<Enchantment> CURSES_AND_MENDING = Set.of(Enchantment.MENDING, Enchantment.VANISHING_CURSE, Enchantment.BINDING_CURSE);
 
@@ -233,8 +250,14 @@ public final class KitPalette {
         return items;
     }
 
-    /** A {@code MATERIAL}, or a map with {@code material}, {@code name}, {@code enchants} and {@code entity}; null if invalid. */
+    /**
+     * A {@code MATERIAL}, {@code GOLDEN_HEAD} ({@link GoldenHeads}), or a map with {@code material}, {@code name},
+     * {@code enchants} and {@code entity}; null if invalid.
+     */
     private static ItemStack item(Object entry, String path, List<String> problems) {
+        if (GOLDEN_HEAD.equalsIgnoreCase(String.valueOf(entry))) {
+            return GoldenHeads.create(1);
+        }
         Map<?, ?> map = entry instanceof Map<?, ?> found ? found : Map.of("material", String.valueOf(entry));
         Material material = Material.matchMaterial(String.valueOf(map.get("material")));
         if (material == null || !material.isItem() || material.isAir()) {
@@ -267,13 +290,33 @@ public final class KitPalette {
         return item;
     }
 
-    /** A {@code material} (potion or tipped arrow) of every potion with an effect. */
+    /**
+     * A {@code material} (potion or tipped arrow) of every potion with an effect, in {@link #POTION_ORDER}: each
+     * type's base potion, then its long and strong forms.
+     */
+    /** The effects of the potions offered in custom kits, in their order: what a survival player can drink. */
+    public static List<PotionEffectType> potionEffects() {
+        return Registry.POTION.stream().filter(type -> !PLAIN.contains(type)).sorted(POTION_SORT)
+                .flatMap(type -> type.getPotionEffects().stream()).map(PotionEffect::getType).distinct().toList();
+    }
+
     private static List<ItemStack> potions(Material material) {
-        return Registry.POTION.stream().filter(type -> !PLAIN.contains(type)).map(type -> {
+        return Registry.POTION.stream().filter(type -> !PLAIN.contains(type)).sorted(POTION_SORT).map(type -> {
             ItemStack item = ItemStack.of(material);
             item.editMeta(PotionMeta.class, meta -> meta.setBasePotionType(type));
             return item;
         }).toList();
+    }
+
+    /** The prefix of {@code type}'s key that {@link #POTION_FORMS} has: {@code long_}, {@code strong_} or none. */
+    private static String potionForm(PotionType type) {
+        String key = type.getKey().getKey();
+        return key.startsWith("long_") ? "long_" : key.startsWith("strong_") ? "strong_" : "";
+    }
+
+    /** {@code type}'s key without its form, e.g. {@code swiftness} for {@code strong_swiftness}. */
+    private static String potionBase(PotionType type) {
+        return type.getKey().getKey().substring(potionForm(type).length());
     }
 
     private static List<ItemStack> copies(List<ItemStack> items) {

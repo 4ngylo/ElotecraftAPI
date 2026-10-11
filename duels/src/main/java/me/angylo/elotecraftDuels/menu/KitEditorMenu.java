@@ -5,7 +5,7 @@ import me.angylo.elotecraftAPI.menu.Button;
 import me.angylo.elotecraftAPI.menu.Menu;
 import me.angylo.elotecraftAPI.menu.MenuConfig;
 import me.angylo.elotecraftAPI.menu.PaginatedMenu;
-import me.angylo.elotecraftAPI.util.ConfigFile;
+import me.angylo.elotecraftAPI.util.LocalizedFile;
 import me.angylo.elotecraftAPI.util.Messages;
 import me.angylo.elotecraftAPI.util.Tasks;
 import me.angylo.elotecraftAPI.util.Text;
@@ -83,7 +83,7 @@ public final class KitEditorMenu implements Listener {
 
     private final Plugin plugin;
     private final Messages messages;
-    private final ConfigFile menus;
+    private final LocalizedFile menus;
     private final Supplier<Settings> settings;
     private final KitEditor editor;
     private final KitPalette palette;
@@ -91,7 +91,7 @@ public final class KitEditorMenu implements Listener {
     private final ArenaRegistry arenas;
     private final KitAdminMenu kitAdmin;
 
-    public KitEditorMenu(Plugin plugin, Messages messages, ConfigFile menus, Supplier<Settings> settings, KitEditor editor,
+    public KitEditorMenu(Plugin plugin, Messages messages, LocalizedFile menus, Supplier<Settings> settings, KitEditor editor,
                          KitPalette palette, KitRegistry kits, ArenaRegistry arenas, KitAdminMenu kitAdmin) {
         this.plugin = plugin;
         this.messages = messages;
@@ -162,9 +162,9 @@ public final class KitEditorMenu implements Listener {
     // ---- The editor itself.
 
     private void open(Player player, Session session) {
-        ConfigurationSection section = section("kit-editor");
+        ConfigurationSection section = section(player, "kit-editor");
         try {
-            Page page = new Page(plugin, Text.mm(section.getString("title", ""), nameTag(section, session)));
+            Page page = new Page(plugin, Text.mm(section.getString("title", ""), nameTag("name", section, session)));
             draw(page, section, session);
             page.open(player);
         } catch (IllegalArgumentException e) {
@@ -223,7 +223,7 @@ public final class KitEditorMenu implements Listener {
             draw(page, section, session);
         });
         MenuLayout.put(page, section, "rename", MenuLayout.choose(plugin, effects, player -> rename(player, session)),
-                nameTag(section, session));
+                nameTag("name", section, session));
     }
 
     /** Layouts: the first click picks an item up, the next swaps it with the clicked slot's. The armor stays where it is. */
@@ -299,7 +299,7 @@ public final class KitEditorMenu implements Listener {
     // ---- Selectors.
 
     private void openArmor(Player player, Session session, int slot, EquipmentSlot armor) {
-        ConfigurationSection section = section("kit-editor-armor");
+        ConfigurationSection section = section(player, "kit-editor-armor");
         Effects effects = settings.get().effects();
         Page page = new Page(plugin, Text.mm(section.getString("title", "")));
         int next = section.getInt("first", 19);
@@ -314,12 +314,12 @@ public final class KitEditorMenu implements Listener {
     }
 
     private void openCategories(Player player, Session session, int slot) {
-        ConfigurationSection section = section("kit-editor-categories");
+        ConfigurationSection section = section(player, "kit-editor-categories");
         Effects effects = settings.get().effects();
         try {
             Page page = new Page(plugin, Text.mm(section.getString("title", "")));
             for (KitPalette.Category category : palette.categories()) {
-                ConfigurationSection button = category.section();
+                ConfigurationSection button = categorySection(section, category);
                 page.set(MenuLayout.slot(page, button), Button.of(MenuConfig.item(button), MenuLayout.choose(plugin, effects,
                         clicker -> openCategory(clicker, session, slot, category, 0, KitPalette.PotionForm.POTION))));
             }
@@ -334,11 +334,11 @@ public final class KitEditorMenu implements Listener {
     /** One page of a category: 45 items, its bottom-row items, the potion form buttons and the page arrows. */
     private void openCategory(Player player, Session session, int slot, KitPalette.Category category, int pageIndex,
                               KitPalette.PotionForm form) {
-        ConfigurationSection section = section("kit-editor-categories");
+        ConfigurationSection section = section(player, "kit-editor-categories");
         Effects effects = settings.get().effects();
         List<ItemStack> items = palette.items(category, form);
         int pages = Math.max(1, (items.size() + PAGE_SIZE - 1) / PAGE_SIZE);
-        String title = category.section().getString("title", category.key()) + (pages > 1 ? " (" + (pageIndex + 1) + "/" + pages + ")" : "");
+        String title = categorySection(section, category).getString("title", category.key()) + (pages > 1 ? " (" + (pageIndex + 1) + "/" + pages + ")" : "");
         Page page = new Page(plugin, Text.mm(title));
         List<ItemStack> shown = items.subList(pageIndex * PAGE_SIZE, Math.min(items.size(), (pageIndex + 1) * PAGE_SIZE));
         for (int i = 0; i < shown.size(); i++) {
@@ -383,7 +383,7 @@ public final class KitEditorMenu implements Listener {
     // ---- Enchantments and count.
 
     private void openEnchants(Player player, Session session, int slot) {
-        ConfigurationSection section = section("kit-editor-enchants");
+        ConfigurationSection section = section(player, "kit-editor-enchants");
         Effects effects = settings.get().effects();
         ItemStack item = session.item(slot);
         Page page = new Page(plugin, Text.mm(section.getString("title", "")));
@@ -465,7 +465,7 @@ public final class KitEditorMenu implements Listener {
     }
 
     private void openCount(Player player, Session session, int slot) {
-        ConfigurationSection section = section("kit-editor-count");
+        ConfigurationSection section = section(player, "kit-editor-count");
         Effects effects = settings.get().effects();
         ItemStack item = session.item(slot);
         int max = item.getMaxStackSize();
@@ -490,7 +490,7 @@ public final class KitEditorMenu implements Listener {
     // ---- Map and rules of a custom kit.
 
     private void openArenas(Player player, Session session) {
-        ConfigurationSection section = section("kit-editor-arenas");
+        ConfigurationSection section = section(player, "kit-editor-arenas");
         Effects effects = settings.get().effects();
         try {
             ListPage menu = MenuLayout.frame(section, (rows, title) -> new ListPage(plugin, rows, title));
@@ -523,11 +523,11 @@ public final class KitEditorMenu implements Listener {
 
     /** A custom kit's game rules, drawn like the admin rules menu (menus.yml {@code kit-rules}) but changing the session. */
     private void openRules(Player player, Session session) {
-        ConfigurationSection section = section("kit-rules");
+        ConfigurationSection section = section(player, "kit-rules");
         Effects effects = settings.get().effects();
         try {
             ListPage menu = MenuLayout.frame(section, (rows, title) -> new ListPage(plugin, rows, title),
-                    MenuLayout.plain("kit", session.kit().displayName()));
+                    nameTag("kit", section(player, "kit-editor"), session));
             drawRules(menu, section, effects, player, session);
             MenuLayout.place(menu, section, "back", MenuLayout.choose(plugin, effects, clicker -> open(clicker, session)));
             menu.open(player);
@@ -620,25 +620,33 @@ public final class KitEditorMenu implements Listener {
         });
     }
 
-    private ConfigurationSection section(String key) {
-        ConfigurationSection section = menus.get().getConfigurationSection(key);
+    /** {@code category}'s section in {@code categories} (menus.yml {@code kit-editor-categories} in the viewer's language). */
+    private static ConfigurationSection categorySection(ConfigurationSection categories, KitPalette.Category category) {
+        ConfigurationSection translated = categories.getConfigurationSection("categories." + category.key());
+        return translated != null ? translated : category.section();
+    }
+
+    /** The menus.yml section {@code key} in {@code viewer}'s language. */
+    private ConfigurationSection section(Player viewer, String key) {
+        ConfigurationSection section = menus.get(viewer).getConfigurationSection(key);
         if (section == null) {
             throw new IllegalArgumentException("Missing menu section " + key + " in menus.yml");
         }
         return section;
     }
 
-    private TagResolver nameTag(ConfigurationSection section, Session session) {
+    /** The tag {@code tag} as the name the editor shows for {@code session}'s kit; {@code section} is menus.yml {@code kit-editor}. */
+    private TagResolver nameTag(String tag, ConfigurationSection section, Session session) {
         if (session.kind() == KitEditor.Kind.ADMIN) {
-            return MenuLayout.plain("name", kits.get(session.kit().name()).orElse(session.kit()).displayName());
+            return MenuLayout.plain(tag, kits.get(session.kit().name()).orElse(session.kit()).displayName());
         }
         if (session.name() != null) {
-            return Placeholder.unparsed("name", session.name());
+            return Placeholder.unparsed(tag, session.name());
         }
         return session.kind() == KitEditor.Kind.CUSTOM
-                ? Placeholder.unparsed("name", section.getString("values.custom-name", "Custom kit <slot>")
+                ? Placeholder.unparsed(tag, section.getString("values.custom-name", "Custom kit <slot>")
                         .replace("<slot>", String.valueOf(session.customSlot())))
-                : MenuLayout.plain("name", session.kit().displayName());
+                : MenuLayout.plain(tag, session.kit().displayName());
     }
 
     private static String paneKind(int slot) {

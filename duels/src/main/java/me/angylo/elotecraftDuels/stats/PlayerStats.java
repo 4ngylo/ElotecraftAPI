@@ -10,9 +10,43 @@ import java.util.Map;
  * @param legacyElo the one rating of versions before ratings per kit, no longer changed: a kit's rating starts
  *                  from it, so nobody loses progress
  * @param ratings   by kit name, for the kits they played ranked duels with
+ * @param progress  kills, deaths and experience in duels and 2v2 duels
  */
 public record PlayerStats(String name, int wins, int losses, int winStreak, int bestWinStreak, int legacyElo,
-                          Map<String, KitRating> ratings) {
+                          Map<String, KitRating> ratings, Progress progress) {
+
+    /** Kills, deaths and experience; also what one duel adds. */
+    public record Progress(int kills, int deaths, int xp) {
+
+        public static final Progress NONE = new Progress(0, 0, 0);
+
+        Progress plus(Progress gain) {
+            return new Progress(kills + gain.kills, deaths + gain.deaths, xp + gain.xp);
+        }
+
+        /** Kills per death; the kills themselves before a first death. */
+        public double ratio() {
+            return deaths == 0 ? kills : (double) kills / deaths;
+        }
+
+        /**
+         * The level this experience reaches, from 1: level {@code n} needs {@code levelXp * n * (n - 1) / 2} in all, so
+         * each level takes {@code levelXp} more than the one before.
+         */
+        public int level(int levelXp) {
+            int level = 1;
+            while ((long) levelXp * (level + 1) * level / 2 <= xp) {
+                level++;
+            }
+            return level;
+        }
+
+        /** Experience still needed for the next level. */
+        public int toNextLevel(int levelXp) {
+            int level = level(levelXp);
+            return (int) ((long) levelXp * (level + 1) * level / 2 - xp);
+        }
+    }
 
     /** Everyone's rating before their first ranked duel; also the column default in the database. */
     public static final int START_ELO = 1000;
@@ -20,6 +54,13 @@ public record PlayerStats(String name, int wins, int losses, int winStreak, int 
 
     public PlayerStats {
         ratings = Map.copyOf(ratings);
+        progress = progress == null ? Progress.NONE : progress;
+    }
+
+    /** Without kills, deaths or experience. */
+    public PlayerStats(String name, int wins, int losses, int winStreak, int bestWinStreak, int legacyElo,
+                       Map<String, KitRating> ratings) {
+        this(name, wins, losses, winStreak, bestWinStreak, legacyElo, ratings, Progress.NONE);
     }
 
     public static PlayerStats empty(String name) {
@@ -77,17 +118,21 @@ public record PlayerStats(String name, int wins, int losses, int winStreak, int 
 
     PlayerStats win(String newName) {
         int streak = winStreak + 1;
-        return new PlayerStats(newName, wins + 1, losses, streak, Math.max(bestWinStreak, streak), legacyElo, ratings);
+        return new PlayerStats(newName, wins + 1, losses, streak, Math.max(bestWinStreak, streak), legacyElo, ratings, progress);
     }
 
     PlayerStats loss(String newName) {
-        return new PlayerStats(newName, wins, losses + 1, 0, bestWinStreak, legacyElo, ratings);
+        return new PlayerStats(newName, wins, losses + 1, 0, bestWinStreak, legacyElo, ratings, progress);
     }
 
     /** After a ranked duel with {@code kit} that moved the rating by {@code change}. */
     PlayerStats rated(String kit, int change, boolean won) {
         Map<String, KitRating> changed = new HashMap<>(ratings);
         changed.put(kit, changed.getOrDefault(kit, new KitRating(legacyElo, 0, 0, legacyElo)).after(change, won));
-        return new PlayerStats(name, wins, losses, winStreak, bestWinStreak, legacyElo, changed);
+        return new PlayerStats(name, wins, losses, winStreak, bestWinStreak, legacyElo, changed, progress);
+    }
+
+    PlayerStats gained(Progress gain) {
+        return new PlayerStats(name, wins, losses, winStreak, bestWinStreak, legacyElo, ratings, progress.plus(gain));
     }
 }

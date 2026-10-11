@@ -399,10 +399,10 @@ public final class EventManager implements Listener {
      * @return false after logging why not
      */
     public boolean hostScheduled(Settings.Scheduled entry) {
-        Kit kit = kits.get(entry.kit()).filter(found -> !found.isEmpty()).orElse(null);
+        Kit kit = kits.get(entry.kit()).filter(found -> !found.isEmpty() && !found.disabled()).orElse(null);
         if (kit == null || !matches.hasArenaFor(kit)) {
             logger.warning("Skipped the scheduled " + entry.mode().key() + " event at " + entry.at() + ": "
-                    + (kit == null ? "there is no kit '" + entry.kit() + "' with items" : "no arena is ready for kit " + kit.name()));
+                    + (kit == null ? "there is no enabled kit '" + entry.kit() + "' with items" : "no arena is ready for kit " + kit.name()));
             return false;
         }
         if (byHost.containsKey(HostedEvent.SERVER)) {
@@ -467,7 +467,8 @@ public final class EventManager implements Listener {
         if (players.size() < settings.get().events().minPlayers()) {
             return "event.not-enough";
         }
-        Kit kit = event.kitFor(base);
+        // Splegg eggs break arena blocks, which only a build fight puts back.
+        Kit kit = event.mode() == HostedEvent.Mode.SPLEGG ? event.kitFor(base).withRule(KitRule.BUILD, true) : event.kitFor(base);
         Arena arena = event.arena() == null ? null : arenas.get(event.arena()).filter(found -> found.isReady() && kit.accepts(found)).orElse(null);
         if (arena == null || !matches.isArenaFree(arena)) {
             arena = matches.randomFreeArena(kit).orElse(null);
@@ -488,14 +489,23 @@ public final class EventManager implements Listener {
         if (arena == null) {
             return matches.hasArenaFor(kit) ? "event.no-free-arena" : "event.no-arena";
         }
-        List<List<Player>> teams = event.mode() == HostedEvent.Mode.FFA
-                ? players.stream().map(List::of).toList()
-                : teams(players, red, blue);
+        List<List<Player>> teams = switch (event.mode()) {
+            case TEAMS -> teams(players, red, blue);
+            // A random juggernaut against everyone else.
+            case JUGGERNAUT -> {
+                List<Player> shuffled = new ArrayList<>(players);
+                Collections.shuffle(shuffled);
+                yield List.of(List.of(shuffled.getFirst()), List.copyOf(shuffled.subList(1, shuffled.size())));
+            }
+            default -> players.stream().map(List::of).toList();
+        };
+
         // Out of the event first: it makes them busy, and the match only takes free players.
         cancelQuietly(event);
         players.forEach(queues::handleQuit);
         int winners = Math.min(event.winners(), teams.size() - 1);
-        Match.Options options = new Match.Options(winners, event.isSpectatable(), event.hasBorder(), event.hostName(), false);
+        Match.Options options = new Match.Options(winners, event.isSpectatable(), event.hasBorder(), event.hostName(), false,
+                event.mode().game());
         if (!matches.start(teams, kit, arena, Match.Type.EVENT, false, options)) {
             players.forEach(player -> messages.send(player, "event.start-failed", hostTag(event)));
         }

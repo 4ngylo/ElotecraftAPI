@@ -19,11 +19,13 @@ import me.angylo.elotecraftDuels.menu.FightInventoryMenu;
 import me.angylo.elotecraftDuels.menu.HistoryMenu;
 import me.angylo.elotecraftDuels.menu.HubMenu;
 import me.angylo.elotecraftDuels.menu.KitMenu;
+import me.angylo.elotecraftDuels.menu.LeaderboardMenu;
 import me.angylo.elotecraftDuels.menu.OptionsMenu;
 import me.angylo.elotecraftDuels.menu.CustomKitMenu;
 import me.angylo.elotecraftDuels.menu.RatingsMenu;
 import me.angylo.elotecraftDuels.menu.SpectateMenu;
 import me.angylo.elotecraftDuels.stats.Divisions;
+import me.angylo.elotecraftDuels.stats.FfaStats;
 import me.angylo.elotecraftDuels.stats.KitRating;
 import me.angylo.elotecraftDuels.stats.PlayerStats;
 import me.angylo.elotecraftDuels.stats.Ranking;
@@ -31,6 +33,7 @@ import me.angylo.elotecraftDuels.stats.SeasonEnder;
 import me.angylo.elotecraftDuels.stats.Seasons;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.Bukkit;
+import org.bukkit.OfflinePlayer;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
@@ -54,6 +57,7 @@ public final class DuelCommand {
     private static final String TOP_ELO = "elo";
     private static final String TOP_SEASON = "season";
     private static final String BET = "bet";
+    private static final String FFA_STATS = "stats";
     /** Between database lookups and spectate attempts by one player, so they cannot be spammed. */
     private static final Duration LOOKUP_COOLDOWN = Duration.ofSeconds(3);
 
@@ -69,11 +73,12 @@ public final class DuelCommand {
     private final CustomKitMenu customKitMenu;
     private final HubMenu hubMenu;
     private final RatingsMenu ratingsMenu;
+    private final LeaderboardMenu leaderboardMenu;
     private final Cooldowns<String> lookups = new Cooldowns<>();
 
     public DuelCommand(Duels duels, KitMenu kitMenu, ArenaMenu arenaMenu, FightInventoryMenu inventoryMenu, HistoryMenu historyMenu,
                        OptionsMenu optionsMenu, CosmeticsMenu cosmeticsMenu, SpectateMenu spectateMenu,
-                       CustomKitMenu customKitMenu, HubMenu hubMenu, RatingsMenu ratingsMenu) {
+                       CustomKitMenu customKitMenu, HubMenu hubMenu, RatingsMenu ratingsMenu, LeaderboardMenu leaderboardMenu) {
         this.duels = duels;
         this.messages = duels.messages();
         this.kitMenu = kitMenu;
@@ -86,6 +91,7 @@ public final class DuelCommand {
         this.customKitMenu = customKitMenu;
         this.hubMenu = hubMenu;
         this.ratingsMenu = ratingsMenu;
+        this.leaderboardMenu = leaderboardMenu;
     }
 
     /** Registers {@code /duel} and returns it, so it can stay allowed during duels. */
@@ -103,10 +109,18 @@ public final class DuelCommand {
                 .playerSub("cancel", DUEL, (player, args) -> duels.requests().cancel(player, Args.get(args, 0)),
                         this::suggestTargets)
                 .playerSub("rematch", DUEL, (player, args) -> duels.requests().rematch(player))
+                .playerSub("playagain", "duels.queue", (player, args) -> duels.queues().playAgain(player))
                 .playerSub("queue", "duels.queue", (player, args) -> queue(player, args, false),
                         (sender, args) -> Args.filter(usableKits(sender), args))
                 .playerSub("ranked", "duels.queue.ranked", (player, args) -> queue(player, args, true),
                         (sender, args) -> Args.filter(usableKits(sender), args))
+                .playerSub("2v2", "duels.queue", (player, args) -> teamQueue(player, args, false),
+                        (sender, args) -> Args.filter(usableKits(sender), args))
+                .playerSub("2v2ranked", "duels.queue.ranked", (player, args) -> teamQueue(player, args, true),
+                        (sender, args) -> Args.filter(usableKits(sender), args))
+                .playerSub("ffa", "duels.ffa", this::ffa, (sender, args) -> args.length == 1
+                        ? Args.filter(Stream.concat(Stream.of(FFA_STATS), ffaKits(sender).stream()).toList(), args)
+                        : args.length == 2 && args[0].equalsIgnoreCase(FFA_STATS) ? Args.players(args) : List.of())
                 .playerSub("leave", null, this::leave)
                 .playerSub("toggle", null, this::toggle, (sender, args) -> args.length == 1 ? Args.filter(PlayerOptions.keys(), args) : List.of())
                 .playerSub("options", null, (player, args) -> optionsMenu.open(player))
@@ -122,9 +136,14 @@ public final class DuelCommand {
                 .sub("stats", "duels.stats", (sender, args) -> limited(sender, () -> stats(sender, args)),
                         (sender, args) -> Args.players(args))
                 .playerSub("ratings", "duels.stats", (player, args) -> ratingsMenu.open(player))
+                .playerSub("leaderboard", "duels.top", this::leaderboard, (sender, args) -> args.length == 1
+                        ? Args.filter(Stream.concat(Stream.of(LeaderboardMenu.WINS, LeaderboardMenu.OVERALL, LeaderboardMenu.FFA),
+                                Stream.concat(duels.kits().names().stream(), duels.kits().names().stream().map(kit -> LeaderboardMenu.FFA + ":" + kit))).toList(), args)
+                        : List.of())
                 .playerSub("season", "duels.stats", (player, args) -> season(player))
                 .playerSub("history", "duels.history", (player, args) -> limited(player, () -> history(player, args)),
-                        (sender, args) -> Args.players(args))
+                        (sender, args) -> args.length == 2 ? Args.filter(List.of(HistoryMenu.DUELS, HistoryMenu.TEAM_DUELS), args)
+                                : Args.players(args))
                 // Clicked in the result message; no suggestions, as the ids are not meant to be typed.
                 .playerSub("inventory", null, this::inventory)
                 .sub("top", "duels.top", (sender, args) -> limited(sender, () -> top(sender, args)),
@@ -324,6 +343,81 @@ public final class DuelCommand {
         duels.queues().toggle(player, kit.get(), ranked);
     }
 
+    /**
+     * {@code /duel 2v2 [kit]} and {@code /duel 2v2ranked [kit]}: joins or leaves a kit's 2v2 queue, with the party of two
+     * the player leads or alone.
+     */
+    private void teamQueue(Player player, String[] args, boolean ranked) {
+        if (args.length == 0) {
+            kitMenu.open(player, KitMenu.Mode.CHALLENGE, kit -> duels.teamQueue().toggle(player, kit, ranked));
+            return;
+        }
+        usableKit(player, args[0]).ifPresent(kit -> duels.teamQueue().toggle(player, kit, ranked));
+    }
+
+    /** The kits {@code sender} may use that have a free-for-all arena. */
+    private List<String> ffaKits(CommandSender sender) {
+        return duels.kits().all().stream().filter(kit -> kit.canUse(sender) && duels.matches().hasFfaArena(kit)).map(Kit::name).toList();
+    }
+
+    /** {@code /duel ffa [kit] | stats [player]}: joins a kit's free-for-all, the kit menu without a kit; or the stats. */
+    private void ffa(Player player, String[] args) {
+        String first = Args.get(args, 0);
+        if (first.equalsIgnoreCase(FFA_STATS)) {
+            limited(player, () -> ffaStats(player, args.length > 1 ? args[1] : player.getName()));
+        } else if (first.isEmpty()) {
+            kitMenu.open(player, KitMenu.Mode.CHALLENGE, kit -> joinFfa(player, kit));
+        } else {
+            usableKit(player, first).ifPresent(kit -> joinFfa(player, kit));
+        }
+    }
+
+    private void joinFfa(Player player, Kit kit) {
+        if (!duels.matches().hasFfaArena(kit)) {
+            messages.send(player, "ffa.no-arena", Placeholder.component("kit", Text.mm(kit.displayName())));
+            return;
+        }
+        if (duels.matches().isBusy(player)) {
+            messages.send(player, "general.busy-self");
+            return;
+        }
+        duels.queues().leave(player);
+        duels.teamQueue().leave(player);
+        if (!duels.matches().joinFfa(player, kit)) {
+            messages.send(player, "general.no-free-arena", Placeholder.component("kit", Text.mm(kit.displayName())));
+        }
+    }
+
+    /** {@code /duel ffa stats [player]}: kills, deaths, kills per death and best streak in each kit. */
+    private void ffaStats(Player viewer, String name) {
+        OfflinePlayer target = Bukkit.getOfflinePlayerIfCached(name);
+        if (target == null) {
+            messages.send(viewer, "general.player-not-found", Placeholder.unparsed("player", name));
+            return;
+        }
+        String targetName = target.getName() == null ? name : target.getName();
+        duels.ffaStats().of(target.getUniqueId()).thenAccept(entries -> {
+            if (entries.isEmpty()) {
+                messages.send(viewer, "ffa.no-stats", Placeholder.unparsed("player", targetName));
+                return;
+            }
+            messages.send(viewer, "ffa.stats", Placeholder.unparsed("player", targetName));
+            for (FfaStats.Entry entry : entries) {
+                messages.send(viewer, "ffa.stats-line",
+                        Placeholder.component("kit", duels.kits().get(entry.kit()).map(kit -> Text.mm(kit.displayName()))
+                                .orElseGet(() -> Text.mm(entry.kit()))),
+                        Placeholder.unparsed("kills", String.valueOf(entry.kills())),
+                        Placeholder.unparsed("deaths", String.valueOf(entry.deaths())),
+                        Placeholder.unparsed("ratio", String.format(Locale.ROOT, "%.2f", entry.ratio())),
+                        Placeholder.unparsed("best", String.valueOf(entry.bestStreak())));
+            }
+        }).exceptionally(error -> {
+            duels.plugin().getLogger().log(Level.WARNING, "Could not load free-for-all stats of " + name, error);
+            messages.send(viewer, "stats.error");
+            return null;
+        });
+    }
+
     /** {@code /duel editkit [kit] | reset <kit>}; the kit menu opens without a kit. */
     private void editKit(Player player, String[] args) {
         String first = Args.get(args, 0).toLowerCase(Locale.ROOT);
@@ -362,7 +456,8 @@ public final class DuelCommand {
         if (duels.editor().isEditing(player)) {
             duels.editor().finish(player);
             player.closeInventory();
-        } else if (!duels.queues().leave(player) && !duels.matches().leave(player) && !duels.events().leave(player)) {
+        } else if (!duels.queues().leave(player) && !duels.teamQueue().leave(player) && !duels.matches().leave(player)
+                && !duels.events().leave(player)) {
             messages.send(player, "general.nothing-to-leave");
         }
     }
@@ -424,17 +519,25 @@ public final class DuelCommand {
     }
 
     /** {@code history [player]}: the latest duels of a player, online or not. */
+    /**
+     * {@code /duel history [player] [1v1|2v2]}: the menu of a player's 1v1 or 2v2 duels. Asked for a category (its
+     * button does), the menu opens even when empty, so the other category stays a click away.
+     */
     private void history(Player viewer, String[] args) {
-        Player online = Bukkit.getPlayerExact(args.length > 0 ? args[0] : viewer.getName());
-        String name = online != null ? online.getName() : args[0];
-        (online != null ? duels.history().of(online.getUniqueId()) : duels.history().of(name)).thenAccept(entries -> {
+        String last = args.length > 0 ? args[args.length - 1] : "";
+        boolean category = last.equalsIgnoreCase(HistoryMenu.DUELS) || last.equalsIgnoreCase(HistoryMenu.TEAM_DUELS);
+        boolean team = last.equalsIgnoreCase(HistoryMenu.TEAM_DUELS);
+        String[] names = category ? Arrays.copyOf(args, args.length - 1) : args;
+        Player online = Bukkit.getPlayerExact(names.length > 0 ? names[0] : viewer.getName());
+        String name = online != null ? online.getName() : names[0];
+        (online != null ? duels.history().of(online.getUniqueId(), team) : duels.history().of(name, team)).thenAccept(entries -> {
             if (!viewer.isOnline()) {
                 return;
             }
-            if (entries.isEmpty()) {
+            if (entries.isEmpty() && !category) {
                 messages.send(viewer, "history.empty", Placeholder.unparsed("player", name));
             } else {
-                historyMenu.open(viewer, name, entries);
+                historyMenu.open(viewer, name, entries, team);
             }
         }).exceptionally(error -> {
             duels.plugin().getLogger().log(Level.WARNING, "Could not load the duel history of " + name, error);
@@ -470,6 +573,12 @@ public final class DuelCommand {
                 Placeholder.unparsed("rate", String.valueOf(stats.winRate())),
                 Placeholder.unparsed("streak", String.valueOf(stats.winStreak())),
                 Placeholder.unparsed("best", String.valueOf(stats.bestWinStreak())),
+                Placeholder.unparsed("kills", String.valueOf(stats.progress().kills())),
+                Placeholder.unparsed("deaths", String.valueOf(stats.progress().deaths())),
+                Placeholder.unparsed("ratio", String.format(Locale.ROOT, "%.2f", stats.progress().ratio())),
+                Placeholder.unparsed("level", String.valueOf(stats.progress().level(duels.settings().progression().levelXp()))),
+                Placeholder.unparsed("xp", String.valueOf(stats.progress().xp())),
+                Placeholder.unparsed("next", String.valueOf(stats.progress().toNextLevel(duels.settings().progression().levelXp()))),
                 Placeholder.unparsed("elo", String.valueOf(overall)),
                 Placeholder.component("division", divisions.name(overall)));
         for (Kit kit : duels.kits().all()) {
@@ -483,6 +592,19 @@ public final class DuelCommand {
                         Placeholder.unparsed("losses", String.valueOf(rating.losses())));
             }
         }
+    }
+
+    /** {@code /duel leaderboard}: the menu of boards, or with a board (wins, elo or a kit) that board. */
+    private void leaderboard(Player player, String[] args) {
+        if (args.length == 0) {
+            leaderboardMenu.open(player);
+            return;
+        }
+        limited(player, () -> {
+            if (!leaderboardMenu.openBoard(player, args[0])) {
+                messages.send(player, "top.unknown-kit", Placeholder.unparsed("kit", args[0]));
+            }
+        });
     }
 
     /** {@code /duel top} by wins, {@code /duel top elo [kit]} by rating. */

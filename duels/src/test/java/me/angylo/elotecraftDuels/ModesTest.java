@@ -12,6 +12,10 @@ import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.block.Block;
+import org.bukkit.block.BlockFace;
+import org.bukkit.event.Event;
+import org.bukkit.event.block.Action;
+import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.player.PlayerItemConsumeEvent;
@@ -336,6 +340,56 @@ class ModesTest extends DuelsTestBase {
         steve.simulateDamage(100, alex);
         assertEquals(Match.State.ENDING, match.state());
         assertEquals(List.of(0), match.winnerTeams());
+    }
+
+    @Test
+    void breakingTheEnemyBedWinsAnMlgRushRoundAndFightersAlwaysComeBack() {
+        block(5, 64, 12).setType(Material.RED_BED);
+        block(15, 64, 12).setType(Material.RED_BED);
+        Match match = fight(kit(Kit.Mode.MLG_RUSH).withRule(KitRule.ROUNDS_TO_WIN, 2));
+
+        steve.simulateDamage(100, alex);
+        assertTrue(match.isFighting(steve));
+
+        BlockBreakEvent enemy = alex.simulateBlockBreak(block(15, 64, 12));
+        assertFalse(enemy.isCancelled());
+        assertEquals(1, match.roundWins(0));
+        assertEquals(Match.State.ROUND_OVER, match.state());
+        assertTrue(said(steve, "broke the enemy bed"));
+    }
+
+    @Test
+    void spleefFightersBreakTheArenasOwnBlocksAndOthersDoNot() {
+        block(10, 63, 10).setType(Material.SNOW_BLOCK);
+        fight(kit(Kit.Mode.SPLEEF));
+
+        assertFalse(alex.simulateBlockBreak(block(10, 63, 10)).isCancelled());
+        assertTrue(duels.matches().matchOf(alex).orElseThrow().mode().breaksArena());
+    }
+
+    @Test
+    void aFireChargeThrowsAFireballWithTheFireballsRule() {
+        List<ItemStack> items = new ArrayList<>(Collections.nCopies(41, (ItemStack) null));
+        items.set(0, ItemStack.of(Material.FIRE_CHARGE, 4));
+        Kit kit = new Kit("fire", "<red>Fire", Material.FIRE_CHARGE, null, items, Set.of()).withRule(KitRule.FIREBALLS, true);
+        fight(kit);
+
+        PlayerInteractEvent click = new PlayerInteractEvent(alex, Action.RIGHT_CLICK_AIR, alex.getInventory().getItem(0), null,
+                BlockFace.SELF, EquipmentSlot.HAND);
+        server.getPluginManager().callEvent(click);
+
+        assertEquals(3, alex.getInventory().getItem(0).getAmount());
+        // MockBukkit creates the fireball without adding it to the world, so only the throw itself is checked.
+        assertTrue(alex.hasCooldown(Material.FIRE_CHARGE));
+        assertTrue(click.useItemInHand() == Event.Result.DENY || click.isCancelled());
+    }
+
+    @Test
+    void buildFightersKeepTheArenasOwnBlocks() {
+        block(10, 63, 10).setType(Material.SNOW_BLOCK);
+        fight(kit(Kit.Mode.NORMAL));
+
+        assertTrue(alex.simulateBlockBreak(block(10, 63, 10)).isCancelled());
     }
 
     private List<String> sidebar(TestPlayer player) {

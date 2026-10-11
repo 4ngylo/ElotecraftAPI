@@ -3,6 +3,7 @@ package me.angylo.elotecraftDuels.event;
 import me.angylo.elotecraftDuels.Settings;
 import me.angylo.elotecraftDuels.kit.Kit;
 import me.angylo.elotecraftDuels.kit.KitRule;
+import me.angylo.elotecraftDuels.match.Match;
 
 import java.util.EnumMap;
 import java.util.HashSet;
@@ -24,11 +25,23 @@ public final class HostedEvent {
      * round at once, or (sumo) one fight at a time while the others watch, or double elimination (out after two losses).
      */
     public enum Mode {
-        FFA, TEAMS, TOURNAMENT, SUMO, DOUBLE;
+        FFA, TEAMS, TOURNAMENT, SUMO, DOUBLE, JUGGERNAUT, OITC, KOTH, TNT_TAG, SPLEGG;
 
-        /** Lower case, for config.yml, messages.yml ({@code event.mode-<key>}) and menus.yml. */
+        /** Lower case with -, for config.yml, messages.yml ({@code event.mode-<key>}) and menus.yml. */
         public String key() {
-            return name().toLowerCase(Locale.ROOT);
+            return name().toLowerCase(Locale.ROOT).replace('_', '-');
+        }
+
+        /** The game the event's fight plays on top of its kit. */
+        public Match.Game game() {
+            return switch (this) {
+                case JUGGERNAUT -> Match.Game.JUGGERNAUT;
+                case OITC -> Match.Game.OITC;
+                case KOTH -> Match.Game.KOTH;
+                case TNT_TAG -> Match.Game.TNT_TAG;
+                case SPLEGG -> Match.Game.SPLEGG;
+                case FFA, TEAMS, TOURNAMENT, SUMO, DOUBLE -> Match.Game.NONE;
+            };
         }
 
         public boolean isTournament() {

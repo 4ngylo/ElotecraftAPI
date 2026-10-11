@@ -272,7 +272,7 @@ final class Tournament {
         fighting.add(first.getUniqueId());
         fighting.add(second.getUniqueId());
         boolean started = matches.start(List.of(List.of(first), List.of(second)), kit, free, Match.Type.EVENT, false,
-                new Match.Options(1, spectatable, border, host, true));
+                new Match.Options(1, spectatable, border, host, true, Match.Game.NONE));
         Match match = matches.matchOf(first).filter(found -> found.isFighter(first)).orElse(null);
         if (!started || match == null) {
             fighting.remove(first.getUniqueId());

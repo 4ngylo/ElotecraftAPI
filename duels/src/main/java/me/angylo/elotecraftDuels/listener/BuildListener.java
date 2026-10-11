@@ -133,7 +133,7 @@ public final class BuildListener implements Listener {
     private boolean bridgeProtects(Player player, List<BlockState> replaced) {
         Match match = matches.matchOf(player).orElse(null);
         int radius = settings.get().modes().protectRadius();
-        return match != null && match.mode() == Kit.Mode.BRIDGE
+        return match != null && match.mode().points() == Kit.Mode.Points.GOALS
                 && replaced.stream().anyMatch(state -> match.nearSpawnOrGoal(state.getLocation(), radius));
     }
 
@@ -163,7 +163,7 @@ public final class BuildListener implements Listener {
         Player player = event.getPlayer();
         Block block = event.getBlock();
         Match match = matches.matchOf(player).orElse(null);
-        if (match == null || match.mode() != Kit.Mode.BED_FIGHT || !Tag.BEDS.isTagged(block.getType())
+        if (match == null || match.mode().points() != Kit.Mode.Points.BEDS || !Tag.BEDS.isTagged(block.getType())
                 || !match.instance().isBuild() || match.bedAt(block) < 0) {
             return false;
         }
@@ -398,7 +398,9 @@ public final class BuildListener implements Listener {
             return false;
         }
         ArenaInstance instance = buildable(player, block);
-        if (instance == null || !mayRemove(instance, block)) {
+        // Spleef: the arena's own blocks are what fighters break.
+        boolean breaksArena = matches.matchOf(player).map(match -> match.mode().breaksArena()).orElse(false);
+        if (instance == null || !(breaksArena || mayRemove(instance, block))) {
             event.setCancelled(true);
             return false;
         }

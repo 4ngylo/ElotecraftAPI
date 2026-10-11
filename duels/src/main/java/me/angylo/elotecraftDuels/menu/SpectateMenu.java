@@ -2,8 +2,8 @@ package me.angylo.elotecraftDuels.menu;
 
 import me.angylo.elotecraftAPI.menu.Button;
 import me.angylo.elotecraftAPI.menu.PaginatedMenu;
-import me.angylo.elotecraftAPI.util.ConfigFile;
 import me.angylo.elotecraftAPI.util.Durations;
+import me.angylo.elotecraftAPI.util.LocalizedFile;
 import me.angylo.elotecraftAPI.util.Messages;
 import me.angylo.elotecraftAPI.util.Text;
 import me.angylo.elotecraftDuels.Effects;
@@ -38,11 +38,11 @@ public final class SpectateMenu {
 
     private final Plugin plugin;
     private final Messages messages;
-    private final ConfigFile menus;
+    private final LocalizedFile menus;
     private final Supplier<Settings> settings;
     private final MatchManager matches;
 
-    public SpectateMenu(Plugin plugin, Messages messages, ConfigFile menus, Supplier<Settings> settings, MatchManager matches) {
+    public SpectateMenu(Plugin plugin, Messages messages, LocalizedFile menus, Supplier<Settings> settings, MatchManager matches) {
         this.plugin = plugin;
         this.messages = messages;
         this.menus = menus;
@@ -58,7 +58,7 @@ public final class SpectateMenu {
             messages.send(viewer, "spectate.none");
             return;
         }
-        ConfigurationSection section = menus.get().getConfigurationSection("spectate");
+        ConfigurationSection section = menus.get(viewer).getConfigurationSection("spectate");
         try {
             Effects effects = settings.get().effects();
             PaginatedMenu menu = MenuLayout.frame(plugin, section);
@@ -75,7 +75,7 @@ public final class SpectateMenu {
 
     /** The fighters still in {@code match}, for {@code viewer} watching it; a click runs {@code /duel spectate <fighter>}. */
     public void openFighters(Player viewer, Match match) {
-        ConfigurationSection section = menus.get().getConfigurationSection("spectate-fighters");
+        ConfigurationSection section = menus.get(viewer).getConfigurationSection("spectate-fighters");
         try {
             Effects effects = settings.get().effects();
             InMatchMenu menu = MenuLayout.frame(section, (rows, title) -> new InMatchMenu(plugin, rows, title));

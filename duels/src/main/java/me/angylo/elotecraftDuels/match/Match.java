@@ -22,6 +22,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.Stream;
 
 /**
@@ -50,9 +51,30 @@ public final class Match {
         ELIMINATED, QUIT, FORFEIT, TIMEOUT
     }
 
-    /** What kind of fight: only duels count in the stats, pay rewards and offer rematches; events pay their own. */
+    /**
+     * What kind of fight: only duels count in the stats, pay rewards and offer rematches; events pay their own.
+     * {@code TEAM} is a 2v2 queue duel: wins and losses count, ratings, rewards and rematches do not.
+     * {@code FFA} is a kit's free-for-all arena: players join and leave while it runs, each a team of one, and
+     * come back at a random spawn when knocked out; it ends once the last one left.
+     */
     public enum Type {
-        DUEL, PARTY, EVENT
+        DUEL, PARTY, EVENT, TEAM, FFA
+    }
+
+    /** The game an event fight plays on top of its kit; see {@link EventGames}. */
+    public enum Game {
+        /** The kit as it is: the last side standing wins. */
+        NONE,
+        /** One strong player (side 0) against everyone else. */
+        JUGGERNAUT,
+        /** One in the chamber: an arrow kills, a kill gives an arrow, a few lives each. */
+        OITC,
+        /** King of the hill: standing alone on the arena's middle earns points; first to the goal wins. */
+        KOTH,
+        /** One player carries TNT that explodes after a while; a hit passes it on. */
+        TNT_TAG,
+        /** Spleef with eggs: a shovel shoots eggs that break the block they hit. */
+        SPLEGG
     }
 
     /**
@@ -63,10 +85,11 @@ public final class Match {
      * @param border      whether a border closes in on the fighters (config.yml {@code events.border})
      * @param host        the name of the player hosting an event, or null
      * @param bracket     a fight of a tournament: no event reward, and the result goes to its fighters only
+     * @param game        the event game played, {@link Game#NONE} for the kit alone
      */
-    public record Options(int winners, boolean spectatable, boolean border, String host, boolean bracket) {
+    public record Options(int winners, boolean spectatable, boolean border, String host, boolean bracket, Game game) {
 
-        public static final Options DEFAULT = new Options(1, true, false, null, false);
+        public static final Options DEFAULT = new Options(1, true, false, null, false, Game.NONE);
 
         public Options {
             if (winners < 1) {
@@ -77,7 +100,7 @@ public final class Match {
 
     private final ArenaInstance instance;
     private final Kit kit;
-    /** Fighters by team, in spawn order. */
+    /** Fighters by team, in spawn order; only a {@link Type#FFA} fight adds and removes teams. */
     private final List<List<Player>> teams;
     private final Type type;
     /** Whether the result moves the fighters' Elo ratings: duels from the queue. */
@@ -95,6 +118,8 @@ public final class Match {
     /** Hits each fighter took from opponents, for {@code hits-to-win} kits. */
     private final Map<UUID, Integer> hitsTaken = new HashMap<>();
     private final FightStats fightStats = new FightStats();
+    /** Lives, points and the tagged player of an event game. */
+    private final GameState game = new GameState();
     /** Rounds won by each team, for {@link KitRule#ROUNDS_TO_WIN} duels. */
     private final int[] roundWins;
     private final int kitRounds;
@@ -125,7 +150,7 @@ public final class Match {
     Match(ArenaInstance instance, Kit kit, List<List<Player>> teams, Type type, boolean ranked, Options options, int kitRounds) {
         this.instance = instance;
         this.kit = kit;
-        this.teams = teams.stream().map(List::copyOf).toList();
+        this.teams = new CopyOnWriteArrayList<>(teams.stream().map(List::copyOf).toList());
         this.type = type;
         this.ranked = ranked;
         this.options = options;
@@ -162,7 +187,17 @@ public final class Match {
 
     /** The fighters of each team, in spawn order. */
     public List<List<Player>> teams() {
-        return teams;
+        return List.copyOf(teams);
+    }
+
+    /** A free-for-all: {@code player} joins as a team of their own. */
+    void addTeam(Player player) {
+        teams.add(List.of(player));
+    }
+
+    /** A free-for-all: {@code player} left, and their team with them. */
+    void removeTeam(Player player) {
+        teams.removeIf(team -> team.contains(player));
     }
 
     /** Every fighter, team by team. */
@@ -273,13 +308,17 @@ public final class Match {
         return isParticipant(player) && !isAlive(player);
     }
 
-    /** A fighter who may hit and be hit right now. */
+    /** A fighter who may hit and be hit right now; one joining a free-for-all once they reached it. */
     public boolean isFighting(Player player) {
-        return state == State.FIGHTING && isAlive(player);
+        return state == State.FIGHTING && isAlive(player) && (type != Type.FFA || hasArrived(player));
     }
 
     public FightStats fightStats() {
         return fightStats;
+    }
+
+    GameState game() {
+        return game;
     }
 
     /** Keeps {@code fighter} as they are now for {@code /duel inventory}, unless they were kept already. */
@@ -307,17 +346,17 @@ public final class Match {
         return isDuel() || mode() != Kit.Mode.NORMAL ? Math.max(1, kitRounds) : 1;
     }
 
-    /** The kit's mode, which only fights of two sides play; others play {@code NORMAL}. */
+    /** The kit's mode, which only fights of two sides play; others, and free-for-alls, play {@code NORMAL}. */
     public Kit.Mode mode() {
-        return teams.size() == 2 ? kit.mode() : Kit.Mode.NORMAL;
+        return teams.size() == 2 && type != Type.FFA ? kit.mode() : Kit.Mode.NORMAL;
     }
 
-    /** Whether {@code team}'s knocked-out fighters come back: always in bridge, while their bed stands in a bed fight. */
+    /** Whether {@code team}'s knocked-out fighters come back: see {@link Kit.Mode#respawn()}. */
     public boolean respawns(int team) {
-        return switch (mode()) {
-            case NORMAL -> false;
-            case BRIDGE -> true;
-            case BED_FIGHT -> !bedsBroken.contains(team);
+        return switch (mode().respawn()) {
+            case NEVER -> false;
+            case ALWAYS -> true;
+            case WHILE_BED -> !bedsBroken.contains(team);
         };
     }
 
@@ -423,7 +462,8 @@ public final class Match {
                 others += roundWins[other];
             }
         }
-        return roundWins[Math.max(0, team)] + " - " + others;
+        // A free-for-all adds teams after the start; nobody wins rounds there.
+        return (team >= 0 && team < roundWins.length ? roundWins[team] : 0) + " - " + others;
     }
 
     /** Whether a round was played and the next has not started: leaving now loses the fight instead of cancelling it. */
@@ -460,6 +500,11 @@ public final class Match {
         return hitsTaken.merge(fighter.getUniqueId(), 1, Integer::sum);
     }
 
+    /** A free-for-all: {@code fighter} died and comes back with no hits taken. */
+    void clearHits(Player fighter) {
+        hitsTaken.remove(fighter.getUniqueId());
+    }
+
     /** Whether {@code player} may change blocks at {@code location} now: fighting in a build duel, inside its arena. */
     public boolean canBuild(Player player, Location location) {
         return isFighting(player) && instance.isBuild() && !instance.isClosing() && instance.contains(location);
@@ -470,9 +515,9 @@ public final class Match {
         return first().getUniqueId().equals(fighter.getUniqueId()) ? second() : first();
     }
 
-    /** Where {@code fighter} starts: see {@link ArenaInstance#spawnFor}. */
+    /** Where {@code fighter} starts: see {@link ArenaInstance#spawnFor}; a random spawn in a free-for-all. */
     public Location spawnOf(Player fighter) {
-        return instance.spawnFor(Math.max(0, teamOf(fighter.getUniqueId())), teams.size());
+        return type == Type.FFA ? instance.randomSpawn() : instance.spawnFor(Math.max(0, teamOf(fighter.getUniqueId())), teams.size());
     }
 
     /** Whether the arena's bounds and freeze apply to {@code player} yet. */
@@ -516,7 +561,8 @@ public final class Match {
         secondsLeft = seconds;
     }
 
-    int fightSeconds() {
+    /** Seconds fought in this round so far. */
+    public int fightSeconds() {
         return fightSeconds;
     }
 

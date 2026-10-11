@@ -8,6 +8,7 @@ import org.bukkit.block.BlockFace;
 import org.bukkit.util.Vector;
 
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * Where one duel runs: an arena in its world. Borrowed from {@link ArenaInstances} for the length of the
@@ -95,6 +96,12 @@ public final class ArenaInstance {
         }
         point.setPitch(0);
         return standable(point) ? point : fallback;
+    }
+
+    /** Spawn 1, spawn 2 or one of the extra spawns, picked at random: where free-for-all fighters come in. */
+    public Location randomSpawn() {
+        int pick = ThreadLocalRandom.current().nextInt(2 + arena.extraSpawns().size());
+        return pick < 2 ? spawn(pick + 1) : arena.extraSpawns().get(pick - 2).in(world);
     }
 
     /** Inside the arena, with a solid block below and room for a player: no solid block or lava. */

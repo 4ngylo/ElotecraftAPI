@@ -129,19 +129,32 @@ class KitAdminMenuTest extends DuelsTestBase {
         assertEquals("Sword › Effects", menuTitle(admin));
         answerAnvils("1", "30");
 
-        click("absorption", ClickType.LEFT);
+        click("Speed", ClickType.LEFT);
         ticks(2);
 
-        assertEquals(List.of(Kit.effect(PotionEffectType.ABSORPTION, 1, 30)), sword().effects());
+        assertEquals(List.of(Kit.effect(PotionEffectType.SPEED, 1, 30)), sword().effects());
         assertEquals(List.of("Amplifier: 0-2", "Duration: 0-9999"), anvilTitles);
         assertEquals("Sword › Effects", menuTitle(admin));
-        // Slot 10 is the first of a full centered row: the kit's own effects come first.
-        assertEquals("absorption", itemNames(admin).get(10));
-        assertTrue(loreHas("absorption", "▪ Duration: 30s"));
+        assertTrue(loreHas("Speed", "▪ Duration: 30s"));
 
-        click("absorption", ClickType.RIGHT);
+        click("Speed", ClickType.RIGHT);
 
         assertTrue(sword().effects().isEmpty());
+    }
+
+    @Test
+    void effectsFollowTheCustomKitPotionsAndKeepOtherGivenOnesLast() {
+        await(duels.kits().update(sword().withEffect(PotionEffectType.HASTE, 0, 0)));
+        server.dispatchCommand(admin, "duels kit sword");
+        click("Potion effects", ClickType.LEFT);
+
+        List<String> names = itemNames(admin);
+        // Slot 10 is the first of a full centered row, in the creative menu's potion order.
+        assertEquals("Night Vision", names.get(10));
+        assertTrue(names.indexOf("Jump Boost") < names.indexOf("Speed"));
+        assertTrue(names.contains("Luck"));
+        assertFalse(names.contains("Absorption"));
+        assertEquals(names.indexOf("Infested") + 1, names.indexOf("Haste"));
     }
 
     @Test
@@ -151,12 +164,12 @@ class KitAdminMenuTest extends DuelsTestBase {
         answerAnvils("5");
         messages(admin);
 
-        click("absorption", ClickType.LEFT);
+        click("Speed", ClickType.LEFT);
         ticks(2);
 
         assertTrue(messages(admin).stream().anyMatch(line -> line.contains("Use /duels kit effect")));
         answerAnvils("1", "");
-        click("absorption", ClickType.LEFT);
+        click("Speed", ClickType.LEFT);
         ticks(2);
 
         assertTrue(sword().effects().isEmpty());
@@ -172,6 +185,17 @@ class KitAdminMenuTest extends DuelsTestBase {
         assertEquals(Kit.Mode.BRIDGE, sword().mode());
         assertTrue(sword().flag(KitRule.BUILD, duels.settings()));
         assertTrue(loreHas("Mode", "Now: bridge"));
+    }
+
+    @Test
+    void theEnabledButtonHidesTheKitFromPlayers() {
+        server.dispatchCommand(admin, "duels kit sword");
+
+        click("Players can use it", ClickType.LEFT);
+
+        assertTrue(sword().disabled());
+        assertTrue(loreHas("Players can use it", "Now: Off"));
+        assertFalse(sword().canUse(admin));
     }
 
     @Test

@@ -15,7 +15,7 @@ import java.util.Objects;
  * by {@code duels.queue.ranked.limit.<n>} and lifted by {@code duels.queue.ranked.unlimited}. Kept
  * in their player data, so it lasts across restarts but not across servers.
  */
-final class DailyRanked {
+public final class DailyRanked {
 
     static final String UNLIMITED = "duels.queue.ranked.unlimited";
 
@@ -43,7 +43,7 @@ final class DailyRanked {
     }
 
     /** Counts a ranked duel {@code player} just started. */
-    static void count(Player player) {
+    public static void count(Player player) {
         int played = today(player);
         PersistentDataContainer data = player.getPersistentDataContainer();
         data.set(DAY, PersistentDataType.LONG, LocalDate.now().toEpochDay());

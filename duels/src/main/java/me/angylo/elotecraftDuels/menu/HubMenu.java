@@ -2,7 +2,7 @@ package me.angylo.elotecraftDuels.menu;
 
 import me.angylo.elotecraftAPI.menu.Menu;
 import me.angylo.elotecraftAPI.menu.MenuConfig;
-import me.angylo.elotecraftAPI.util.ConfigFile;
+import me.angylo.elotecraftAPI.util.LocalizedFile;
 import me.angylo.elotecraftAPI.util.Messages;
 import me.angylo.elotecraftDuels.Effects;
 import me.angylo.elotecraftDuels.Settings;
@@ -44,7 +44,7 @@ public final class HubMenu {
 
     private final Plugin plugin;
     private final Messages messages;
-    private final ConfigFile menus;
+    private final LocalizedFile menus;
     private final Supplier<Settings> settings;
     private final KitRegistry kits;
     private final StatsService stats;
@@ -53,7 +53,7 @@ public final class HubMenu {
     private final EventManager events;
     private final Seasons seasons;
 
-    public HubMenu(Plugin plugin, Messages messages, ConfigFile menus, Supplier<Settings> settings, KitRegistry kits,
+    public HubMenu(Plugin plugin, Messages messages, LocalizedFile menus, Supplier<Settings> settings, KitRegistry kits,
                    StatsService stats, QueueManager queues, MatchManager matches, EventManager events, Seasons seasons) {
         this.plugin = plugin;
         this.messages = messages;
@@ -87,7 +87,7 @@ public final class HubMenu {
             messages.send(viewer, "general.no-menu", Placeholder.unparsed("menu", name));
             return;
         }
-        ConfigurationSection section = menus.get().getConfigurationSection(HUB + "." + name);
+        ConfigurationSection section = menus.get(viewer).getConfigurationSection(HUB + "." + name);
         try {
             TagResolver[] tags = tags(viewer);
             Menu menu = MenuLayout.fixed(plugin, section, tags);

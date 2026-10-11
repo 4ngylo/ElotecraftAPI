@@ -234,7 +234,8 @@ public final class ArenaPool {
         long timeoutTicks = pool.idleTimeout().toMillis() / MILLIS_PER_TICK;
         int now = Bukkit.getCurrentTick();
         for (Arena base : arenas.all()) {
-            if (!base.isReady()) {
+            // A free-for-all arena is held by one fight at a time, never copied.
+            if (!base.isReady() || base.ffa() != null) {
                 continue;
             }
             List<Slot> free = slots.stream().filter(slot -> !slot.leased && slot.source.name().equals(base.name()))

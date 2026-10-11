@@ -3,7 +3,7 @@ package me.angylo.elotecraftDuels.menu;
 import me.angylo.elotecraftAPI.menu.Button;
 import me.angylo.elotecraftAPI.menu.MenuConfig;
 import me.angylo.elotecraftAPI.menu.PaginatedMenu;
-import me.angylo.elotecraftAPI.util.ConfigFile;
+import me.angylo.elotecraftAPI.util.LocalizedFile;
 import me.angylo.elotecraftAPI.util.Messages;
 import me.angylo.elotecraftDuels.Effects;
 import me.angylo.elotecraftDuels.Settings;
@@ -32,11 +32,11 @@ public final class CustomKitMenu {
 
     private final Plugin plugin;
     private final Messages messages;
-    private final ConfigFile menus;
+    private final LocalizedFile menus;
     private final Supplier<Settings> settings;
     private final CustomKits customKits;
 
-    public CustomKitMenu(Plugin plugin, Messages messages, ConfigFile menus, Supplier<Settings> settings, CustomKits customKits) {
+    public CustomKitMenu(Plugin plugin, Messages messages, LocalizedFile menus, Supplier<Settings> settings, CustomKits customKits) {
         this.plugin = plugin;
         this.messages = messages;
         this.menus = menus;
@@ -51,7 +51,7 @@ public final class CustomKitMenu {
             messages.send(player, "custom-kit.disabled");
             return;
         }
-        ConfigurationSection section = menus.get().getConfigurationSection("custom-kits");
+        ConfigurationSection section = menus.get(player).getConfigurationSection("custom-kits");
         try {
             Effects effects = settings.get().effects();
             PaginatedMenu menu = MenuLayout.frame(plugin, section);
@@ -80,7 +80,7 @@ public final class CustomKitMenu {
         }
         Component state = MenuLayout.value(section, customKits.fits(items) ? "ready" : "outdated");
         TagResolver name = Placeholder.unparsed("name", saved.map(KitLayouts.Saved::name)
-                .orElse(menus.get().getString("kit-editor.values.custom-name", "Custom kit <slot>").replace("<slot>", String.valueOf(slot))));
+                .orElse(menus.get(player).getString("kit-editor.values.custom-name", "Custom kit <slot>").replace("<slot>", String.valueOf(slot))));
         return MenuLayout.icon(base.icon(), section.getConfigurationSection("kit"), "lore", false, slotTag, name,
                 Placeholder.unparsed("items", String.valueOf(filled)), Placeholder.component("state", state));
     }

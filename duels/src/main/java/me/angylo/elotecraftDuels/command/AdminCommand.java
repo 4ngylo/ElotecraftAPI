@@ -11,6 +11,8 @@ import me.angylo.elotecraftDuels.arena.ArenaPool;
 import me.angylo.elotecraftDuels.arena.ArenaRegistry;
 import me.angylo.elotecraftDuels.arena.ArenaTemplate;
 import me.angylo.elotecraftDuels.hook.WorldEditHook;
+import me.angylo.elotecraftDuels.kit.Kit;
+import me.angylo.elotecraftDuels.kit.KitRule;
 import me.angylo.elotecraftDuels.menu.ArenaAdminMenu;
 import me.angylo.elotecraftDuels.menu.HubMenu;
 import me.angylo.elotecraftDuels.menu.KitAdminMenu;
@@ -46,6 +48,7 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 
 /** {@code /duels}: arena setup, reload and stopping duels, with kit setup in {@link KitAdminCommand}. Needs {@code duels.staff} (granted by {@code duels.admin}), and each part its own permission. */
 public final class AdminCommand {
@@ -126,6 +129,10 @@ public final class AdminCommand {
                         .sub("buildlimit", null, (sender, args) -> withArena(sender, args, this::buildLimit),
                                 (sender, args) -> args.length == 1 ? Args.filter(arenas.names(), args)
                                         : args.length == 2 ? Args.filter(List.of(NONE), args) : List.of())
+                        .sub("ffa", null, (sender, args) -> withArena(sender, args, this::ffa),
+                                (sender, args) -> args.length == 1 ? Args.filter(arenas.names(), args)
+                                        : args.length == 2 ? Args.filter(Stream.concat(Stream.of(NONE),
+                                                duels.kits().names().stream()).toList(), args) : List.of())
                         .sub("pool", null, (sender, args) -> withArena(sender, args, this::pool),
                                 (sender, args) -> args.length == 1 ? Args.filter(arenas.names(), args)
                                         : args.length == 2 ? Args.filter(List.of(CLEAR), args) : List.of())
@@ -449,6 +456,26 @@ public final class AdminCommand {
         }
         save(sender, arenas.update(arena.withBuildLimit(y.getAsInt())), "admin.arena.build-limit-set",
                 with(arenaTags(arena), Placeholder.unparsed("y", String.valueOf(y.getAsInt()))));
+    }
+
+    /** {@code ffa <arena> <kit|none>}: the kit whose free-for-all the arena holds instead of duels; never a build kit. */
+    private void ffa(CommandSender sender, Arena arena, String[] rest) {
+        String raw = Args.get(rest, 0);
+        if (raw.equalsIgnoreCase(NONE)) {
+            save(sender, arenas.update(arena.withFfa(null)), "admin.arena.ffa-cleared", arenaTags(arena));
+            return;
+        }
+        Optional<Kit> kit = duels.kits().get(raw);
+        if (kit.isEmpty()) {
+            messages.send(sender, "general.kit-not-found", Placeholder.unparsed("kit", raw));
+            return;
+        }
+        TagResolver[] tags = with(arenaTags(arena), Placeholder.component("kit", Text.mm(kit.get().displayName())));
+        if (kit.get().flag(KitRule.BUILD, duels.settings())) {
+            messages.send(sender, "admin.arena.ffa-build-kit", tags);
+            return;
+        }
+        save(sender, arenas.update(arena.withFfa(kit.get().name())), "admin.arena.ffa-set", tags);
     }
 
     /** {@code pool <arena> [clear]}: how many copies the arena has; {@code clear} clears the free ones now. */

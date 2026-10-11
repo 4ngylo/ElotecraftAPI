@@ -123,9 +123,9 @@ class HistoryTest extends DuelsTestBase {
         fight(swordKit());
         steve.simulateDamage(100, alex);
 
-        tickUntil(() -> !await(duels.history().of(alex.getUniqueId())).isEmpty());
-        MatchHistory.Entry won = await(duels.history().of(alex.getUniqueId())).getFirst();
-        MatchHistory.Entry lost = await(duels.history().of("steve")).getFirst();
+        tickUntil(() -> !await(duels.history().of(alex.getUniqueId(), false)).isEmpty());
+        MatchHistory.Entry won = await(duels.history().of(alex.getUniqueId(), false)).getFirst();
+        MatchHistory.Entry lost = await(duels.history().of("steve", false)).getFirst();
         assertTrue(won.won());
         assertEquals("Steve", won.opponent());
         assertEquals("sword", won.kit());

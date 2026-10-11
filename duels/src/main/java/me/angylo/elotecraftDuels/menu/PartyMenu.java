@@ -3,7 +3,7 @@ package me.angylo.elotecraftDuels.menu;
 import me.angylo.elotecraftAPI.menu.Button;
 import me.angylo.elotecraftAPI.menu.Menu;
 import me.angylo.elotecraftAPI.menu.PaginatedMenu;
-import me.angylo.elotecraftAPI.util.ConfigFile;
+import me.angylo.elotecraftAPI.util.LocalizedFile;
 import me.angylo.elotecraftAPI.util.Messages;
 import me.angylo.elotecraftDuels.Effects;
 import me.angylo.elotecraftDuels.Settings;
@@ -41,11 +41,11 @@ public final class PartyMenu {
 
     private final Plugin plugin;
     private final Messages messages;
-    private final ConfigFile menus;
+    private final LocalizedFile menus;
     private final Supplier<Settings> settings;
     private final PartyManager parties;
 
-    public PartyMenu(Plugin plugin, Messages messages, ConfigFile menus, Supplier<Settings> settings, PartyManager parties) {
+    public PartyMenu(Plugin plugin, Messages messages, LocalizedFile menus, Supplier<Settings> settings, PartyManager parties) {
         this.plugin = plugin;
         this.messages = messages;
         this.menus = menus;
@@ -56,7 +56,7 @@ public final class PartyMenu {
     public void open(Player viewer) {
         Party party = parties.partyOf(viewer.getUniqueId()).orElse(null);
         String key = party == null ? "party-none" : "party";
-        ConfigurationSection section = menus.get().getConfigurationSection(key);
+        ConfigurationSection section = menus.get(viewer).getConfigurationSection(key);
         try {
             PaginatedMenu menu = MenuLayout.frame(plugin, section, sizeTags(party));
             if (party == null) {
@@ -144,7 +144,7 @@ public final class PartyMenu {
             open(viewer);
             return;
         }
-        ConfigurationSection section = menus.get().getConfigurationSection(key);
+        ConfigurationSection section = menus.get(viewer).getConfigurationSection(key);
         try {
             Menu menu = MenuLayout.fixed(plugin, section, tags == null ? sizeTags(party) : tags);
             fill.accept(menu, section);

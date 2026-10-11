@@ -3,18 +3,21 @@ package me.angylo.elotecraftDuels;
 import me.angylo.elotecraftAPI.util.Text;
 import me.angylo.elotecraftDuels.arena.Arena;
 import me.angylo.elotecraftDuels.kit.Kit;
+import me.angylo.elotecraftDuels.kit.KitPalette;
 import me.angylo.elotecraftDuels.kit.KitRule;
 import me.angylo.elotecraftDuels.match.Match;
 import me.angylo.elotecraftDuels.menu.KitAdminMenu;
 import me.angylo.elotecraftDuels.menu.KitEditorMenu;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Material;
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Pig;
 import org.bukkit.event.entity.CreatureSpawnEvent;
 import org.bukkit.event.inventory.ClickType;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.PotionMeta;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -212,6 +215,7 @@ class KitEditorTest extends DuelsTestBase {
         clickNamed(alex, "Change Map");
         clickNamed(alex, "pit");
         clickNamed(alex, "Kit Rules");
+        assertEquals("Archer › Rules", menuTitle(alex));
         clickNamed(alex, "hunger");
         clickNamed(alex, "Back");
         close(alex);
@@ -369,5 +373,23 @@ class KitEditorTest extends DuelsTestBase {
         tick();
 
         assertFalse(duels.editor().isEditing(alex));
+    }
+
+    @Test
+    void potionsAndTippedArrowsAreGroupedByTypeBaseThenLongThenStrong() {
+        KitPalette palette = new KitPalette(plugin.getLogger(),
+                () -> YamlConfiguration.loadConfiguration(new File(plugin.getDataFolder(), "menus.yml")));
+        List<String> expectedStart = List.of("night_vision", "long_night_vision", "invisibility", "long_invisibility",
+                "leaping", "long_leaping", "strong_leaping", "fire_resistance", "long_fire_resistance",
+                "swiftness", "long_swiftness", "strong_swiftness");
+
+        for (String key : List.of("potions", "bows")) {
+            KitPalette.Category category = palette.categories().stream().filter(c -> c.key().equals(key)).findFirst().orElseThrow();
+            List<String> potions = palette.items(category, KitPalette.PotionForm.SPLASH).stream()
+                    .filter(item -> item.getItemMeta() instanceof PotionMeta)
+                    .map(item -> ((PotionMeta) item.getItemMeta()).getBasePotionType().getKey().getKey()).toList();
+
+            assertEquals(expectedStart, potions.subList(0, expectedStart.size()), key);
+        }
     }
 }

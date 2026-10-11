@@ -42,10 +42,11 @@ import java.util.Set;
  * @param effects     potion effects fighters get at the countdown, without particles: for the whole fight or some seconds
  * @param mode        how a duel is won: knockouts, or the bridge and bed fight modes (two sides, build kits only)
  * @param arena       a custom kit's arena, the only one its duels use; null for any arena it takes
+ * @param disabled    turned off by an admin: nobody can pick it (menus, queues, requests, parties, events)
  */
 public record Kit(String name, String displayName, Material icon, String permission, List<ItemStack> items,
                   Set<String> arenaCategories, Map<KitRule, Object> rules, Rewards rewards,
-                  List<PotionEffect> effects, Mode mode, String arena) {
+                  List<PotionEffect> effects, Mode mode, String arena, boolean disabled) {
 
     public static final Material DEFAULT_ICON = Material.IRON_SWORD;
     /** The name of every player's custom kit ({@link CustomKits}); admin kits cannot use it. */
@@ -61,8 +62,67 @@ public record Kit(String name, String displayName, Material icon, String permiss
      * the other side's goal wins the round; placed blocks stay between rounds. {@code BED_FIGHT}: knocked-out fighters
      * come back while their side's bed stands, and an enemy may break it. Both need the arena's goals or beds.
      */
+    /**
+     * How a fight of two sides with the kit is decided. Everything a mode changes is read from here: the arena points it
+     * needs, who comes back after a knockout, what scores a round and what may be broken, so a new mode is one entry.
+     */
     public enum Mode {
-        NORMAL, BRIDGE, BED_FIGHT;
+        /** The last side with a fighter left wins. */
+        NORMAL(Points.NONE, Respawn.NEVER),
+        /** Walking into the other side's goal wins a round; fighters always come back; placed blocks stay between rounds. */
+        BRIDGE(Points.GOALS, Respawn.ALWAYS),
+        /** Fighters come back while their side's bed stands. */
+        BED_FIGHT(Points.BEDS, Respawn.WHILE_BED),
+        /** Breaking the other side's bed wins a round; fighters always come back. */
+        MLG_RUSH(Points.BEDS, Respawn.ALWAYS),
+        /** Fighters break the arena's own blocks to drop each other out; nobody comes back. */
+        SPLEEF(Points.NONE, Respawn.NEVER);
+
+        /** The arena points a mode needs: set with {@code /duels arena setgoal} or {@code setbed}. */
+        public enum Points {
+            NONE, GOALS, BEDS
+        }
+
+        /** Who comes back at their spawn after a knockout. */
+        public enum Respawn {
+            NEVER, ALWAYS, WHILE_BED
+        }
+
+        private final Points points;
+        private final Respawn respawn;
+
+        Mode(Points points, Respawn respawn) {
+            this.points = points;
+            this.respawn = respawn;
+        }
+
+        public Points points() {
+            return points;
+        }
+
+        public Respawn respawn() {
+            return respawn;
+        }
+
+        /** Breaking the other side's bed wins a round, rather than stopping their respawns. */
+        public boolean bedScores() {
+            return this == MLG_RUSH;
+        }
+
+        /** Rounds are won by points (goals, beds), shown as a score rather than a round number. */
+        public boolean scoresPoints() {
+            return points == Points.GOALS || bedScores();
+        }
+
+        /** Blocks placed stay between rounds rather than the arena being put back. */
+        public boolean keepsBlocks() {
+            return this == BRIDGE;
+        }
+
+        /** Fighters may break the arena's own blocks, not only the ones placed during the fight. */
+        public boolean breaksArena() {
+            return this == SPLEEF;
+        }
 
         /** Lower case with -, for kits.yml, commands and messages.yml. */
         public String key() {
@@ -96,6 +156,13 @@ public record Kit(String name, String displayName, Material icon, String permiss
         rules = Map.copyOf(rules);
         effects = List.copyOf(effects);
         mode = mode == null ? Mode.NORMAL : mode;
+    }
+
+    /** An enabled kit. */
+    public Kit(String name, String displayName, Material icon, String permission, List<ItemStack> items,
+               Set<String> arenaCategories, Map<KitRule, Object> rules, Rewards rewards, List<PotionEffect> effects, Mode mode,
+               String arena) {
+        this(name, displayName, icon, permission, items, arenaCategories, rules, rewards, effects, mode, arena, false);
     }
 
     /** A kit that takes any arena of its categories. */
@@ -151,12 +218,12 @@ public record Kit(String name, String displayName, Material icon, String permiss
      * the goals or beds the kit's mode needs; and it is the custom kit's own arena, if it has one.
      */
     public boolean accepts(Arena arena) {
-        boolean points = switch (mode) {
-            case NORMAL -> true;
-            case BRIDGE -> arena.points().hasGoals();
-            case BED_FIGHT -> arena.points().hasBeds();
+        boolean points = switch (mode.points()) {
+            case NONE -> true;
+            case GOALS -> arena.points().hasGoals();
+            case BEDS -> arena.points().hasBeds();
         };
-        return points && (this.arena == null || this.arena.equals(arena.name()))
+        return points && arena.ffa() == null && (this.arena == null || this.arena.equals(arena.name()))
                 && (arenaCategories.isEmpty() || !Collections.disjoint(arenaCategories, arena.categories()));
     }
 
@@ -180,7 +247,11 @@ public record Kit(String name, String displayName, Material icon, String permiss
     }
 
     public boolean canUse(Permissible permissible) {
-        return permission == null || permissible.hasPermission(permission);
+        return !disabled && (permission == null || permissible.hasPermission(permission));
+    }
+
+    public Kit withDisabled(boolean newDisabled) {
+        return new Kit(name, displayName, icon, permission, items, arenaCategories, rules, rewards, effects, mode, arena, newDisabled);
     }
 
     /** Replaces {@code player}'s whole inventory with this kit. */
@@ -220,33 +291,33 @@ public record Kit(String name, String displayName, Material icon, String permiss
 
     /** @param newItems a whole player inventory, slot by slot */
     public Kit withItems(List<ItemStack> newItems) {
-        return new Kit(name, displayName, icon, permission, newItems, arenaCategories, rules, rewards, effects, mode, arena);
+        return new Kit(name, displayName, icon, permission, newItems, arenaCategories, rules, rewards, effects, mode, arena, disabled);
     }
 
     public Kit withMode(Mode newMode) {
-        return new Kit(name, displayName, icon, permission, items, arenaCategories, rules, rewards, effects, newMode, arena);
+        return new Kit(name, displayName, icon, permission, items, arenaCategories, rules, rewards, effects, newMode, arena, disabled);
     }
 
     public Kit withIcon(Material newIcon) {
-        return new Kit(name, displayName, newIcon, permission, items, arenaCategories, rules, rewards, effects, mode, arena);
+        return new Kit(name, displayName, newIcon, permission, items, arenaCategories, rules, rewards, effects, mode, arena, disabled);
     }
 
     public Kit withDisplayName(String newDisplayName) {
-        return new Kit(name, newDisplayName, icon, permission, items, arenaCategories, rules, rewards, effects, mode, arena);
+        return new Kit(name, newDisplayName, icon, permission, items, arenaCategories, rules, rewards, effects, mode, arena, disabled);
     }
 
     /** @param newPermission null for everyone */
     public Kit withPermission(String newPermission) {
-        return new Kit(name, displayName, icon, newPermission, items, arenaCategories, rules, rewards, effects, mode, arena);
+        return new Kit(name, displayName, icon, newPermission, items, arenaCategories, rules, rewards, effects, mode, arena, disabled);
     }
 
     /** @param newCategories empty for any arena */
     public Kit withArenaCategories(Set<String> newCategories) {
-        return new Kit(name, displayName, icon, permission, items, newCategories, rules, rewards, effects, mode, arena);
+        return new Kit(name, displayName, icon, permission, items, newCategories, rules, rewards, effects, mode, arena, disabled);
     }
 
     public Kit withRewards(Rewards newRewards) {
-        return new Kit(name, displayName, icon, permission, items, arenaCategories, rules, newRewards, effects, mode, arena);
+        return new Kit(name, displayName, icon, permission, items, arenaCategories, rules, newRewards, effects, mode, arena, disabled);
     }
 
     /**
@@ -261,7 +332,7 @@ public record Kit(String name, String displayName, Material icon, String permiss
         } else {
             changed.put(rule, value);
         }
-        return new Kit(name, displayName, icon, permission, items, arenaCategories, changed, rewards, effects, mode, arena);
+        return new Kit(name, displayName, icon, permission, items, arenaCategories, changed, rewards, effects, mode, arena, disabled);
     }
 
     /**
@@ -274,12 +345,12 @@ public record Kit(String name, String displayName, Material icon, String permiss
     public Kit withEffect(PotionEffectType type, int amplifier, int seconds) {
         List<PotionEffect> changed = new ArrayList<>(withoutEffect(type).effects);
         changed.add(effect(type, amplifier, seconds));
-        return new Kit(name, displayName, icon, permission, items, arenaCategories, rules, rewards, changed, mode, arena);
+        return new Kit(name, displayName, icon, permission, items, arenaCategories, rules, rewards, changed, mode, arena, disabled);
     }
 
     public Kit withoutEffect(PotionEffectType type) {
         List<PotionEffect> changed = effects.stream().filter(effect -> !effect.getType().equals(type)).toList();
-        return new Kit(name, displayName, icon, permission, items, arenaCategories, rules, rewards, changed, mode, arena);
+        return new Kit(name, displayName, icon, permission, items, arenaCategories, rules, rewards, changed, mode, arena, disabled);
     }
 
     /** The kit's effect of {@code type}, if it gives one. */

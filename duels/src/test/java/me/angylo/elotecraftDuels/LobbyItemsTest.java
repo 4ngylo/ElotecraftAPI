@@ -4,6 +4,7 @@ import me.angylo.elotecraftAPI.util.Text;
 import me.angylo.elotecraftDuels.match.Match;
 import org.bukkit.Material;
 import org.bukkit.block.BlockFace;
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Item;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.player.PlayerDropItemEvent;
@@ -14,6 +15,9 @@ import org.bukkit.inventory.ItemStack;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.io.File;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
@@ -58,8 +62,24 @@ class LobbyItemsTest extends DuelsTestBase {
     }
 
     @Test
+    void aDisabledItemIsNotGiven() {
+        File file = new File(plugin.getDataFolder(), "menus.yml");
+        YamlConfiguration menus = YamlConfiguration.loadConfiguration(file);
+        menus.set("lobby-items.history.enabled", false);
+        try {
+            menus.save(file);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        duels.reload();
+        ticks(SYNC_TICKS);
+
+        assertEquals("", name(8));
+    }
+
+    @Test
     void lobbyPlayersGetTheItemsInTheirSlots() {
-        assertEquals(List.of(UNRANKED, "Ranked queue (right-click)", "Party (right-click)", "Cosmetics (right-click)", "Events (right-click)", "", "Options (right-click)",
+        assertEquals(List.of(UNRANKED, "Ranked queue (right-click)", "Party (right-click)", "Cosmetics (right-click)", "Events (right-click)", "Free-for-all (right-click)", "2v2 queue (right-click)",
                 "Edit kits (right-click)", "Match history (right-click)"), List.of(name(0), name(1), name(2), name(3),
                 name(4), name(5), name(6), name(7), name(8)));
     }

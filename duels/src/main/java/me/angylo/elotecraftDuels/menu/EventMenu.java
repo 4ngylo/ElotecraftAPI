@@ -3,8 +3,8 @@ package me.angylo.elotecraftDuels.menu;
 import me.angylo.elotecraftAPI.menu.Button;
 import me.angylo.elotecraftAPI.menu.Menu;
 import me.angylo.elotecraftAPI.menu.PaginatedMenu;
-import me.angylo.elotecraftAPI.util.ConfigFile;
 import me.angylo.elotecraftAPI.util.Durations;
+import me.angylo.elotecraftAPI.util.LocalizedFile;
 import me.angylo.elotecraftAPI.util.Messages;
 import me.angylo.elotecraftAPI.util.Text;
 import me.angylo.elotecraftDuels.Effects;
@@ -58,7 +58,7 @@ public final class EventMenu {
 
     private final Plugin plugin;
     private final Messages messages;
-    private final ConfigFile menus;
+    private final LocalizedFile menus;
     private final Supplier<Settings> settings;
     private final EventManager events;
     private final KitRegistry kits;
@@ -68,7 +68,7 @@ public final class EventMenu {
     private final ArenaMenu arenaMenu;
     private final TeamMenu teamMenu;
 
-    public EventMenu(Plugin plugin, Messages messages, ConfigFile menus, Supplier<Settings> settings, EventManager events,
+    public EventMenu(Plugin plugin, Messages messages, LocalizedFile menus, Supplier<Settings> settings, EventManager events,
                      KitRegistry kits, ArenaRegistry arenas, MatchManager matches, KitMenu kitMenu, ArenaMenu arenaMenu,
                      TeamMenu teamMenu) {
         this.plugin = plugin;
@@ -106,7 +106,7 @@ public final class EventMenu {
 
     /** Every public event gathering players, and every event fight that may be watched. */
     public void openList(Player viewer) {
-        ConfigurationSection section = menus.get().getConfigurationSection("events");
+        ConfigurationSection section = menus.get(viewer).getConfigurationSection("events");
         try {
             Effects effects = settings.get().effects();
             PaginatedMenu menu = MenuLayout.frame(plugin, section);
@@ -140,7 +140,7 @@ public final class EventMenu {
             return;
         }
         try {
-            new SettingsMenu(menus.get().getConfigurationSection(key), settings.get().effects(), host).open();
+            new SettingsMenu(menus.get(host).getConfigurationSection(key), settings.get().effects(), host).open();
         } catch (IllegalArgumentException e) {
             MenuLayout.menuError(plugin, messages, host, key, e);
         }
@@ -154,7 +154,7 @@ public final class EventMenu {
             openSettings(host);
             return;
         }
-        ConfigurationSection section = menus.get().getConfigurationSection("event-rules");
+        ConfigurationSection section = menus.get(host).getConfigurationSection("event-rules");
         try {
             Effects effects = settings.get().effects();
             PaginatedMenu menu = MenuLayout.frame(plugin, section);

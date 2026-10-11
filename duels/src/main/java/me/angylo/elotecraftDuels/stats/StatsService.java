@@ -41,7 +41,15 @@ public final class StatsService {
                 losses          INT NOT NULL DEFAULT 0,
                 win_streak      INT NOT NULL DEFAULT 0,
                 best_win_streak INT NOT NULL DEFAULT 0,
-                elo             INT NOT NULL DEFAULT\s""" + PlayerStats.START_ELO + ")";
+                elo             INT NOT NULL DEFAULT %d,
+                kills           INT NOT NULL DEFAULT 0,
+                deaths          INT NOT NULL DEFAULT 0,
+                xp              INT NOT NULL DEFAULT 0
+            )""".formatted(PlayerStats.START_ELO);
+    /** Tables made before kills and levels lack these columns. */
+    private static final List<String> ADD_PROGRESS = List.of("kills", "deaths", "xp").stream()
+            .map(column -> "ALTER TABLE duels_stats ADD COLUMN " + column + " INT NOT NULL DEFAULT 0").toList();
+    private static final String RECORD_PROGRESS = "UPDATE duels_stats SET kills = kills + ?, deaths = deaths + ?, xp = xp + ? WHERE uuid = ?";
     /** Tables made before ranked duels lack the elo column; its default gives every player the starting rating. */
     private static final String ADD_ELO = "ALTER TABLE duels_stats ADD COLUMN elo INT NOT NULL DEFAULT " + PlayerStats.START_ELO;
     // ponytail: no index on (kit, elo); leaderboards scan the table, add one if it ever holds millions of rows
@@ -58,7 +66,7 @@ public final class StatsService {
     /** Rating tables made before peaks lack the column; each rating's peak starts at the rating. */
     private static final String ADD_PEAK = "ALTER TABLE duels_ratings ADD COLUMN peak INT NOT NULL DEFAULT 0";
     private static final String START_PEAKS = "UPDATE duels_ratings SET peak = elo";
-    private static final String COLUMNS = "uuid, name, wins, losses, win_streak, best_win_streak, elo";
+    private static final String COLUMNS = "uuid, name, wins, losses, win_streak, best_win_streak, elo, kills, deaths, xp";
     private static final String FIND_BY_UUID = "SELECT " + COLUMNS + " FROM duels_stats WHERE uuid = ?";
     private static final String FIND_BY_NAME = "SELECT " + COLUMNS + " FROM duels_stats WHERE LOWER(name) = LOWER(?) LIMIT 1";
     private static final String FIND_RATINGS = "SELECT kit, elo, wins, losses, peak FROM duels_ratings WHERE uuid = ?";
@@ -127,7 +135,8 @@ public final class StatsService {
      * @param kit       the kit of a ranked duel, whose ratings move; null for an unranked duel
      * @param eloChange what the winner gained and the loser lost
      */
-    private record Result(UUID winner, String winnerName, UUID loser, String loserName, String kit, int eloChange) {
+    private record Result(UUID winner, String winnerName, UUID loser, String loserName, String kit, int eloChange,
+                          PlayerStats.Progress winnerGain, PlayerStats.Progress loserGain) {
     }
 
     private final Logger logger;
@@ -169,7 +178,7 @@ public final class StatsService {
                 }
             }
             return new PlayerStats(name, stats.wins(), stats.losses(), stats.winStreak(), stats.bestWinStreak(),
-                    stats.legacyElo(), stats.ratings());
+                    stats.legacyElo(), stats.ratings(), stats.progress());
         });
     }
 
@@ -203,12 +212,12 @@ public final class StatsService {
     /** After a season ended ({@link Seasons#end}): online players' cached ratings start again, like the stored ones. */
     public void seasonReset() {
         online.replaceAll((uuid, stats) -> new PlayerStats(stats.name(), stats.wins(), stats.losses(), stats.winStreak(),
-                stats.bestWinStreak(), PlayerStats.START_ELO, Map.of()));
+                stats.bestWinStreak(), PlayerStats.START_ELO, Map.of(), stats.progress()));
     }
 
     /** Counts a finished unranked duel. */
     public void recordResult(Player winner, Player loser) {
-        record(new Result(winner.getUniqueId(), winner.getName(), loser.getUniqueId(), loser.getName(), null, 0));
+        recordResult(winner, loser, null, 0, PlayerStats.Progress.NONE, PlayerStats.Progress.NONE);
     }
 
     /**
@@ -216,16 +225,29 @@ public final class StatsService {
      * Updates the cache at once and the database in one transaction.
      */
     public void recordResult(Player winner, Player loser, String kit, int eloChange) {
-        record(new Result(winner.getUniqueId(), winner.getName(), loser.getUniqueId(), loser.getName(), kit, eloChange));
+        recordResult(winner, loser, kit, eloChange, PlayerStats.Progress.NONE, PlayerStats.Progress.NONE);
+    }
+
+    /**
+     * Counts a finished duel with the kills, deaths and experience each side gained, written in the same transaction.
+     *
+     * @param kit the kit of a ranked duel, whose ratings move by {@code eloChange}; null for an unranked one
+     */
+    public void recordResult(Player winner, Player loser, String kit, int eloChange, PlayerStats.Progress winnerGain,
+                             PlayerStats.Progress loserGain) {
+        record(new Result(winner.getUniqueId(), winner.getName(), loser.getUniqueId(), loser.getName(), kit, eloChange,
+                winnerGain, loserGain));
     }
 
     private void record(Result result) {
         online.compute(result.winner(), (uuid, stats) -> {
-            PlayerStats won = (stats == null ? PlayerStats.empty(result.winnerName()) : stats).win(result.winnerName());
+            PlayerStats won = (stats == null ? PlayerStats.empty(result.winnerName()) : stats).win(result.winnerName())
+                    .gained(result.winnerGain());
             return result.kit() == null ? won : won.rated(result.kit(), result.eloChange(), true);
         });
         online.compute(result.loser(), (uuid, stats) -> {
-            PlayerStats lost = (stats == null ? PlayerStats.empty(result.loserName()) : stats).loss(result.loserName());
+            PlayerStats lost = (stats == null ? PlayerStats.empty(result.loserName()) : stats).loss(result.loserName())
+                    .gained(result.loserGain());
             return result.kit() == null ? lost : lost.rated(result.kit(), result.eloChange(), false);
         });
         write(result);
@@ -356,6 +378,8 @@ public final class StatsService {
         schema.thenCompose(ignored -> db.transaction(connection -> {
             record(connection, RECORD_WIN, INSERT_WIN, result.winner(), result.winnerName());
             record(connection, RECORD_LOSS, INSERT_LOSS, result.loser(), result.loserName());
+            progress(connection, result.winner(), result.winnerGain());
+            progress(connection, result.loser(), result.loserGain());
             if (result.kit() != null) {
                 rate(connection, result.winner(), result.kit(), result.eloChange(), true);
                 rate(connection, result.loser(), result.kit(), -result.eloChange(), false);
@@ -367,6 +391,20 @@ public final class StatsService {
             failed.add(result);
             return null;
         });
+    }
+
+    /** Adds {@code gain} to the row written just before in the same transaction. */
+    private static void progress(Connection connection, UUID player, PlayerStats.Progress gain) throws SQLException {
+        if (gain.equals(PlayerStats.Progress.NONE)) {
+            return;
+        }
+        try (PreparedStatement statement = connection.prepareStatement(RECORD_PROGRESS)) {
+            statement.setInt(1, gain.kills());
+            statement.setInt(2, gain.deaths());
+            statement.setInt(3, gain.xp());
+            statement.setString(4, player.toString());
+            statement.executeUpdate();
+        }
     }
 
     /** Updates the player's row, or inserts it if this is their first finished duel. */
@@ -423,6 +461,11 @@ public final class StatsService {
             if (!hasColumn(statement, "duels_stats", "elo")) {
                 changed += statement.executeUpdate(ADD_ELO);
             }
+            if (!hasColumn(statement, "duels_stats", "xp")) {
+                for (String add : ADD_PROGRESS) {
+                    changed += statement.executeUpdate(add);
+                }
+            }
             if (!hasColumn(statement, "duels_ratings", "peak")) {
                 statement.executeUpdate(ADD_PEAK);
                 changed += statement.executeUpdate(START_PEAKS);
@@ -477,11 +520,12 @@ public final class StatsService {
 
     private static PlayerStats read(ResultSet row, Map<String, KitRating> ratings) throws SQLException {
         return new PlayerStats(row.getString("name"), row.getInt("wins"), row.getInt("losses"),
-                row.getInt("win_streak"), row.getInt("best_win_streak"), row.getInt("elo"), ratings);
+                row.getInt("win_streak"), row.getInt("best_win_streak"), row.getInt("elo"), ratings,
+                new PlayerStats.Progress(row.getInt("kills"), row.getInt("deaths"), row.getInt("xp")));
     }
 
     private static PlayerStats withRatings(PlayerStats stats, Map<String, KitRating> ratings) {
         return new PlayerStats(stats.name(), stats.wins(), stats.losses(), stats.winStreak(), stats.bestWinStreak(),
-                stats.legacyElo(), ratings);
+                stats.legacyElo(), ratings, stats.progress());
     }
 }

@@ -3,7 +3,7 @@ package me.angylo.elotecraftDuels.menu;
 import me.angylo.elotecraftAPI.menu.Button;
 import me.angylo.elotecraftAPI.menu.Menu;
 import me.angylo.elotecraftAPI.menu.PaginatedMenu;
-import me.angylo.elotecraftAPI.util.ConfigFile;
+import me.angylo.elotecraftAPI.util.LocalizedFile;
 import me.angylo.elotecraftAPI.util.Messages;
 import me.angylo.elotecraftAPI.util.Text;
 import me.angylo.elotecraftDuels.Effects;
@@ -47,14 +47,14 @@ public final class KitMenu {
 
     private final Plugin plugin;
     private final Messages messages;
-    private final ConfigFile menus;
+    private final LocalizedFile menus;
     private final Supplier<Settings> settings;
     private final KitRegistry kits;
     private final MatchManager matches;
     private final QueueManager queues;
     private final StatsService stats;
 
-    public KitMenu(Plugin plugin, Messages messages, ConfigFile menus, Supplier<Settings> settings, KitRegistry kits,
+    public KitMenu(Plugin plugin, Messages messages, LocalizedFile menus, Supplier<Settings> settings, KitRegistry kits,
                    MatchManager matches, QueueManager queues, StatsService stats) {
         this.plugin = plugin;
         this.messages = messages;
@@ -86,7 +86,7 @@ public final class KitMenu {
             case QUEUE -> "unranked-queue";
             case CHALLENGE, EDIT -> "kits";
         };
-        ConfigurationSection section = menus.get().getConfigurationSection(key);
+        ConfigurationSection section = menus.get(viewer).getConfigurationSection(key);
         try {
             Effects effects = settings.get().effects();
             boolean queue = mode == Mode.QUEUE || mode == Mode.RANKED;
@@ -151,7 +151,7 @@ public final class KitMenu {
 
     /** The kit's items, read-only; the back button opens the kits menu again with the same choice. */
     private void preview(Player viewer, Kit kit, Mode mode, Consumer<Kit> onChoose) {
-        ConfigurationSection section = menus.get().getConfigurationSection("kit-preview");
+        ConfigurationSection section = menus.get(viewer).getConfigurationSection("kit-preview");
         try {
             if (section == null) {
                 throw new IllegalArgumentException("Missing kit-preview section");

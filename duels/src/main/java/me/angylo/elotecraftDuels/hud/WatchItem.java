@@ -1,7 +1,7 @@
 package me.angylo.elotecraftDuels.hud;
 
 import me.angylo.elotecraftAPI.menu.MenuConfig;
-import me.angylo.elotecraftAPI.util.ConfigFile;
+import me.angylo.elotecraftAPI.util.LocalizedFile;
 import me.angylo.elotecraftAPI.util.Tasks;
 import me.angylo.elotecraftDuels.match.Match;
 import me.angylo.elotecraftDuels.match.MatchManager;
@@ -25,7 +25,9 @@ import org.bukkit.inventory.PlayerInventory;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.Plugin;
 
+import java.util.Map;
 import java.util.Optional;
+import java.util.WeakHashMap;
 
 /**
  * The item in a watcher's inventory (a spectator, or a knocked-out fighter, in spectator mode) that opens the
@@ -41,15 +43,14 @@ public final class WatchItem implements Listener {
     }
 
     private final Plugin plugin;
-    private final ConfigFile menus;
+    private final LocalizedFile menus;
     private final MatchManager matches;
     private final SpectateMenu spectateMenu;
     private final NamespacedKey key;
-    /** Rebuilt when menus.yml was reloaded; null when the item is missing or invalid. */
-    private FileConfiguration loadedFrom;
-    private Entry entry;
+    /** Per language file, so rebuilt when menus.yml was reloaded; empty when the item is missing or invalid. */
+    private final Map<FileConfiguration, Optional<Entry>> entries = new WeakHashMap<>();
 
-    public WatchItem(Plugin plugin, ConfigFile menus, MatchManager matches, SpectateMenu spectateMenu) {
+    public WatchItem(Plugin plugin, LocalizedFile menus, MatchManager matches, SpectateMenu spectateMenu) {
         this.plugin = plugin;
         this.menus = menus;
         this.matches = matches;
@@ -64,7 +65,7 @@ public final class WatchItem implements Listener {
 
     /** Gives a watcher the item in its slot, if the slot is free of it; anyone else loses it. */
     void sync(Player player) {
-        Entry wanted = watching(player).isPresent() && player.getGameMode() == GameMode.SPECTATOR ? entry() : null;
+        Entry wanted = watching(player).isPresent() && player.getGameMode() == GameMode.SPECTATOR ? entry(player) : null;
         PlayerInventory inventory = player.getInventory();
         for (int slot = 0; slot < INVENTORY_SIZE; slot++) {
             if (tagged(inventory.getItem(slot)) && (wanted == null || slot != wanted.slot())) {
@@ -80,13 +81,10 @@ public final class WatchItem implements Listener {
         return matches.matchOf(player).filter(match -> match.isWatching(player));
     }
 
-    private Entry entry() {
-        FileConfiguration file = menus.get();
-        if (file != loadedFrom) {
-            loadedFrom = file;
-            entry = load(file.getConfigurationSection("spectate-fighters.item"));
-        }
-        return entry;
+    /** The item in {@code player}'s language. */
+    private Entry entry(Player player) {
+        return entries.computeIfAbsent(menus.get(player), file -> Optional.ofNullable(load(file.getConfigurationSection("spectate-fighters.item"))))
+                .orElse(null);
     }
 
     private Entry load(ConfigurationSection section) {

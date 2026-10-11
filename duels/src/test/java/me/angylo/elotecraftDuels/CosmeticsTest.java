@@ -7,12 +7,20 @@ import me.angylo.elotecraftDuels.arena.Arena;
 import me.angylo.elotecraftDuels.kit.Kit;
 import me.angylo.elotecraftDuels.kit.KitRule;
 import me.angylo.elotecraftDuels.match.Match;
+import org.bukkit.DyeColor;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.event.inventory.ClickType;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.ArmorMeta;
+import org.bukkit.inventory.meta.ShieldMeta;
+import org.bukkit.inventory.meta.trim.TrimMaterial;
+import org.bukkit.inventory.meta.trim.TrimPattern;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -74,6 +82,42 @@ class CosmeticsTest extends DuelsTestBase {
 
         assertTrue(said(messages(steve), "Steve was slain by Alex."));
         assertTrue(said(messages(alex), "Steve was slain by Alex."));
+    }
+
+    @Test
+    void theVictimsDeathMessageStandsInForAKillerWithoutAKillMessage() {
+        Cosmetics.choose(steve, Kind.DEATH_MESSAGE, cosmetic(Kind.DEATH_MESSAGE, "fell"));
+        fight();
+
+        steve.simulateDamage(100, alex);
+
+        assertTrue(said(messages(alex), "Steve took a fall."));
+    }
+
+    @Test
+    void theWinnersWinSoundPlaysToTheFight() {
+        Cosmetics.choose(alex, Kind.WIN_SOUND, cosmetic(Kind.WIN_SOUND, "level-up"));
+        fight();
+
+        steve.simulateDamage(100, alex);
+
+        steve.assertSoundHeard("minecraft:entity.player.levelup");
+    }
+
+    @Test
+    void theArmorTrimAndShieldPatternGoOnTheKit() {
+        Cosmetics.choose(alex, Kind.ARMOR_TRIM, cosmetic(Kind.ARMOR_TRIM, "silence-gold"));
+        Cosmetics.choose(alex, Kind.SHIELD_PATTERN, cosmetic(Kind.SHIELD_PATTERN, "crusader"));
+        List<ItemStack> items = new ArrayList<>(Collections.nCopies(41, (ItemStack) null));
+        items.set(0, ItemStack.of(Material.SHIELD));
+        items.set(38, ItemStack.of(Material.DIAMOND_CHESTPLATE));
+        fight(new Kit("armored", "<white>Armored", Material.SHIELD, null, items, java.util.Set.of()));
+
+        ArmorMeta chestplate = (ArmorMeta) alex.getInventory().getChestplate().getItemMeta();
+        assertEquals(TrimPattern.SILENCE, chestplate.getTrim().getPattern());
+        assertEquals(TrimMaterial.GOLD, chestplate.getTrim().getMaterial());
+        assertEquals(DyeColor.WHITE, ((ShieldMeta) alex.getInventory().getItem(0).getItemMeta()).getBaseColor());
+        assertFalse(((ArmorMeta) steve.getInventory().getChestplate().getItemMeta()).hasTrim());
     }
 
     @Test

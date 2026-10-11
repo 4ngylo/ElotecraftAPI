@@ -58,6 +58,9 @@ final class MatchResults {
             endDuel(match, match.teams().get(winnerTeams.getFirst()).getFirst(), reason);
         } else {
             display.teamResult(match, winnerTeams);
+            if (match.type() == Type.TEAM) {
+                recordTeams(match, winnerTeams.getFirst(), reason);
+            }
             // Like duels, only a real fight pays out: not an event the last opponents quit or forfeited.
             // A tournament pays its champion only.
             if (match.type() == Type.EVENT && reason == EndReason.ELIMINATED && !match.options().bracket()) {
@@ -67,6 +70,46 @@ final class MatchResults {
         }
         offerRematch(match);
         logResult(match, winnerTeams, reason);
+    }
+
+    /**
+     * A team duel: each winner gets a win and each loser a loss, paired up in team order (the teams are the same
+     * size), so forfeits and quits count as in duels. Ranked, each winner takes the same rating from their pair,
+     * worked out from the teams' average ratings. One history row per fighter.
+     */
+    private void recordTeams(Match match, int winnerTeam, EndReason reason) {
+        List<Player> winners = match.teams().get(winnerTeam);
+        List<Player> losers = match.teams().get(1 - winnerTeam);
+        String kit = match.kit().name();
+        int eloChange = match.isRanked() ? PlayerStats.eloChange(average(winners, kit), average(losers, kit),
+                settings.get().ranked().kFactor()) : 0;
+        for (int i = 0; i < Math.min(winners.size(), losers.size()); i++) {
+            Player winner = winners.get(i);
+            Player loser = losers.get(i);
+            int winnerElo = stats.elo(winner.getUniqueId(), kit);
+            int loserElo = stats.elo(loser.getUniqueId(), kit);
+            stats.recordResult(winner, loser, match.isRanked() ? kit : null, eloChange, gain(match, winner, true), gain(match, loser, false));
+            if (match.isRanked()) {
+                display.eloChange(match, winner, loser, eloChange, winnerElo, loserElo);
+            }
+        }
+        history.record(new MatchHistory.TeamDuel(winners.stream().map(Player::getUniqueId).toList(),
+                winners.stream().map(Player::getName).toList(), losers.stream().map(Player::getUniqueId).toList(),
+                losers.stream().map(Player::getName).toList(), System.currentTimeMillis(), kit, match.arena().name(),
+                match.isRanked(), eloChange, match.fightSeconds(), reason.name().toLowerCase(Locale.ROOT),
+                winners.stream().mapToDouble(Player::getHealth).max().orElse(0)));
+    }
+
+    /** The kills, deaths and experience {@code player} earned in {@code match}: config.yml {@code progression}. */
+    private PlayerStats.Progress gain(Match match, Player player, boolean won) {
+        Settings.Progression progression = settings.get().progression();
+        int kills = match.fightStats().kills(player);
+        return new PlayerStats.Progress(kills, match.fightStats().deaths(player),
+                (won ? progression.win() : progression.loss()) + kills * progression.kill());
+    }
+
+    private int average(List<Player> team, String kit) {
+        return (int) Math.round(team.stream().mapToInt(player -> stats.elo(player.getUniqueId(), kit)).average().orElse(0));
     }
 
     /** {@code player}'s last opponent, while the rematch window is open. */
@@ -106,11 +149,7 @@ final class MatchResults {
         int winnerElo = stats.elo(winner.getUniqueId(), kit);
         int loserElo = stats.elo(loser.getUniqueId(), kit);
         int eloChange = match.isRanked() ? PlayerStats.eloChange(winnerElo, loserElo, settings.get().ranked().kFactor()) : 0;
-        if (match.isRanked()) {
-            stats.recordResult(winner, loser, kit, eloChange);
-        } else {
-            stats.recordResult(winner, loser);
-        }
+        stats.recordResult(winner, loser, match.isRanked() ? kit : null, eloChange, gain(match, winner, true), gain(match, loser, false));
         history.record(new MatchHistory.Duel(winner.getUniqueId(), winner.getName(), loser.getUniqueId(), loser.getName(),
                 System.currentTimeMillis(), match.kit().name(), match.arena().name(), match.isRanked(), eloChange,
                 match.fightSeconds(), reason.name().toLowerCase(Locale.ROOT), winner.getHealth()));
@@ -164,7 +203,9 @@ final class MatchResults {
         String fight = switch (match.type()) {
             case DUEL -> "Duel";
             case PARTY -> "Party fight";
+            case TEAM -> "Team duel";
             case EVENT -> match.options().host() + "'s event";
+            case FFA -> "Free-for-all";
         };
         if (winnerTeams.isEmpty()) {
             logger.info(fight + " " + MatchManager.names(match.fighters(), " vs ") + " was a draw" + details);
@@ -174,7 +215,7 @@ final class MatchResults {
         } else {
             List<Player> winners = winnerTeams.stream().flatMap(team -> match.teams().get(team).stream()).toList();
             List<Player> losers = match.fighters().stream().filter(fighter -> !winners.contains(fighter)).toList();
-            logger.info(MatchManager.names(winners, ", ") + " won " + (match.type() == Type.EVENT ? fight : "a party fight")
+            logger.info(MatchManager.names(winners, ", ") + " won " + (match.type() == Type.EVENT ? fight : match.type() == Type.TEAM ? "a team duel" : "a party fight")
                     + " against " + MatchManager.names(losers, ", ") + how);
         }
     }

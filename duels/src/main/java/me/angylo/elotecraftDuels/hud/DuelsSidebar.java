@@ -206,6 +206,9 @@ public final class DuelsSidebar implements Listener {
         if (!match.isFighter(viewer)) {
             return "sidebar.spectating";
         }
+        if (match.type() == Match.Type.FFA) {
+            return "sidebar.ffa";
+        }
         if (!match.isDuel()) {
             return "sidebar.team-fight";
         }
@@ -213,19 +216,20 @@ public final class DuelsSidebar implements Listener {
     }
 
     /**
-     * Bridge: the goals of each side. Bed fight: whether each side's bed stands. From the viewer's side for a fighter,
+     * Bridge: the goals of each side; MLG Rush: the beds each side broke. Bed fight: whether each side's bed stands. From the viewer's side for a fighter,
      * side 1 then side 2 for a spectator. Shown under the first line.
      */
     private Optional<Component> modeLine(Match match, Player viewer) {
         Kit.Mode mode = match.mode();
-        if (mode == Kit.Mode.NORMAL) {
+        if (mode.points() == Kit.Mode.Points.NONE) {
             return Optional.empty();
         }
         int own = match.teamOf(viewer.getUniqueId());
         boolean fighter = own >= 0;
         int first = fighter ? own : 0;
         int second = 1 - first;
-        String key = (mode == Kit.Mode.BRIDGE ? "sidebar.goals" : "sidebar.beds") + (fighter ? "" : "-spectating");
+        String key = (mode.bedScores() ? "sidebar.points" : mode.points() == Kit.Mode.Points.GOALS ? "sidebar.goals" : "sidebar.beds")
+                + (fighter ? "" : "-spectating");
         return Optional.of(messages.get(viewer, key,
                 Placeholder.unparsed("goals", String.valueOf(match.roundWins(first))),
                 Placeholder.unparsed("opponent_goals", String.valueOf(match.roundWins(second))),
@@ -250,7 +254,7 @@ public final class DuelsSidebar implements Listener {
         return new TagResolver[]{
                 round,
                 // Bridge rounds are goals, on their own line.
-                Placeholder.component("rounds", match.roundsToWin() > 1 && match.mode() != Kit.Mode.BRIDGE
+                Placeholder.component("rounds", match.roundsToWin() > 1 && !match.mode().scoresPoints()
                         ? messages.get(viewer, "sidebar.rounds", round) : Component.empty()),
                 Placeholder.component("kit", Text.mm(match.kit().displayName())),
                 Placeholder.component("arena", Text.mm(match.arena().displayName())),
@@ -264,6 +268,10 @@ public final class DuelsSidebar implements Listener {
                 Placeholder.unparsed("opponent_elo", opponent == null ? "" : String.valueOf(stats.elo(opponent.getUniqueId(), kit))),
                 Placeholder.unparsed("team_left", String.valueOf(teamLeft)),
                 Placeholder.unparsed("enemies_left", String.valueOf(enemiesLeft)),
+                Placeholder.unparsed("kills", String.valueOf(match.fightStats().kills(viewer))),
+                Placeholder.unparsed("deaths", String.valueOf(match.fightStats().deaths(viewer))),
+                Placeholder.unparsed("streak", String.valueOf(match.fightStats().streak(viewer))),
+                Placeholder.unparsed("players", String.valueOf(match.fighters().size())),
                 Placeholder.unparsed("fighters", match.teams().stream()
                         .map(players -> players.stream().map(Player::getName).collect(Collectors.joining(", ")))
                         .collect(Collectors.joining(" vs ")))};
@@ -281,6 +289,9 @@ public final class DuelsSidebar implements Listener {
                 Placeholder.component("win_rate", stat.apply(PlayerStats::winRate)),
                 Placeholder.component("win_streak", stat.apply(PlayerStats::winStreak)),
                 Placeholder.component("best_win_streak", stat.apply(PlayerStats::bestWinStreak)),
+                Placeholder.component("kills", stat.apply(found -> found.progress().kills())),
+                Placeholder.component("deaths", stat.apply(found -> found.progress().deaths())),
+                Placeholder.component("level", stat.apply(found -> found.progress().level(settings.get().progression().levelXp()))),
                 Placeholder.component("elo", stat.apply(found -> found.overallElo(kits.names()))),
                 Placeholder.component("division", own.map(found -> settings.get().ranked().divisions()
                         .name(found.overallElo(kits.names()))).orElse(loading)),

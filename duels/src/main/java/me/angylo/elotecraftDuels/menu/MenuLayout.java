@@ -5,8 +5,8 @@ import me.angylo.elotecraftAPI.menu.Button;
 import me.angylo.elotecraftAPI.menu.Menu;
 import me.angylo.elotecraftAPI.menu.MenuConfig;
 import me.angylo.elotecraftAPI.menu.PaginatedMenu;
-import me.angylo.elotecraftAPI.util.ConfigFile;
 import me.angylo.elotecraftAPI.util.ItemBuilder;
+import me.angylo.elotecraftAPI.util.LocalizedFile;
 import me.angylo.elotecraftAPI.util.Messages;
 import me.angylo.elotecraftAPI.util.Tasks;
 import me.angylo.elotecraftAPI.util.Text;
@@ -18,6 +18,7 @@ import org.bukkit.Material;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Player;
 import org.bukkit.event.inventory.ClickType;
+import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.Plugin;
 
@@ -139,7 +140,12 @@ final class MenuLayout {
         }
     }
 
-    private static int slot(Menu menu, ConfigurationSection button) {
+    /**
+     * The button's {@code slot} in {@code menu}.
+     *
+     * @throws IllegalArgumentException if it is outside the menu
+     */
+    static int slot(Menu menu, ConfigurationSection button) {
         int slot = button.getInt("slot", -1);
         if (slot < 0 || slot >= menu.getInventory().getSize()) {
             throw new IllegalArgumentException(button.getCurrentPath() + ".slot must be 0 to " + (menu.getInventory().getSize() - 1));
@@ -161,15 +167,20 @@ final class MenuLayout {
     }
 
     /**
-     * A click that plays the menu sound, closes the menu and then runs {@code action}. Both happen a tick
-     * later, since inventories must not be closed or opened inside a click event.
+     * A click that plays the menu sound, runs {@code action} and then closes the menu unless {@code action} opened
+     * another inventory. Opening one over the menu, without closing it first, keeps the client's cursor where it
+     * was; a close recenters it. Both happen a tick later, since inventories must not be closed or opened inside
+     * a click event.
      */
     static BiConsumer<Player, ClickType> choose(Plugin plugin, Effects effects, Consumer<Player> action) {
         return (player, click) -> {
             effects.play(player, "menu-click");
+            Inventory clicked = player.getOpenInventory().getTopInventory();
             Tasks.sync(plugin, () -> {
-                player.closeInventory();
                 action.accept(player);
+                if (player.getOpenInventory().getTopInventory() == clicked) {
+                    player.closeInventory();
+                }
             });
         };
     }
@@ -199,11 +210,11 @@ final class MenuLayout {
      * A click that opens the menus.yml {@code confirm} menu for {@code what} (the clicked button's name);
      * its accept button runs {@code onYes}, its deny button {@code onNo} (usually reopening the menu it came from).
      */
-    static BiConsumer<Player, ClickType> confirm(Plugin plugin, Messages messages, ConfigFile menus, Effects effects, Component what,
+    static BiConsumer<Player, ClickType> confirm(Plugin plugin, Messages messages, LocalizedFile menus, Effects effects, Component what,
                                                  Consumer<Player> onYes, Consumer<Player> onNo) {
         return choose(plugin, effects, player -> {
             try {
-                ConfigurationSection section = menus.get().getConfigurationSection(CONFIRM);
+                ConfigurationSection section = menus.get(player).getConfigurationSection(CONFIRM);
                 TagResolver action = Placeholder.component("action", what);
                 Menu menu = fixed(plugin, section, action);
                 put(menu, section, "what", (clicker, click) -> { }, action);

@@ -1,6 +1,6 @@
 package me.angylo.elotecraftDuels;
 
-import me.angylo.elotecraftAPI.util.ConfigFile;
+import me.angylo.elotecraftAPI.util.LocalizedFile;
 import me.angylo.elotecraftAPI.util.Text;
 import me.angylo.elotecraftDuels.Settings.Reward;
 import me.angylo.elotecraftDuels.arena.Arena;
@@ -152,7 +152,7 @@ class MenuAndRulesTest extends DuelsTestBase {
         TestPlayer second = join("Second");
         Kit sword = swordKit();
         duels.matches().start(first, second, sword, pit);
-        ArenaMenu menu = new ArenaMenu(plugin, duels.messages(), new ConfigFile(plugin, "menus.yml"), duels::settings,
+        ArenaMenu menu = new ArenaMenu(plugin, duels.messages(), new LocalizedFile(plugin, "menus.yml"), duels::settings,
                 duels.arenas(), duels.matches());
 
         menu.open(alex, sword, chosen -> { });

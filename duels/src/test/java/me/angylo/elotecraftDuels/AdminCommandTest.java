@@ -88,8 +88,8 @@ class AdminCommandTest extends DuelsTestBase {
         duels.arenas().update(duels.arenas().get("pit").orElseThrow().withCategories(java.util.Set.of("sumo"))).join();
         Command duelsCommand = server.getCommandMap().getCommand("duels");
 
-        assertEquals(List.of("help", "create", "save", "load", "delete", "seticon", "setname", "setpermission",
-                "mode", "effect", "rule", "defaults", "arenas", "list", "sword"), duelsCommand.tabComplete(admin, "duels", new String[]{"kit", ""}));
+        assertEquals(List.of("help", "create", "save", "edit", "load", "delete", "seticon", "setname", "setpermission",
+                "mode", "toggle", "effect", "rule", "defaults", "arenas", "list", "goldenhead", "sword"), duelsCommand.tabComplete(admin, "duels", new String[]{"kit", ""}));
         assertEquals(List.of("none", "duels.kit.sword"), duelsCommand.tabComplete(admin, "duels", new String[]{"kit", "setpermission", "sword", ""}));
         assertEquals(List.of("sumo", "any"), duelsCommand.tabComplete(admin, "duels", new String[]{"kit", "arenas", "sword", ""}));
         assertEquals(List.of("sumo"), duelsCommand.tabComplete(admin, "duels", new String[]{"kit", "arenas", "sword", "sumo", ""}));

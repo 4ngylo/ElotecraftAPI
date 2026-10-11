@@ -39,8 +39,11 @@ command:
     <yellow>/duel accept|deny [player]</yellow> <dark_gray>-</dark_gray> <gray>answer a challenge
     <yellow>/duel cancel [player]</yellow> <dark_gray>-</dark_gray> <gray>take back a challenge you sent
     <yellow>/duel rematch</yellow> <dark_gray>-</dark_gray> <gray>challenge your last opponent again
+    <yellow>/duel playagain</yellow> <dark_gray>-</dark_gray> <gray>join the queue of your last duel again
     <yellow>/duel queue [kit]</yellow> <dark_gray>-</dark_gray> <gray>find an opponent
     <yellow>/duel ranked [kit]</yellow> <dark_gray>-</dark_gray> <gray>find an opponent near your rating
+    <yellow>/duel 2v2|2v2ranked [kit]</yellow> <dark_gray>-</dark_gray> <gray>queue with your party of two, or alone to get a teammate
+    <yellow>/duel ffa [kit]</yellow> <dark_gray>·</dark_gray> <yellow>/duel ffa stats [player]</yellow> <dark_gray>-</dark_gray> <gray>a kit's free-for-all arena, and its kills and deaths
     <yellow>/duel spectate [player]</yellow> <dark_gray>-</dark_gray> <gray>watch a duel; without a player, pick a fight
     <yellow>/duel editkit [kit]</yellow> <dark_gray>-</dark_gray> <gray>arrange your items in a kit
     <yellow>/duel customkit</yellow> <dark_gray>-</dark_gray> <gray>build your own kits, then challenge with the kit custom:<number>
@@ -49,6 +52,7 @@ command:
     <yellow>/duel options</yellow> <dark_gray>-</dark_gray> <gray>requests, party invites, sidebar and sounds
     <yellow>/duel cosmetics</yellow> <dark_gray>-</dark_gray> <gray>kill effects and kill messages
     <yellow>/duel ratings</yellow> <dark_gray>-</dark_gray> <gray>your rating in each kit
+    <yellow>/duel leaderboard [kit]</yellow> <dark_gray>-</dark_gray> <gray>the best players, by wins, overall rating or a kit's rating
     <yellow>/duel stats [player]</yellow> <dark_gray>·</dark_gray> <yellow>/duel top [elo [kit]|season <n>]</yellow> <dark_gray>-</dark_gray> <gray>statistics
     <yellow>/duel history [player]</yellow> <dark_gray>-</dark_gray> <gray>latest duels
   admin-help: |-
@@ -81,6 +85,7 @@ command:
     <yellow>/duels arena setcenter <name></yellow> <dark_gray>-</dark_gray> <gray>middle of the arena; spectators appear there if no spectator spawn (optional)
     <yellow>/duels arena category <name> add|remove <category></yellow> <dark_gray>-</dark_gray> <gray>arena pools kits pick from
     <yellow>/duels arena buildlimit <name> <y|none></yellow> <dark_gray>-</dark_gray> <gray>highest Y fighters may place blocks at
+    <yellow>/duels arena ffa <name> <kit|none></yellow> <dark_gray>-</dark_gray> <gray>make it a kit's free-for-all arena (no duels there), spawning at spawns 1, 2 and the extra ones
     <yellow>/duels arena seticon <name></yellow> <dark_gray>-</dark_gray> <gray>menu icon: the item in your hand
     <yellow>/duels arena setname <name> <text></yellow> <dark_gray>-</dark_gray> <gray>name shown to players
     <yellow>/duels arena snapshot <name></yellow> <dark_gray>-</dark_gray> <gray>save its blocks: copies are pasted from them, and it is rebuilt from them after a crash
@@ -98,15 +103,18 @@ command:
     <yellow>/duels kit [name]</yellow> <dark_gray>-</dark_gray> <gray>menu of every kit, or of one kit's settings
     <yellow>/duels kit create <name></yellow> <dark_gray>-</dark_gray> <gray>new kit from your inventory
     <yellow>/duels kit save <name></yellow> <dark_gray>-</dark_gray> <gray>overwrite a kit with your inventory
+    <yellow>/duels kit edit <name></yellow> <dark_gray>-</dark_gray> <gray>pick and arrange a kit's items in the kit editor menu
     <yellow>/duels kit load <name></yellow> <dark_gray>-</dark_gray> <gray>put a kit in your empty inventory to edit it
     <yellow>/duels kit seticon <name></yellow> <dark_gray>-</dark_gray> <gray>menu icon: the item in your hand
     <yellow>/duels kit setname <name> <text></yellow> <dark_gray>-</dark_gray> <gray>name shown to players
     <yellow>/duels kit setpermission <name> <permission|none></yellow> <dark_gray>-</dark_gray> <gray>who may use it
-    <yellow>/duels kit mode <name> [normal|bridge|bed-fight]</yellow> <dark_gray>-</dark_gray> <gray>goals or beds decide fights
+    <yellow>/duels kit mode <name> [normal|bridge|bed-fight|mlg-rush|spleef]</yellow> <dark_gray>-</dark_gray> <gray>goals, beds or the floor decide fights
+    <yellow>/duels kit toggle <name> [on|off]</yellow> <dark_gray>-</dark_gray> <gray>hide a kit from players or show it again
     <yellow>/duels kit effect <name> [effect amplifier [seconds]|effect remove]</yellow> <dark_gray>-</dark_gray> <gray>potion effects: amplifier 0-2, seconds (0: whole fight)
     <yellow>/duels kit rule <name> [rule] [value|default]</yellow> <dark_gray>-</dark_gray> <gray>game rules: hunger, regeneration, pearl cooldown...
     <yellow>/duels kit defaults</yellow> <dark_gray>-</dark_gray> <gray>add the default kits that are missing
     <yellow>/duels kit arenas <name> <category...|any></yellow> <dark_gray>-</dark_gray> <gray>which arena categories its duels use
+    <yellow>/duels kit goldenhead [amount]</yellow> <dark_gray>-</dark_gray> <gray>golden heads (UHC healing) to put in a kit
     <yellow>/duels kit delete <name></yellow> <dark_gray>·</dark_gray> <yellow>/duels kit list</yellow>
 
 general:
@@ -182,6 +190,9 @@ request:
 
 queue:
   ranked-limit: "<prefix><red>You played your <limit> ranked duels for today. <gray>Unranked queues are open."
+  # config.yml ranked.required-wins: <required> wins needed, <wins> the player's.
+  ranked-locked: "<prefix><red>Win <required> duels to unlock ranked queues. <gray>(<wins>/<required>)"
+  no-last: "<prefix><red>You have no queue duel to play again."
   # <type> is type-ranked or type-unranked below.
   type-ranked: "Ranked"
   type-unranked: "Unranked"
@@ -192,6 +203,33 @@ queue:
   action-bar-ranked: "<gold>Ranked</gold> <dark_gray>·</dark_gray> <white><kit></white> <dark_gray>·</dark_gray> <yellow><time></yellow> <dark_gray>·</dark_gray> <gray>Rating <white><elo></white> ±<range>"
   waiting-arena: "<prefix><yellow>Opponent found! Waiting for a free arena..."
   kit-removed: "<prefix><red>The <kit> kit is gone, so you left its queue."
+  kit-disabled: "<prefix><red>The <kit> kit was turned off, so you left its queue."
+  # 2v2 queues (/duel 2v2): a party of <size> queues as a team, a player outside a party gets a teammate.
+  team-size: "<prefix><red>Only a party of <size> can join a 2v2 queue; leave the party to queue alone."
+  # <type> is type-ranked or type-unranked.
+  team-joined: "<prefix><green>Joined the <type> 2v2 <white><kit></white> queue."
+  team-left: "<prefix><gray>You left the <type> 2v2 <white><kit></white> queue."
+  # A party member can't play ranked now (daily limit or required wins); they are told why.
+  team-member-locked: "<prefix><red><player> can't play ranked right now."
+  # A member went offline, got busy, joined a solo queue, or the party changed.
+  team-dropped: "<prefix><red>You left the 2v2 <white><kit></white> queue: your team changed or someone got busy."
+  team-action-bar: "<gray>Looking for a 2v2 <dark_gray>·</dark_gray> <white><kit></white> <dark_gray>·</dark_gray> <yellow><time>"
+  # <elo> is the team's average rating, <range> how far from it the other team's may be right now.
+  team-action-bar-ranked: "<gold>Ranked 2v2</gold> <dark_gray>·</dark_gray> <white><kit></white> <dark_gray>·</dark_gray> <yellow><time></yellow> <dark_gray>·</dark_gray> <gray>Team rating <white><elo></white> ±<range>"
+
+# Free-for-all arenas (/duel ffa): players come and go; a death brings them back at a random spawn.
+ffa:
+  # <players> fighting, the joiner included.
+  joined: "<prefix><green>You joined the <white><kit></white> free-for-all <dark_gray>·</dark_gray> <white><arena></white> <gray>(<players> fighting). <white>/duel leave</white> to go back."
+  left: "<prefix><gray>You left the free-for-all."
+  # To everyone in it; a kill message cosmetic replaces killed. Leaving moments after a hit counts as killed too.
+  killed: "<prefix><white><victim></white> <gray>was killed by <white><killer>"
+  died: "<prefix><white><victim></white> <gray>died."
+  no-arena: "<prefix><red>The <kit> kit has no free-for-all arena."
+  no-stats: "<prefix><gray><player> never fought in a free-for-all."
+  stats: "<prefix><gray>Free-for-all stats of <white><player></white>:"
+  # <ratio> is kills per death, <best> the most kills without dying.
+  stats-line: "<dark_gray> - <white><kit></white><dark_gray>: <green><kills></green> <gray>kills, <red><deaths></red> <gray>deaths, <white><ratio></white> <gray>K/D, best streak <white><best>"
 
 match:
   starting: "<prefix><gray>Duel against <white><opponent></white> <dark_gray>·</dark_gray> <white><kit></white> <dark_gray>·</dark_gray> <white><arena>"
@@ -217,6 +255,8 @@ match:
   respawned-title: "<gray>Respawned"
   respawned-subtitle: ""
   scored: "<prefix><gold><bold>GOAL!</bold></gold> <white><player></white> <gray>scored."
+  # MLG Rush: breaking the other side's bed wins the round.
+  bed-scored: "<prefix><gold><bold>BED!</bold></gold> <white><player></white> <gray>broke the enemy bed."
   # Above each bridge goal (modes.bridge.goal-hologram).
   goal-hologram: "<yellow><bold>JUMP"
   # <team> is the names of the side whose bed broke, <player> who broke it.
@@ -275,28 +315,24 @@ spectate:
   none: "<prefix><gray>There's no fight you can watch right now."
 
 editor:
-  started: "<prefix><gray>Arrange <white><kit></white> in your inventory, then <save><green><bold>[SAVE]</bold></green></save> or <cancel><red><bold>[CANCEL]</bold></red></cancel> <dark_gray>(/duel editkit save|cancel)"
-  save-hover: "<green>Click to save this layout"
-  cancel-hover: "<red>Click to stop without saving"
   saved: "<prefix><green>Saved your layout of <white><kit></white>; your duels with it use it."
-  invalid: "<prefix><red>Your inventory must hold exactly the items of <kit>: put everything back and try again."
-  cancelled: "<prefix><gray>Stopped editing; nothing was saved."
-  timed-out: "<prefix><gray>The kit editor timed out; nothing was saved."
-  already: "<prefix><red>You're already editing a kit: <white>/duel editkit save</white> or <white>cancel</white>."
-  not-editing: "<prefix><red>You're not editing a kit."
+  invalid: "<prefix><red>Your layout must hold exactly the items of <kit>; nothing was saved."
   reset: "<prefix><green>Your layout of <white><kit></white> is gone; you get the kit as made again."
-  # Building a custom kit (/duel customkit) from the items of <kit>, the base kit; <slot> is its number.
-  custom-started: "<prefix><gray>Building custom kit <white><slot></white>: pick <items><aqua><bold>[ITEMS]</bold></aqua></items> from <white><kit></white>, arrange them, then <save><green><bold>[SAVE]</bold></green></save> or <cancel><red><bold>[CANCEL]</bold></red></cancel>"
-  items-hover: "<aqua>Click to pick items"
   custom-saved: "<prefix><green>Saved custom kit <white><slot></white>. <gray>Use it as the kit <white>custom:<slot></white> when you challenge someone."
   custom-deleted: "<prefix><gray>Custom kit <white><slot></white> was empty, so it is gone."
-  custom-invalid: "<prefix><red>Only items from <kit> can go in a custom kit: take out the others and try again."
+  custom-invalid: "<prefix><red>Your custom kit holds an item the editor no longer offers; nothing was saved."
+  admin-saved: "<prefix><green>Saved the items of kit <white><kit></white>."
+  # Titles of the anvils the editor asks in; <min> and <max> bound the number, <rule> is a rule's name.
+  anvil-name: "Kit name"
+  anvil-durability: "Durability (<min>-<max>)"
+  anvil-count: "Count (<min>-<max>)"
+  anvil-rule: "<rule> (<min>-<max>)"
+  bad-name: "<prefix><red>A kit name is 1 to <max> characters."
+  bad-number: "<prefix><red>Type a whole number from <min> to <max>."
 
 custom-kit:
   disabled: "<prefix><red>Custom kits are off on this server."
   no-slot: "<prefix><red>Pick a custom kit from 1 to <slots>."
-  not-building: "<prefix><red>You're not building a custom kit: <white>/duel customkit</white>."
-  inventory-full: "<prefix><red>Your inventory is full: click an item in it to take it out."
 
 party:
   created: "<prefix><green>Created a party. <gray>Invite players with <white>/party <player></white>."
@@ -361,9 +397,22 @@ event:
   mode-tournament: "Tournament"
   mode-sumo: "Sumo (one fight at a time)"
   mode-double: "Double elimination"
+  mode-juggernaut: "Juggernaut (one strong player against everyone)"
+  mode-oitc: "One in the chamber (arrows kill, 3 lives)"
+  mode-koth: "King of the hill"
+  mode-tnt-tag: "TNT tag"
+  mode-splegg: "Splegg (eggs break the floor)"
+  # King of the hill, in the action bar every second: <player> holds the hill with <points> of <goal> seconds;
+  # <own> is the viewer's own seconds.
+  koth-held: "<gold><player></gold> <gray>holds the hill <dark_gray>·</dark_gray> <white><points>/<goal>s <dark_gray>·</dark_gray> <gray>you: <white><own>s"
+  koth-free: "<gray>Nobody holds the hill <dark_gray>·</dark_gray> <gray>you: <white><own>/<goal>s"
+  # TNT tag: <player> carries the TNT; hitting someone passes it on.
+  tnt-tagged: "<prefix><red><player></red> <gray>has the TNT!"
+  tnt-fuse: "<red><bold>TNT</bold> <gray>goes off in <white><seconds>s</white>: hit someone!"
+  tnt-exploded: "<prefix><red><player></red> <gray>blew up."
   # The host of events config.yml events.schedule starts.
   server-host: "Server"
-  hosted: "<prefix><green>You're hosting a <white><kit></white> event. <gray>Change it in the menu or with <white>/event settings</white>; start it with <white>/event start</white>."
+  hosted: "<prefix><green>You're hosting a <white><kit></white> event. <gray>It's private: invite players with <white>/event invite</white> or make it public in the menu (<white>/event settings</white>); start it with <white>/event start</white>."
   announce: "<prefix><white><host></white> <gray>is hosting a <white><kit></white> event <dark_gray>(<mode> · <arena> · <players>/<max> · starts in <time>)</dark_gray> <join><green><bold>[JOIN]</bold></green></join>"
   join-hover: "<green>Click to join"
   joined: "<prefix><green>You joined <white><host></white>'s event <gray>(<players>/<max>). <dark_gray>Use /event leave to leave."
@@ -436,6 +485,8 @@ stats:
     <gradient:#ff416c:#ff4b2b><bold>⚔ <player></bold></gradient>
      <gray>Wins <green><wins></green> <dark_gray>·</dark_gray> Losses <red><losses></red> <dark_gray>·</dark_gray> Win rate <white><rate>%
      <gray>Win streak <gold><streak></gold> <dark_gray>·</dark_gray> Best <gold><best>
+     <gray>Kills <green><kills></green> <dark_gray>·</dark_gray> Deaths <red><deaths></red> <dark_gray>·</dark_gray> K/D <white><ratio>
+     <gray>Level <yellow><level></yellow> <dark_gray>(<xp> xp, <next> to the next)
      <gray>Rating <aqua><elo></aqua> <division>
   # One line per kit the player played ranked, after show: <kit>, <elo>, <peak> (this season's best), <division>,
   # ranked <wins> and <losses>.
@@ -615,6 +666,9 @@ admin:
     category-missing: "<prefix><gray><arena> isn't in category <category>."
     build-limit-set: "<prefix><green>Fighters in <white><arena></white> can place blocks up to Y <white><y></white>."
     build-limit-cleared: "<prefix><green>Fighters in <white><arena></white> can place blocks anywhere inside it."
+    ffa-set: "<prefix><green><white><arena></white> is the <white><kit></white> free-for-all arena now; it takes no duels."
+    ffa-cleared: "<prefix><green><white><arena></white> takes duels again."
+    ffa-build-kit: "<prefix><red><kit> is a build kit: free-for-all arenas are for kits without building."
     build-limit-outside: "<prefix><red>Use a Y from <min> to <max>, inside <arena>, or none."
     no-copies: "<prefix><gray><arena> has no free copies."
     no-arenas-world: "<prefix><red>The arenas world <world> couldn't be loaded, so copies can't be made; check the console."
@@ -654,6 +708,7 @@ admin:
     prompt-name: "<prefix><gray>Type the name to show for <white><arena></white> (e.g. <white>\\<gold>Desert</white>), or <white>cancel</white>."
     prompt-category-add: "<prefix><gray>Type a category to add to <white><arena></white>, or <white>cancel</white>."
     prompt-category-remove: "<prefix><gray>Type a category to remove from <white><arena></white>, or <white>cancel</white>."
+    prompt-ffa: "<prefix><gray>Type the kit whose free-for-all <white><arena></white> holds, <white>none</white>, or <white>cancel</white>."
     prompt-build-limit: "<prefix><gray>Type the highest Y fighters may build at in <white><arena></white>, <white>none</white>, or <white>cancel</white>."
   kit:
     created: "<prefix><green>Created kit <white><id></white> from your inventory."
@@ -662,6 +717,8 @@ admin:
     loaded: "<prefix><green>Loaded kit <white><kit></white>. <gray>Edit it, then use /duels kit save <id>."
     inventory-not-empty: "<prefix><red>Empty your inventory and armor first so nothing is lost."
     empty-inventory: "<prefix><red>Your inventory is empty; put the kit's items in it first."
+    golden-head-given: "<prefix><green>Gave you <white><amount></white> golden heads. <gray>Put them in a kit's items and save it."
+    golden-head-usage: "<prefix><red>Use /duels kit goldenhead [amount], 1 to 64."
     deleted: "<prefix><green>Deleted kit <white><id></white>."
     icon-set: "<prefix><green>Set the icon of <white><kit></white>."
     name-set: "<prefix><green>Kit <white><id></white> is now shown as <white><kit></white>."
@@ -673,11 +730,17 @@ admin:
     list-empty: "<prefix><gray>No kits yet. Create one with <white>/duels kit create <name>"
     # /duels kit mode <kit> [mode]; bridge and bed fight also make it a build kit.
     mode-set: "<prefix><green><white><kit></white> is now <white><mode></white>."
-    mode-usage: "<prefix><red>Use /duels kit mode <kit> [normal|bridge|bed-fight]."
+    mode-usage: "<prefix><red>Use /duels kit mode <kit> [normal|bridge|bed-fight|mlg-rush|spleef]."
+    # /duels kit toggle <kit> [on|off]: a disabled kit is hidden and nobody can queue, duel, fight parties or host events with it.
+    enabled: "<prefix><green><white><kit></white> is on: players can use it again."
+    disabled: "<prefix><yellow><white><kit></white> is off: players can't see or use it."
+    toggle-usage: "<prefix><red>Use /duels kit toggle <kit> [on|off]."
     modes:
       normal: "a normal kit"
       bridge: "a bridge kit (goals win rounds, fighters respawn)"
       bed-fight: "a bed fight kit (fighters respawn while their bed stands)"
+      mlg-rush: "an MLG Rush kit (breaking the enemy bed wins a round, fighters respawn)"
+      spleef: "a spleef kit (fighters break the arena's floor; falling out loses)"
     defaults-added: "<prefix><green>Added <white><count></white> default kits; existing kits were kept."
     arenas-usage: "<prefix><red>Use /duels kit arenas <name> <category...> or any; categories use lowercase letters, digits, - and _."
     arenas-set: "<prefix><green>Duels with <white><kit></white> now use arenas in: <white><categories></white>."
@@ -700,8 +763,8 @@ admin:
     rule-seconds-usage: "<prefix><red><rule> is a number of seconds from 0 to <max>, or default."
     rule-number-usage: "<prefix><red><rule> is a whole number from 0 to <max>, or default."
     # Titles of the anvils the /duels kit effects menu asks in.
-    prompt-amplifier: "<effect>: amplifier 0-<max>"
-    prompt-seconds: "<effect>: seconds (0 whole fight)"
+    anvil-amplifier: "Amplifier: 0-<max>"
+    anvil-duration: "Duration: 0-<max_seconds>"
     # Asked in chat by the /duels kit menus.
     prompt-create: "<prefix><gray>Type a name for the new kit (lowercase letters, digits, - and _), or <white>cancel</white>."
     prompt-name: "<prefix><gray>Type the name to show for <white><kit></white> (e.g. <white>\\<gold>Sword</white>), or <white>cancel</white>."
@@ -723,6 +786,9 @@ sidebar:
   # Bridge and bed fight kits add one of these under the first line. <goals> and <bed> are the viewer's side,
   # <opponent_goals> and <opponent_bed> the other; spectators see side 1 then side 2. <to_win> goals win.
   goals: "<gray>Goals: <green><goals></green> <dark_gray>-</dark_gray> <red><opponent_goals></red> <dark_gray>(to <to_win>)"
+  # MLG Rush: beds broken by each side, with the same tags as goals.
+  points: "<gray>Beds: <green><goals></green> <dark_gray>-</dark_gray> <red><opponent_goals></red> <dark_gray>(to <to_win>)"
+  points-spectating: "<gray>Beds: <white><goals> <dark_gray>-</dark_gray> <white><opponent_goals> <dark_gray>(to <to_win>)"
   goals-spectating: "<gray>Goals: <white><goals> <dark_gray>-</dark_gray> <white><opponent_goals> <dark_gray>(to <to_win>)"
   beds: "<gray>Your bed: <bed> <dark_gray>·</dark_gray> <gray>Enemy: <opponent_bed>"
   beds-spectating: "<gray>Beds: <bed> <dark_gray>vs</dark_gray> <opponent_bed>"
@@ -760,6 +826,16 @@ sidebar:
     <gray>Arena: <white><arena>
 
     <gray>Your ping: <white><ping>ms
+  # Free-for-all fighters: <kills>, <deaths> and <streak> since they joined, <players> fighting.
+  ffa: |-
+    <gray>Kills: <green><kills></green> <dark_gray>·</dark_gray> <gray>Deaths: <red><deaths>
+    <gray>Streak: <white><streak>
+    <gray>Players: <white><players>
+
+    <gray>Kit: <white><kit>
+    <gray>Arena: <white><arena>
+
+    <gray>Your ping: <white><ping>ms
   spectating: |-
     <dark_gray><time>
     <gray>Watching: <white><fighters>
@@ -768,6 +844,7 @@ sidebar:
     <gray>Arena: <white><arena>
   lobby: |-
     <gray>Rating: <aqua><elo><dark_gray><rank>
+    <gray>Level: <yellow><level>
     <gray>Wins: <green><wins>
     <gray>Losses: <red><losses>
     <gray>Win rate: <white><win_rate>%
@@ -794,7 +871,7 @@ holograms:
 
 # /duel cosmetics
 cosmetics:
-  usage: "<prefix><red>Use /duel cosmetics [kill-effect|kill-message]."
+  usage: "<prefix><red>Use /duel cosmetics [kill-effect|kill-message|death-message|win-sound|armor-trim|shield-pattern]."
   chosen: "<prefix><green>Picked <name><green>."
   removed: "<prefix><gray>Dropped <name><gray>."
   locked: "<prefix><red><name> <red>is locked."
@@ -806,3 +883,10 @@ kill-messages:
   outplayed: "<prefix><white><victim></white> <gray>got outplayed by</gray> <white><killer></white><gray>."
   sent-home: "<prefix><white><killer></white> <gray>sent</gray> <white><victim></white> <gray>back to the lobby."
   royal: "<prefix><gold>♛</gold> <white><killer></white> <gray>dethroned</gray> <white><victim></white><gray>."
+
+# The death messages of config.yml cosmetics.death-messages, by id: sent to everyone in the fight when the player
+# who picked one is knocked out and the killer has no kill message. <victim>, and <killer> (empty without one).
+death-messages:
+  fell: "<prefix><white><victim></white> <gray>took a fall."
+  rest: "<prefix><white><victim></white> <gray>went to rest."
+  ghost: "<prefix><white><victim></white> <gray>faded away like a ghost."

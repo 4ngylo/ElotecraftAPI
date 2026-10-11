@@ -23,7 +23,7 @@ match:
 requests:
   expiry: 30s             # how long a duel request can be accepted
   cooldown: 5s            # between requests sent by one player; duels.bypass.cooldown skips it
-  rematch-window: 30s     # how long after a duel /duel rematch works
+  rematch-window: 30s     # how long after a duel /duel rematch and /duel playagain work
 
 rules:
   # Commands fighters and spectators may use besides /duel (their aliases too), without the slash.
@@ -53,8 +53,12 @@ rules:
     death-drops: false           # a knocked-out fighter drops their inventory
     saturation: false            # food and saturation stay full
     auto-ignite-tnt: false       # placed TNT is lit at once (build kits)
+    fireballs: false             # right-clicking a fire charge throws a fireball (Fireball Fight)
+    cooldown-bar: true           # the experience bar counts the pearl, arrow and golden apple cooldowns down
     # Numbers: a whole number, or vanilla to leave the game as it is.
     pearl-cooldown: vanilla      # 0 to 60 seconds between ender pearls (vanilla: 1s)
+    arrow-cooldown: vanilla      # 0 to 60 seconds a bow or crossbow rests after a shot (vanilla: none)
+    gapple-cooldown: vanilla     # 0 to 60 seconds between golden apples (vanilla: none)
     hits-to-win: 0               # 0 to 1000; boxing: hits that knock a fighter out (0: off)
     rounds-to-win: 1             # 0 to 10; duels only: rounds to win the duel (0 or 1: one round)
     max-health: 0                # 0 to 200 health points (20 is ten hearts; 0: off)
@@ -91,6 +95,8 @@ ranked:
   # Ranked duels a player may start a day (the server's date), counted per server; 0 for no limit.
   # duels.queue.ranked.limit.<n> raises it for a player; players with duels.queue.ranked.unlimited have none.
   daily-limit: 0
+  # Duel wins (any kind) a player needs before joining a ranked queue, 0 to 10000; 0 for none.
+  required-wins: 0
   # Ratings are per kit; a player's overall rating is the average of the kits they played ranked. Each
   # rating shows the highest division it reaches (MiniMessage names). Use [] to turn divisions off.
   # A division may pay a season reward when /duels season end runs, to every player whose overall rating
@@ -117,9 +123,6 @@ parties:
   max-size: 8             # 2 to 100 players, the leader included; a leader's duels.party.size.<n> raises it
   invite-expiry: 60s      # how long a party invite can be accepted
 
-kit-editor:
-  timeout: 5m             # /duel editkit ends without saving after this
-
 # Player-hosted events (/event): the host picks the kit, arena, rules, teams and winner count while
 # players join, then everyone fights once. Events never change stats or ratings.
 events:
@@ -142,7 +145,8 @@ events:
     min-size: 10          # 1 to 1000 blocks across at the end
     damage: 1.0           # 0 to 20 health a second outside it (2 = one heart)
   # Events the server hosts every day at a server time ("HH:mm"), gathering players for wait-time
-  # like a player's event (messages.yml event.server-host is the host). mode: ffa, teams, tournament
+  # like a player's event (messages.yml event.server-host is the host). mode: ffa, teams, juggernaut, oitc,
+  # koth, tnt-tag, splegg, tournament
   # (1v1 knockout rounds, each round's fights at once), sumo (the same, one fight at a time while
   # the others watch) or double (a tournament where a player is out after two losses). A tournament's champion gets the reward above if they won the final by a kill.
   #   - {at: "20:00", kit: sumo, mode: sumo}
@@ -165,18 +169,21 @@ sidebar:
 holograms:
   lines: 10               # players on each board, 1 to 50
 
-# Kits players build themselves with /duel customkit, picking items from an admin kit: the base kit.
-# Custom kits take the base kit's rules, arenas, permission, rewards and effects; players use them to
-# challenge someone (/duel <player> custom[:slot]) or in party fights, never in queues, events or bets.
+# Kits players build themselves with /duel customkit, picking items in the kit editor (menus.yml
+# kit-editor-categories lists them). Custom kits take the base kit's arena categories, permission, rewards,
+# effects, mode and the rules the player leaves alone; players use them to challenge someone
+# (/duel <player> custom[:slot]) or in party fights, never in queues, events or bets.
 custom-kits:
-  base-kit: ""            # the kit whose items players pick from; empty: custom kits are off
+  base-kit: ""            # the kit custom kits take the rest from (it may hold no items); empty: custom kits are off
   slots: 3                # custom kits each player keeps, 1 to 9; duels.kit.custom.slots.<n> raises it
   # The name duels show; <player> is the builder, <slot> the kit's number.
   display-name: "<yellow><player>'s custom kit <slot>"
 
-# Kit modes (/duels kit mode <kit> bridge|bed-fight). Bridge: walking into the other side's goal (set with
-# /duels arena setgoal) wins a round; knocked-out fighters come back at their spawn, and placed blocks stay
-# between rounds. Bed fight: knocked-out fighters come back while their bed (/duels arena setbed) stands.
+# Kit modes (/duels kit mode <kit> bridge|bed-fight|mlg-rush|spleef). Bridge: walking into the other side's goal
+# (set with /duels arena setgoal) wins a round; knocked-out fighters come back at their spawn, and placed blocks stay
+# between rounds. Bed fight: knocked-out fighters come back while their bed (/duels arena setbed) stands. MLG Rush:
+# breaking the other side's bed wins a round; fighters always come back. Spleef: fighters may break the arena's own
+# blocks (it is put back between rounds); falling out of the box loses.
 modes:
   bridge:
     goal-radius: 2          # 0 to 16 blocks across (x and z) from the goal point: a flat ring at its layer to pass through
@@ -231,7 +238,15 @@ effects:
   menu-click: {sound: ui.button.click, volume: 0.6, pitch: 1.2}
   denied: {sound: entity.villager.no, volume: 0.8, pitch: 1.0}
 
-# Kill effects and kill messages players pick with /duel cosmetics. They play when the player who picked one
+# Experience from duels and 2v2 duels (/duel stats shows the level): per win, loss and kill. Level n needs
+# level-xp * n * (n - 1) / 2 experience in all, so each level takes level-xp more than the one before.
+progression:
+  win-xp: 20
+  loss-xp: 5
+  kill-xp: 5
+  level-xp: 100
+
+# Cosmetics players pick with /duel cosmetics. Kill effects and kill messages play when the player who picked one
 # knocks out an opponent they hit last, with a lethal hit or into the void. Each one has an icon and a name
 # for the menu, and an optional permission (none: everyone may pick it). Kill effects play where the
 # opponent fell: lightning is a harmless strike (its thunder is heard by every player close enough to
@@ -249,3 +264,26 @@ cosmetics:
     outplayed: {icon: TARGET, name: "<aqua>Outplayed"}
     sent-home: {icon: RED_BED, name: "<red>Sent home"}
     royal: {icon: GOLDEN_HELMET, name: "<gold>Royal"}
+  # Shown when the player is knocked out and the killer has no kill message; texts in messages.yml death-messages.
+  death-messages:
+    fell: {icon: FEATHER, name: "<gray>Fell"}
+    rest: {icon: WHITE_BED, name: "<white>Resting"}
+    ghost: {icon: PHANTOM_MEMBRANE, name: "<aqua>Ghost"}
+  # Played to everyone in the fight when the player wins: a sound (and optional particle), as kill effects.
+  win-sounds:
+    fanfare: {icon: GOAT_HORN, name: "<gold>Fanfare", sound: ui.toast.challenge_complete}
+    level-up: {icon: EXPERIENCE_BOTTLE, name: "<green>Level up", sound: entity.player.levelup}
+    bell: {icon: BELL, name: "<yellow>Bell", sound: block.bell.use, pitch: 1.2}
+  # Put on every trimmable armor piece of the kit. pattern and material: vanilla trim names (pattern: sentry, vex,
+  # wild, coast, dune, wayfinder, raiser, shaper, host, ward, silence, tide, snout, rib, eye, spire, flow, bolt;
+  # material: quartz, iron, netherite, redstone, copper, gold, emerald, diamond, lapis, amethyst, resin).
+  armor-trims:
+    silence-gold: {icon: SILENCE_ARMOR_TRIM_SMITHING_TEMPLATE, name: "<gold>Golden silence", pattern: silence, material: gold}
+    wild-emerald: {icon: WILD_ARMOR_TRIM_SMITHING_TEMPLATE, name: "<green>Emerald wild", pattern: wild, material: emerald}
+    rib-redstone: {icon: RIB_ARMOR_TRIM_SMITHING_TEMPLATE, name: "<red>Redstone rib", pattern: rib, material: redstone}
+    eye-amethyst: {icon: EYE_ARMOR_TRIM_SMITHING_TEMPLATE, name: "<light_purple>Amethyst eye", pattern: eye, material: amethyst}
+  # Put on every shield of the kit: a base dye color and banner pattern layers ("<pattern> <COLOR>", bottom first).
+  shield-patterns:
+    crusader: {icon: RED_BANNER, name: "<red>Crusader", base: WHITE, patterns: ["cross RED", "border RED"]}
+    night: {icon: BLACK_BANNER, name: "<dark_gray>Night", base: BLACK, patterns: ["gradient PURPLE", "skull WHITE"]}
+    sky: {icon: LIGHT_BLUE_BANNER, name: "<aqua>Sky", base: LIGHT_BLUE, patterns: ["stripe_bottom WHITE", "circle YELLOW"]}

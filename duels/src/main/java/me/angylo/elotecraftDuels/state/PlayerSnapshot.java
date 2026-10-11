@@ -37,6 +37,8 @@ public record PlayerSnapshot(UUID id, String world, double x, double y, double z
     private static final int MAX_FOOD = 20;
     private static final float DEFAULT_SATURATION = 5;
     private static final int DEFAULT_NO_DAMAGE_TICKS = 20;
+    /** The items kit rules put cooldowns on. */
+    private static final List<Material> KIT_COOLDOWNS = List.of(Material.ENDER_PEARL, Material.BOW, Material.CROSSBOW, Material.GOLDEN_APPLE);
     /** The maximum health modifier of kits with {@code max-health}; saved with the player, so a crash keeps it until restored. */
     public static final NamespacedKey KIT_MAX_HEALTH = Objects.requireNonNull(NamespacedKey.fromString("elotecraftduels:kit-max-health"));
 
@@ -80,7 +82,7 @@ public record PlayerSnapshot(UUID id, String world, double x, double y, double z
 
     /**
      * Readies {@code player} for a fight: loose items cleared, survival mode without flight or effects,
-     * full health and hunger, no fire, falling, drowning or freezing. The inventory is left to the kit.
+     * full health and hunger, no experience, fire, falling, drowning or freezing. The inventory is left to the kit.
      */
     public static void resetForDuel(Player player) {
         // First, so full health below is the normal maximum.
@@ -95,6 +97,10 @@ public record PlayerSnapshot(UUID id, String world, double x, double y, double z
         player.setFoodLevel(MAX_FOOD);
         player.setSaturation(DEFAULT_SATURATION);
         player.setExhaustion(0);
+        // Everyone starts without experience: mending kits repair alike, and the bar can show the pearl cooldown.
+        player.setTotalExperience(0);
+        player.setLevel(0);
+        player.setExp(0);
         player.setFireTicks(0);
         player.setFallDistance(0);
         player.setRemainingAir(player.getMaximumAir());
@@ -102,12 +108,14 @@ public record PlayerSnapshot(UUID id, String world, double x, double y, double z
     }
 
     /**
-     * Undoes what kit rules change on a player: the combo hit delay and the pearl cooldown (neither saved by the
+     * Undoes what kit rules change on a player: the combo hit delay and the item cooldowns (neither saved by the
      * server) and the kit's maximum health.
      */
     private static void clearKitRules(Player player) {
         player.setMaximumNoDamageTicks(DEFAULT_NO_DAMAGE_TICKS);
-        player.setCooldown(Material.ENDER_PEARL, 0);
+        for (Material item : KIT_COOLDOWNS) {
+            player.setCooldown(item, 0);
+        }
         AttributeInstance health = player.getAttribute(Attribute.MAX_HEALTH);
         if (health != null) {
             health.removeModifier(KIT_MAX_HEALTH);

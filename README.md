@@ -4,7 +4,7 @@ Shared library plugin for Elotecraft Paper plugins (Paper 1.21.11, Java 21).
 
 | Package | What |
 |---|---|
-| `util` | `Text` (MiniMessage), `Durations`, `Cooldowns`, `Tasks`, `Events`, `ItemBuilder` (incl. skulls), `ConfigFile`, `Messages` (prefix, per-player language, PlaceholderAPI) |
+| `util` | `Text` (MiniMessage), `Durations`, `Cooldowns`, `Tasks`, `Events`, `ItemBuilder` (incl. skulls), `ConfigFile`, `LocalizedFile` (per-language overrides), `Messages` (prefix, per-player language, PlaceholderAPI) |
 | `menu` | `Button`, `Menu` (incl. `refresh`), `PaginatedMenu`, `MenuConfig` (menus from YAML), `MenuListener` |
 | `command` | `CommandBuilder`: nested subcommands, permissions, tab completion, unregister, no `plugin.yml` entry; `Args` parsers and suggestions |
 | `input` | `ChatInput`: ask a player to type something in chat; `AnvilInput`: the same in an anvil's rename field, answered by clicking the result |

@@ -1,5 +1,6 @@
 package me.angylo.elotecraftDuels;
 
+import me.angylo.elotecraftAPI.menu.Menu;
 import me.angylo.elotecraftAPI.util.Text;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import org.bukkit.Material;
@@ -13,6 +14,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Locale;
 import java.util.stream.IntStream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -54,6 +56,16 @@ class HubMenuTest extends DuelsTestBase {
     }
 
     @Test
+    void aButtonThatOpensNoOtherMenuClosesTheMenu() {
+        server.dispatchCommand(alex, "duel");
+
+        clickNamed(alex, "Close");
+
+        Inventory top = alex.getOpenInventory().getTopInventory();
+        assertFalse(top != null && top.getHolder() instanceof Menu);
+    }
+
+    @Test
     void theHubShowsTheViewersStatsAndHead() {
         TestPlayer steve = join("Steve");
         duels.stats().recordResult(alex, steve, "sword", 16);
@@ -81,8 +93,9 @@ class HubMenuTest extends DuelsTestBase {
 
     @Test
     void playersWhoMayNotOpenMenusGetTheHelp() {
-        server.dispatchCommand(alex, "duel editkit sword");
-        tickUntil(() -> duels.editor().isEditing(alex));
+        TestPlayer steve = join("Steve");
+        assertTrue(duels.matches().start(alex, steve, duels.kits().get("sword").orElseThrow(), duels.arenas().get("pit").orElseThrow()));
+        tickUntil(() -> duels.matches().isRestricted(alex));
         messages(alex);
 
         server.dispatchCommand(alex, "duel");
@@ -195,7 +208,7 @@ class HubMenuTest extends DuelsTestBase {
 
         assertEquals("Old kits", YamlConfiguration.loadConfiguration(menus.resolveSibling("menus.v1.yml").toFile()).getString("kits.title"));
         YamlConfiguration written = YamlConfiguration.loadConfiguration(menus.toFile());
-        assertEquals(3, written.getInt("version"));
+        assertEquals(4, written.getInt("version"));
         assertEquals("Choose a kit", written.getString("kits.title"));
     }
 
@@ -209,7 +222,7 @@ class HubMenuTest extends DuelsTestBase {
         await(duels.ready());
 
         assertEquals("<bold>Old kits", YamlConfiguration.loadConfiguration(menus.resolveSibling("menus.v2.yml").toFile()).getString("kits.title"));
-        assertEquals(3, YamlConfiguration.loadConfiguration(menus.toFile()).getInt("version"));
+        assertEquals(4, YamlConfiguration.loadConfiguration(menus.toFile()).getInt("version"));
     }
 
     @Test
@@ -224,7 +237,7 @@ class HubMenuTest extends DuelsTestBase {
     @Test
     void aCurrentMenusFileIsKept() throws IOException {
         Path menus = plugin.getDataFolder().toPath().resolve("menus.yml");
-        Files.writeString(menus, "version: 3\nhub:\n  main:\n    title: My hub\n");
+        Files.writeString(menus, "version: 4\nhub:\n  main:\n    title: My hub\n");
         duels.shutdown();
 
         duels = Duels.start(plugin, worldEdit);
@@ -232,5 +245,43 @@ class HubMenuTest extends DuelsTestBase {
 
         assertFalse(Files.exists(menus.resolveSibling("menus.v1.yml")));
         assertEquals("My hub", YamlConfiguration.loadConfiguration(menus.toFile()).getString("hub.main.title"));
+    }
+
+    @Test
+    void playersSeeMenusInTheirLanguageWithTheDefaultLayout() throws IOException {
+        Files.writeString(plugin.getDataFolder().toPath().resolve("menus_es.yml"), """
+                hub:
+                  main:
+                    title: "Duelos"
+                    buttons:
+                      play:
+                        name: "Jugar"
+                """);
+        duels.reload();
+        alex.setLocale(Locale.forLanguageTag("es-ES"));
+
+        server.dispatchCommand(alex, "duel");
+        assertEquals("Duelos", menuTitle(alex));
+        clickNamed(alex, "Jugar");
+        assertEquals("Duels › Play", menuTitle(alex), "the button keeps its command, the untranslated menu its texts");
+
+        alex.setLocale(Locale.US);
+        server.dispatchCommand(alex, "duel");
+        assertEquals("Duels", menuTitle(alex));
+    }
+
+    @Test
+    void onlyTranslationsNamingAnOlderVersionAreMovedAside() throws IOException {
+        Path folder = plugin.getDataFolder().toPath();
+        Files.writeString(folder.resolve("menus_es.yml"), "version: 3\nkits:\n  title: Kits viejos\n");
+        Files.writeString(folder.resolve("menus_pt.yml"), "kits:\n  title: Kits\n");
+        duels.shutdown();
+
+        duels = Duels.start(plugin, worldEdit);
+        await(duels.ready());
+
+        assertFalse(Files.exists(folder.resolve("menus_es.yml")));
+        assertEquals("Kits viejos", YamlConfiguration.loadConfiguration(folder.resolve("menus_es.v3.yml").toFile()).getString("kits.title"));
+        assertTrue(Files.exists(folder.resolve("menus_pt.yml")));
     }
 }

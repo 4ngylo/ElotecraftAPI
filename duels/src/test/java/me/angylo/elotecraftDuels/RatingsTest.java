@@ -101,7 +101,7 @@ class RatingsTest extends DuelsTestBase {
         File file = new File(plugin.getDataFolder(), "duels.db");
         try (Connection connection = DriverManager.getConnection("jdbc:sqlite:" + file.getAbsolutePath());
              Statement statement = connection.createStatement()) {
-            statement.executeUpdate("INSERT INTO duels_stats VALUES ('" + alex.getUniqueId() + "', 'Alex', 3, 1, 0, 2, 1200)");
+            statement.executeUpdate("INSERT INTO duels_stats (uuid, name, wins, losses, win_streak, best_win_streak, elo) VALUES ('" + alex.getUniqueId() + "', 'Alex', 3, 1, 0, 2, 1200)");
         }
         duels.stats().cache(alex.getUniqueId(), new PlayerStats("Alex", 3, 1, 0, 2, 1200, Map.of()));
         // 200 apart: wider than the queue's starting range.

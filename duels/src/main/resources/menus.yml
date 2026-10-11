@@ -12,9 +12,13 @@
 # or does nothing with close: false.
 # Titles are plain text: kit and arena names in them lose their colors.
 #
-# version 3 is the centered layout with plain titles. A menus.yml from an older version is moved to
+# version 3 is the centered layout with plain titles; version 4 adds the kit editor menus. A menus.yml from an older version is moved to
 # menus.v<its version>.yml (menus.v1.yml without one) and this file is written in its place.
-version: 3
+#
+# Translations: menus_<language>.yml (e.g. menus_es.yml) next to this file is used for players whose client uses
+# that language. Put only the texts in it, at the same paths (hub: {main: {title: "Duelos"}}); everything it
+# lacks comes from this file. A translation with a version older than this one is moved aside the same way.
+version: 4
 
 # /duel and /duel menu <name>: menus of buttons that run commands. Each button has a slot, material,
 # name, lore, an optional command, and an optional permission players need to see it. A PLAYER_HEAD is the
@@ -92,6 +96,27 @@ hub:
         name: "<gold><bold>Ranked"
         lore: ["<gray>Duels that move your rating", "", "<dark_gray>▪ <gray>In queue: <white><ranked>", "<dark_gray>▪ <gray>Your rating: <aqua><elo></aqua> <division>", "", "<yellow>▶ Click to pick a kit"]
         command: "duel ranked"
+      team:
+        slot: 11
+        permission: duels.queue
+        material: GOLDEN_SWORD
+        name: "<yellow><bold>2v2"
+        lore: ["<gray>With your party of two, or alone", "<gray>to get a teammate", "", "<yellow>▶ Click to pick a kit"]
+        command: "duel 2v2"
+      team-ranked:
+        slot: 13
+        permission: duels.queue.ranked
+        material: DIAMOND_AXE
+        name: "<gold><bold>Ranked 2v2"
+        lore: ["<gray>Team duels that move your rating:", "<gray>teams of close average ratings", "", "<yellow>▶ Click to pick a kit"]
+        command: "duel 2v2ranked"
+      ffa:
+        slot: 15
+        permission: duels.ffa
+        material: STONE_SWORD
+        name: "<red><bold>Free-for-all"
+        lore: ["<gray>Join and leave when you like,", "<gray>respawn with the kit", "", "<yellow>▶ Click to pick a kit"]
+        command: "duel ffa"
       events:
         slot: 14
         material: NETHER_STAR
@@ -113,14 +138,14 @@ hub:
     rows: 3
     buttons:
       ratings:
-        slot: 11
+        slot: 10
         permission: duels.stats
         material: NETHER_STAR
         name: "<aqua><bold>Ratings"
         lore: ["<gray>Your rating and division in each kit", "", "<yellow>▶ Click to open"]
         command: "duel ratings"
       summary:
-        slot: 13
+        slot: 12
         material: PLAYER_HEAD
         close: false
         name: "<white><bold>Your stats"
@@ -130,12 +155,19 @@ hub:
           - "<dark_gray>▪ <gray>Win rate: <white><rate>%"
           - "<dark_gray>▪ <gray>Streak: <white><streak></white> <dark_gray>(best <best>)"
       history:
-        slot: 15
+        slot: 14
         permission: duels.history
         material: CLOCK
         name: "<yellow><bold>Match history"
         lore: ["<gray>Your latest duels", "", "<yellow>▶ Click to open"]
         command: "duel history"
+      leaderboard:
+        slot: 16
+        permission: duels.top
+        material: GOLDEN_HELMET
+        name: "<gold><bold>Leaderboard"
+        lore: ["<gray>The best players by wins and rating", "", "<yellow>▶ Click to open"]
+        command: "duel leaderboard"
       back: {slot: 21, material: ARROW, name: "<yellow>« Back", command: "duel"}
       close: {slot: 22, material: BARRIER, name: "<red>Close"}
 
@@ -176,6 +208,30 @@ hub:
         name: "<aqua><bold>Kill messages"
         lore: ["<gray>What the fight reads when you win", "", "<yellow>▶ Click to open"]
         command: "duel cosmetics kill-message"
+      death-message:
+        slot: 10
+        material: SKELETON_SKULL
+        name: "<gray><bold>Death messages"
+        lore: ["<gray>What the fight reads when you", "<gray>fall without a kill message", "", "<yellow>▶ Click to open"]
+        command: "duel cosmetics death-message"
+      win-sound:
+        slot: 11
+        material: GOAT_HORN
+        name: "<gold><bold>Win sounds"
+        lore: ["<gray>Played when you win", "", "<yellow>▶ Click to open"]
+        command: "duel cosmetics win-sound"
+      armor-trim:
+        slot: 15
+        material: SILENCE_ARMOR_TRIM_SMITHING_TEMPLATE
+        name: "<light_purple><bold>Armor trims"
+        lore: ["<gray>On your kit's armor", "", "<yellow>▶ Click to open"]
+        command: "duel cosmetics armor-trim"
+      shield-pattern:
+        slot: 16
+        material: SHIELD
+        name: "<aqua><bold>Shield patterns"
+        lore: ["<gray>On your kit's shields", "", "<yellow>▶ Click to open"]
+        command: "duel cosmetics shield-pattern"
       back: {slot: 21, material: ARROW, name: "<yellow>« Back", command: "duel"}
       close: {slot: 22, material: BARRIER, name: "<red>Close"}
 
@@ -392,28 +448,89 @@ ratings:
   back: {slot: 3, material: ARROW, name: "<yellow>« Back", command: "duel menu profile"}
   close: {slot: 4, material: BARRIER, name: "<red>Close"}
 
+# /duel leaderboard: a board per kit (its ratings), plus wins and overall in the top row. A click opens the board.
+leaderboard:
+  title: "Profile › Leaderboard"
+  rows: 5
+  kit:
+    name: "<gold><bold><kit>"
+    lore: ["<gray>The best ratings in this kit", "", "<yellow>▶ Click to open"]
+  wins: {row: top, slot: 3, material: GOLDEN_SWORD, name: "<green><bold>Wins", lore: ["<gray>The most duels won", "", "<yellow>▶ Click to open"]}
+  overall: {row: top, slot: 5, material: NETHER_STAR, name: "<aqua><bold>Overall rating", lore: ["<gray>The average of each player's kit ratings", "", "<yellow>▶ Click to open"]}
+  ffa: {row: top, slot: 4, material: STONE_SWORD, name: "<red><bold>Free-for-all", lore: ["<gray>The most free-for-all kills", "", "<yellow>▶ Click to pick a board"]}
+  previous: {material: ARROW, name: "<yellow>« Previous page"}
+  next: {material: ARROW, name: "<yellow>Next page »"}
+  back: {slot: 3, material: ARROW, name: "<yellow>« Back", command: "duel menu profile"}
+  close: {slot: 4, material: BARRIER, name: "<red>Close"}
+
+# One board of /duel leaderboard: a head per player, best first. <board> is a kit's name or values.wins/overall. The
+# wins board uses wins, the rating boards rating; both may use <rank>, <player>, <wins> and <losses>, rating also
+# <elo> and <division> (ranked wins and losses).
+leaderboard-board:
+  title: "Leaderboard › <board>"
+  rows: 6
+  wins:
+    name: "<gold>#<rank> <white><player>"
+    lore: ["<dark_gray>▪ <gray>Wins: <green><wins>", "<dark_gray>▪ <gray>Losses: <red><losses>"]
+  rating:
+    name: "<gold>#<rank> <white><player>"
+    lore: ["<dark_gray>▪ <gray>Rating: <aqua><elo></aqua> <division>", "<dark_gray>▪ <gray>Ranked record: <green><wins>W</green> <red><losses>L"]
+  # Free-for-all boards: <kills>, <deaths> and <ratio> (kills per death).
+  ffa:
+    name: "<gold>#<rank> <white><player>"
+    lore: ["<dark_gray>▪ <gray>Kills: <green><kills>", "<dark_gray>▪ <gray>Deaths: <red><deaths>", "<dark_gray>▪ <gray>K/D: <white><ratio>"]
+  values:
+    wins: "Wins"
+    overall: "Overall rating"
+    ffa: "Free-for-all kills"
+    ffa-kit: "<kit> free-for-all"
+  previous: {material: ARROW, name: "<yellow>« Previous page"}
+  next: {material: ARROW, name: "<yellow>Next page »"}
+  back: {slot: 3, material: ARROW, name: "<yellow>« Back", command: "duel leaderboard"}
+  close: {slot: 4, material: BARRIER, name: "<red>Close"}
+
+# /duel leaderboard's free-for-all button: kills in every kit together (all), or a kit's free-for-all.
+leaderboard-ffa:
+  title: "Leaderboard › Free-for-all"
+  rows: 5
+  kit:
+    name: "<red><bold><kit>"
+    lore: ["<gray>The most kills in this kit's", "<gray>free-for-all", "", "<yellow>▶ Click to open"]
+  all: {row: top, slot: 4, material: STONE_SWORD, name: "<red><bold>Every kit", lore: ["<gray>Kills in every free-for-all", "", "<yellow>▶ Click to open"]}
+  previous: {material: ARROW, name: "<yellow>« Previous page"}
+  next: {material: ARROW, name: "<yellow>Next page »"}
+  back: {slot: 3, material: ARROW, name: "<yellow>« Back"}
+  close: {slot: 4, material: BARRIER, name: "<red>Close"}
+
 # Hotbar items in the lobby, given only with config.yml lobby-items.enabled. Each has a slot (0 to 8),
 # material, name and lore, the command it runs as the player when right-clicked (without the /), show
-# (idle: not queued; waiting: queued or waiting for an event; always; never, to drop a default item) and
-# an optional permission players need to get it. Add more the same way, e.g. one running "duel" for the hub.
+# (idle: not queued; waiting: queued or waiting for an event; always; never, to drop a default item; rematch: not
+# queued, with a rematch offer open; play-again: not queued, after a queue duel while the rematch window is open) and
+# an optional permission players need to get it. Of items sharing a slot, waiting ones show first, then rematch and
+# play-again ones. enabled: false turns an item off. Add more the same way, e.g. one running "duel" for the hub.
 lobby-items:
-  unranked: {slot: 0, show: idle, command: "duel queue", material: IRON_SWORD, name: "<green><bold>Unranked queue</bold> <gray>(right-click)", lore: ["<gray>Casual duels: no rating change"]}
-  ranked: {slot: 1, show: idle, permission: duels.queue.ranked, command: "duel ranked", material: DIAMOND_SWORD, name: "<gold><bold>Ranked queue</bold> <gray>(right-click)", lore: ["<gray>Duels that move your rating"]}
-  leave: {slot: 0, show: waiting, command: "duel leave", material: RED_DYE, name: "<red><bold>Leave the queue</bold> <gray>(right-click)"}
-  events: {slot: 4, show: always, command: "event list", material: NETHER_STAR, name: "<light_purple><bold>Events</bold> <gray>(right-click)", lore: ["<gray>Join or watch a hosted event"]}
-  editor: {slot: 7, show: idle, permission: duels.kit.edit, command: "duel editkit", material: BOOK, name: "<aqua><bold>Edit kits</bold> <gray>(right-click)", lore: ["<gray>Arrange your kit layouts"]}
-  history: {slot: 8, show: always, permission: duels.history, command: "duel history", material: CLOCK, name: "<yellow><bold>Match history</bold> <gray>(right-click)", lore: ["<gray>Your latest duels"]}
-  options: {slot: 6, show: idle, command: "duel options", material: COMPARATOR, name: "<gray><bold>Options</bold> <gray>(right-click)", lore: ["<gray>Requests, invites, sidebar, sounds"]}
-  party: {slot: 2, show: idle, permission: duels.party, command: "party", material: CAKE, name: "<light_purple><bold>Party</bold> <gray>(right-click)", lore: ["<gray>Your party, or a public one to join"]}
-  cosmetics: {slot: 3, show: idle, permission: duels.cosmetics, command: "duel cosmetics", material: BLAZE_POWDER, name: "<gold><bold>Cosmetics</bold> <gray>(right-click)", lore: ["<gray>Kill effects and kill messages"]}
+  unranked: {enabled: true, slot: 0, show: idle, command: "duel queue", material: IRON_SWORD, name: "<green><bold>Unranked queue</bold> <gray>(right-click)", lore: ["<gray>Casual duels: no rating change"]}
+  ranked: {enabled: true, slot: 1, show: idle, permission: duels.queue.ranked, command: "duel ranked", material: DIAMOND_SWORD, name: "<gold><bold>Ranked queue</bold> <gray>(right-click)", lore: ["<gray>Duels that move your rating"]}
+  leave: {enabled: true, slot: 0, show: waiting, command: "duel leave", material: RED_DYE, name: "<red><bold>Leave the queue</bold> <gray>(right-click)"}
+  play-again: {enabled: true, slot: 0, show: play-again, command: "duel playagain", material: PAPER, name: "<green><bold>Play again</bold> <gray>(right-click)", lore: ["<gray>Join the same queue again"]}
+  rematch: {enabled: true, slot: 5, show: rematch, permission: duels.duel, command: "duel rematch", material: BLAZE_ROD, name: "<gold><bold>Rematch</bold> <gray>(right-click)", lore: ["<gray>Challenge your last opponent again"]}
+  events: {enabled: true, slot: 4, show: always, command: "event list", material: NETHER_STAR, name: "<light_purple><bold>Events</bold> <gray>(right-click)", lore: ["<gray>Join or watch a hosted event"]}
+  editor: {enabled: true, slot: 7, show: idle, permission: duels.kit.edit, command: "duel editkit", material: BOOK, name: "<aqua><bold>Edit kits</bold> <gray>(right-click)", lore: ["<gray>Arrange your kit layouts"]}
+  history: {enabled: true, slot: 8, show: always, permission: duels.history, command: "duel history", material: CLOCK, name: "<yellow><bold>Match history</bold> <gray>(right-click)", lore: ["<gray>Your latest duels"]}
+  options: {enabled: false, slot: 6, show: idle, command: "duel options", material: COMPARATOR, name: "<gray><bold>Options</bold> <gray>(right-click)", lore: ["<gray>Requests, invites, sidebar, sounds"]}
+  party: {enabled: true, slot: 2, show: idle, permission: duels.party, command: "party", material: CAKE, name: "<light_purple><bold>Party</bold> <gray>(right-click)", lore: ["<gray>Your party, or a public one to join"]}
+  # Slot 5 goes to the rematch item while it shows.
+  ffa: {enabled: true, slot: 5, show: idle, permission: duels.ffa, command: "duel ffa", material: STONE_SWORD, name: "<red><bold>Free-for-all</bold> <gray>(right-click)", lore: ["<gray>Fight everyone, respawn with the kit"]}
+  team: {enabled: true, slot: 6, show: idle, permission: duels.queue, command: "duel 2v2", material: GOLDEN_SWORD, name: "<yellow><bold>2v2 queue</bold> <gray>(right-click)", lore: ["<gray>With your party of two, or alone"]}
+  cosmetics: {enabled: true, slot: 3, show: idle, permission: duels.cosmetics, command: "duel cosmetics", material: BLAZE_POWDER, name: "<gold><bold>Cosmetics</bold> <gray>(right-click)", lore: ["<gray>Effects, messages, sounds, trims, shields"]}
 
-# /duel customkit: a button per custom kit; a click builds it. <slot> is its number; a built one also has
-# <items> (filled slots) and <state> (values.ready, or values.outdated once the base kit no longer has an item).
+# /duel customkit: a button per custom kit; a click opens it in the kit editor. <slot> is its number; a built one also
+# has <name>, <items> (filled slots) and <state> (values.ready, or values.outdated once the editor no longer offers an item).
 custom-kits:
   title: "Kits › Custom kits"
   rows: 4
   kit:
-    name: "<gold><bold>Custom kit <slot>"
+    name: "<gold><bold><name>"
     lore:
       - "<dark_gray>▪ <gray>Items: <white><items>"
       - "<dark_gray>▪ <state>"
@@ -426,23 +543,226 @@ custom-kits:
     lore: ["<gray>Empty", "", "<yellow>▶ Click to build it"]
   values:
     ready: "<green>Ready"
-    outdated: "<red>Holds items the base kit no longer has: edit it"
+    outdated: "<red>Holds items the editor no longer offers: edit it"
   previous: {material: ARROW, name: "<yellow>« Previous page"}
   next: {material: ARROW, name: "<yellow>Next page »"}
   back: {slot: 3, material: ARROW, name: "<yellow>« Back", command: "duel menu kits"}
   close: {slot: 4, material: BARRIER, name: "<red>Close"}
 
-# /duel customkit items, while building a custom kit: the base kit's items. A click puts one in your
-# inventory; clicking an item in your inventory below takes it out.
-custom-kit-items:
-  title: "Pick items"
-  rows: 6
-  centered: false
+# The kit editor: /duel editkit <kit> (your layout of a kit), /duel customkit <slot> (a custom kit) and, for admins,
+# /duels kit <kit> > Edit items. A chest laid out like an inventory: armor in slots 10 to 13 (helmet to boots), the off
+# hand in 15, storage in rows 2 to 4 and the hotbar in the bottom row; these slots are fixed. Empty ones show their pane.
+# Closing the editor saves the kit. <name> is the kit's name, <changes> the slots changed since it opened.
+# map is shown for custom kits only, rules for custom and admin kits.
+kit-editor:
+  title: "<name>"
+  empty:
+    armor: {material: BLUE_STAINED_GLASS_PANE, name: "<gray>None", lore: ["<aqua>Click to add"]}
+    storage: {material: GRAY_STAINED_GLASS_PANE, name: "<gray>None", lore: ["<aqua>Click to add"]}
+    hotbar: {material: LIGHT_BLUE_STAINED_GLASS_PANE, name: "<gray>None", lore: ["<aqua>Click to add"]}
+  # A layout only moves the kit's items: the first click picks an item up, the next puts it there.
+  layout-empty-lore: ["<aqua>Click to put the picked item here"]
+  values:
+    random: "Random"
+    custom-name: "Custom kit <slot>"
+  map: {slot: 6, material: MAP, name: "<aqua>Change Map", lore: ["<gray>Current Map: <white><arena>"]}
+  rules: {slot: 7, material: COMPARATOR, name: "<aqua>Kit Rules", lore: ["<gray>Hunger, potions, rounds..."]}
+  info:
+    slot: 8
+    material: PAPER
+    name: "<aqua>Info"
+    lore:
+      - "<white>Left click to change item"
+      - "<white>Shift left click to remove item"
+      - "<white>Right click to enchant or change count"
+      - "<white>Shift right click to copy last item to slot"
+      - "<gray>(<changes> items changed)"
+    layout-lore:
+      - "<white>Click an item to pick it up"
+      - "<white>Click another slot to move it there"
+      - "<gray>(<changes> items changed)"
+  reset: {slot: 16, material: GUNPOWDER, name: "<aqua>Reset Kit", lore: ["<gray>Undo every change to the items"]}
+  rename: {slot: 17, material: NAME_TAG, name: "<aqua>Rename Kit", lore: ["<gray>Current Name: <white><name>"]}
+
+# Picking a piece of armor for slots 10 to 13. The pieces of each slot start at first, one per slot.
+kit-editor-armor:
+  title: "Armor"
+  first: 19
+  remove: {slot: 18, material: GRAY_STAINED_GLASS_PANE, name: "<red>Remove", lore: ["<gray>Leave the slot empty"]}
+  back: {slot: 45, material: ARROW, name: "<yellow>« Back"}
+  helmet: [LEATHER_HELMET, COPPER_HELMET, GOLDEN_HELMET, CHAINMAIL_HELMET, IRON_HELMET, DIAMOND_HELMET, NETHERITE_HELMET, TURTLE_HELMET]
+  chestplate: [LEATHER_CHESTPLATE, COPPER_CHESTPLATE, GOLDEN_CHESTPLATE, CHAINMAIL_CHESTPLATE, IRON_CHESTPLATE, DIAMOND_CHESTPLATE, NETHERITE_CHESTPLATE, ELYTRA]
+  leggings: [LEATHER_LEGGINGS, COPPER_LEGGINGS, GOLDEN_LEGGINGS, CHAINMAIL_LEGGINGS, IRON_LEGGINGS, DIAMOND_LEGGINGS, NETHERITE_LEGGINGS]
+  boots: [LEATHER_BOOTS, COPPER_BOOTS, GOLDEN_BOOTS, CHAINMAIL_BOOTS, IRON_BOOTS, DIAMOND_BOOTS, NETHERITE_BOOTS]
+
+# Picking an item for the other slots: a category, then an item from its pages (45 items a page, rows 0 to 4).
+# These items and the armor above are the only ones custom kits may hold. An item is a material, GOLDEN_HEAD (the UHC
+# golden head: a fighter eats it with a right click), or a map with material,
+# an optional name (MiniMessage), enchants ({knockback: 2}) and entity: the mob a spawn egg makes, as NBT with its id.
+# potions: true adds every potion in the form picked with the potion-forms buttons; tipped-arrows: true a tipped arrow
+# of every potion. bottom puts items in the bottom row at their slot (46 to 52), on every page.
+# (<page>/<pages>) is added to a category's title when it has more than one page.
+kit-editor-categories:
+  title: "Item categories"
+  remove: {slot: 18, material: GRAY_STAINED_GLASS_PANE, name: "<red>Remove", lore: ["<gray>Leave the slot empty"]}
+  back: {slot: 45, material: ARROW, name: "<yellow>« Back"}
   previous: {material: ARROW, name: "<yellow>« Previous page"}
   next: {material: ARROW, name: "<yellow>Next page »"}
-  clear: {slot: 3, material: LAVA_BUCKET, name: "<red><bold>Empty your inventory", lore: ["<gray>Takes out every item"]}
-  close: {slot: 4, material: BARRIER, name: "<red>Close", lore: ["<gray>Arrange your items, then", "<gray>/duel customkit items or /duel editkit save"]}
-  save: {slot: 5, material: LIME_DYE, name: "<green><bold>Save", lore: ["<gray>Saves the kit as your inventory holds it"]}
+  potion-forms:
+    slots: [49, 50]
+    potion: {material: POTION, name: "<aqua>Show drinkable potions"}
+    splash: {material: SPLASH_POTION, name: "<aqua>Show splash potions"}
+    lingering: {material: LINGERING_POTION, name: "<aqua>Show lingering potions"}
+  categories:
+    armor:
+      slot: 19
+      material: DIAMOND_CHESTPLATE
+      name: "<aqua>Armor"
+      title: "Armor"
+      items: [LEATHER_HELMET, COPPER_HELMET, GOLDEN_HELMET, CHAINMAIL_HELMET, IRON_HELMET, DIAMOND_HELMET, NETHERITE_HELMET, TURTLE_HELMET, LEATHER_HORSE_ARMOR,
+              LEATHER_CHESTPLATE, COPPER_CHESTPLATE, GOLDEN_CHESTPLATE, CHAINMAIL_CHESTPLATE, IRON_CHESTPLATE, DIAMOND_CHESTPLATE, NETHERITE_CHESTPLATE, ELYTRA, COPPER_HORSE_ARMOR,
+              LEATHER_LEGGINGS, COPPER_LEGGINGS, GOLDEN_LEGGINGS, CHAINMAIL_LEGGINGS, IRON_LEGGINGS, DIAMOND_LEGGINGS, NETHERITE_LEGGINGS, SADDLE, GOLDEN_HORSE_ARMOR,
+              LEATHER_BOOTS, COPPER_BOOTS, GOLDEN_BOOTS, CHAINMAIL_BOOTS, IRON_BOOTS, DIAMOND_BOOTS, NETHERITE_BOOTS, WOLF_ARMOR, IRON_HORSE_ARMOR,
+              DIAMOND_HORSE_ARMOR, NETHERITE_HORSE_ARMOR]
+    weapons:
+      slot: 20
+      material: IRON_SWORD
+      name: "<aqua>Weapons & Tools"
+      title: "Weapons and Tools"
+      items: [WOODEN_SWORD, COPPER_SWORD, GOLDEN_SWORD, STONE_SWORD, IRON_SWORD, DIAMOND_SWORD, NETHERITE_SWORD, SHIELD, TRIDENT,
+              WOODEN_SPEAR, COPPER_SPEAR, GOLDEN_SPEAR, STONE_SPEAR, IRON_SPEAR, DIAMOND_SPEAR, NETHERITE_SPEAR, MACE, WIND_CHARGE,
+              WOODEN_AXE, COPPER_AXE, GOLDEN_AXE, STONE_AXE, IRON_AXE, DIAMOND_AXE, NETHERITE_AXE, END_CRYSTAL, OBSIDIAN,
+              WOODEN_PICKAXE, COPPER_PICKAXE, GOLDEN_PICKAXE, STONE_PICKAXE, IRON_PICKAXE, DIAMOND_PICKAXE, NETHERITE_PICKAXE, TOTEM_OF_UNDYING, ENDER_PEARL,
+              WOODEN_SHOVEL, COPPER_SHOVEL, GOLDEN_SHOVEL, STONE_SHOVEL, IRON_SHOVEL, DIAMOND_SHOVEL, NETHERITE_SHOVEL, WATER_BUCKET, LAVA_BUCKET,
+              WOODEN_HOE, COPPER_HOE, GOLDEN_HOE, STONE_HOE, IRON_HOE, DIAMOND_HOE, NETHERITE_HOE, BRUSH, FLINT_AND_STEEL,
+              BUCKET, POWDER_SNOW_BUCKET, FISHING_ROD, FIREWORK_ROCKET, COBWEB, EXPERIENCE_BOTTLE, SPYGLASS, LEAD, FIRE_CHARGE,
+              COMPASS, TNT, SNOWBALL, EGG,
+              {material: STICK, enchants: {knockback: 1}}, {material: STICK, enchants: {knockback: 2}}, {material: STICK, enchants: {knockback: 3}},
+              {material: STICK, enchants: {knockback: 4}}, {material: STICK, enchants: {knockback: 5}}]
+    bows:
+      slot: 21
+      material: BOW
+      name: "<aqua>Bows & Arrows"
+      title: "Bows and Arrows"
+      items: [BOW, CROSSBOW, ARROW]
+      tipped-arrows: true
+      bottom: [{slot: 48, material: SPECTRAL_ARROW}, {slot: 51, material: FIREWORK_ROCKET}]
+    potions:
+      slot: 22
+      material: POTION
+      name: "<aqua>Potions"
+      title: "Potions"
+      potions: true
+    food:
+      slot: 23
+      material: COOKED_BEEF
+      name: "<aqua>Food"
+      title: "Food"
+      items: [APPLE, BAKED_POTATO, BEEF, BEETROOT, BEETROOT_SOUP, BREAD, CARROT, CHICKEN, CHORUS_FRUIT,
+              COD, COOKED_BEEF, COOKED_CHICKEN, COOKED_COD, COOKED_MUTTON, COOKED_PORKCHOP, COOKED_RABBIT, COOKED_SALMON, COOKIE,
+              DRIED_KELP, ENCHANTED_GOLDEN_APPLE, GLOW_BERRIES, GOLDEN_APPLE, GOLDEN_HEAD, GOLDEN_CARROT, HONEY_BOTTLE, MELON_SLICE, MILK_BUCKET, MUSHROOM_STEW,
+              MUTTON, PORKCHOP, POTATO, PUFFERFISH, PUMPKIN_PIE, RABBIT, RABBIT_STEW, ROTTEN_FLESH, SALMON,
+              SPIDER_EYE, SUSPICIOUS_STEW, SWEET_BERRIES, TROPICAL_FISH, CAKE]
+    blocks:
+      slot: 24
+      material: COBBLESTONE
+      name: "<aqua>Blocks"
+      title: "Blocks"
+      items: [COAL_BLOCK, COPPER_BLOCK, LAPIS_BLOCK, REDSTONE_BLOCK, EMERALD_BLOCK, IRON_BLOCK, GOLD_BLOCK, DIAMOND_BLOCK, NETHERITE_BLOCK,
+              OAK_LOG, OAK_PLANKS, OAK_STAIRS, OAK_SLAB, OAK_FENCE, OAK_TRAPDOOR, OAK_DOOR, OAK_SIGN, CRAFTING_TABLE,
+              STONE, COBBLESTONE, COBBLESTONE_STAIRS, COBBLESTONE_SLAB, COBBLESTONE_WALL, IRON_TRAPDOOR, IRON_DOOR, ANVIL, FURNACE,
+              WHITE_WOOL, QUARTZ_BLOCK, SMOOTH_STONE, WHITE_BED, COBWEB, SNOW_BLOCK, END_STONE, BOOKSHELF, CHEST,
+              TNT, ENCHANTING_TABLE, POINTED_DRIPSTONE, SPONGE, HAY_BLOCK, OBSIDIAN, CRYING_OBSIDIAN, GLOWSTONE, ENDER_CHEST,
+              NETHERRACK, MAGMA_BLOCK, SOUL_SAND, SOUL_SOIL, SAND, SANDSTONE, DIRT, PRISMARINE, SNOW,
+              RAIL, POWERED_RAIL, DETECTOR_RAIL, ACTIVATOR_RAIL, LEVER, SLIME_BLOCK, HONEY_BLOCK, PODZOL, GRASS_BLOCK,
+              DISPENSER, DROPPER, OBSERVER, TARGET, WET_SPONGE, REPEATER, COMPARATOR, MELON, PUMPKIN,
+              JACK_O_LANTERN, REDSTONE, REDSTONE_TORCH, NOTE_BLOCK, SCULK_SENSOR, BEACON, TRIPWIRE_HOOK, SCAFFOLDING, LADDER,
+              WHITE_BANNER, TERRACOTTA, SHROOMLIGHT, MOSS_BLOCK, BONE_BLOCK, COBBLED_DEEPSLATE, ICE, PACKED_ICE, BLUE_ICE]
+    materials:
+      slot: 25
+      material: IRON_INGOT
+      name: "<aqua>Raw Materials"
+      title: "Materials"
+      items: [COAL, COPPER_INGOT, LAPIS_LAZULI, REDSTONE, EMERALD, IRON_INGOT, GOLD_INGOT, DIAMOND, NETHERITE_INGOT,
+              LEATHER, BOOK, BOWL, SLIME_BALL, LILY_PAD, QUARTZ, BLAZE_ROD, AMETHYST_SHARD, KNOWLEDGE_BOOK,
+              GUNPOWDER, PAPER, BONE_MEAL, FEATHER, SUGAR, STRING, STICK, BREEZE_ROD, NETHERITE_SCRAP,
+              GLASS_BOTTLE, CLAY_BALL, GLISTERING_MELON_SLICE, PRISMARINE_CRYSTALS, HONEYCOMB, TURTLE_SCUTE, PHANTOM_MEMBRANE, ECHO_SHARD, RABBIT_HIDE,
+              GLOWSTONE_DUST, MAGMA_CREAM, FERMENTED_SPIDER_EYE, NETHER_WART, DRAGON_BREATH, INK_SAC, NETHER_STAR, HEART_OF_THE_SEA, HEAVY_CORE,
+              BROWN_MUSHROOM, RED_MUSHROOM, WARPED_FUNGUS, CRIMSON_FUNGUS, ALLIUM, AZURE_BLUET, BLUE_ORCHID, DANDELION, LILY_OF_THE_VALLEY,
+              OXEYE_DAISY, POPPY, TORCHFLOWER, WHITE_TULIP, WITHER_ROSE, WHITE_DYE, LIGHT_GRAY_DYE, GRAY_DYE, BLACK_DYE,
+              BROWN_DYE, RED_DYE, ORANGE_DYE, YELLOW_DYE, LIME_DYE, GREEN_DYE, CYAN_DYE, LIGHT_BLUE_DYE, BLUE_DYE,
+              PURPLE_DYE, MAGENTA_DYE, PINK_DYE]
+    misc:
+      slot: 26
+      material: MINECART
+      name: "<aqua>Misc"
+      title: "Misc Items"
+      items:
+        - {material: HORSE_SPAWN_EGG, name: "<white>Horse", entity: '{id:"minecraft:horse",Tame:1b,equipment:{saddle:{id:"minecraft:saddle"}}}'}
+        - {material: HORSE_SPAWN_EGG, name: "<white>Horse <gray>(leather armor)", entity: '{id:"minecraft:horse",Tame:1b,equipment:{saddle:{id:"minecraft:saddle"},body:{id:"minecraft:leather_horse_armor"}}}'}
+        - {material: HORSE_SPAWN_EGG, name: "<white>Horse <gray>(copper armor)", entity: '{id:"minecraft:horse",Tame:1b,equipment:{saddle:{id:"minecraft:saddle"},body:{id:"minecraft:copper_horse_armor"}}}'}
+        - {material: HORSE_SPAWN_EGG, name: "<white>Horse <gray>(gold armor)", entity: '{id:"minecraft:horse",Tame:1b,equipment:{saddle:{id:"minecraft:saddle"},body:{id:"minecraft:golden_horse_armor"}}}'}
+        - {material: HORSE_SPAWN_EGG, name: "<white>Horse <gray>(iron armor)", entity: '{id:"minecraft:horse",Tame:1b,equipment:{saddle:{id:"minecraft:saddle"},body:{id:"minecraft:iron_horse_armor"}}}'}
+        - {material: HORSE_SPAWN_EGG, name: "<white>Horse <gray>(diamond armor)", entity: '{id:"minecraft:horse",Tame:1b,equipment:{saddle:{id:"minecraft:saddle"},body:{id:"minecraft:diamond_horse_armor"}}}'}
+        - {material: HORSE_SPAWN_EGG, name: "<white>Horse <gray>(netherite armor)", entity: '{id:"minecraft:horse",Tame:1b,equipment:{saddle:{id:"minecraft:saddle"},body:{id:"minecraft:netherite_horse_armor"}}}'}
+        - DONKEY_SPAWN_EGG
+        - CAMEL_SPAWN_EGG
+        - WOLF_SPAWN_EGG
+        - PIG_SPAWN_EGG
+        - PARROT_SPAWN_EGG
+        - STRIDER_SPAWN_EGG
+        - CREEPER_SPAWN_EGG
+        - {material: CREEPER_SPAWN_EGG, name: "<white>Charged Creeper", entity: '{id:"minecraft:creeper",powered:1b}'}
+        - BEE_SPAWN_EGG
+        - GHAST_SPAWN_EGG
+        - RABBIT_SPAWN_EGG
+        - CARROT_ON_A_STICK
+        - WARPED_FUNGUS_ON_A_STICK
+        - CLOCK
+        - SADDLE
+        - MINECART
+        - TNT_MINECART
+        - ARMOR_STAND
+        - PUFFERFISH_BUCKET
+        - AXOLOTL_BUCKET
+        - POWDER_SNOW_BUCKET
+        - SLIME_SPAWN_EGG
+
+# Right-click on an item that can be enchanted in survival. Each enchantment gets a row of books, one per level: up to
+# 5 rows from the left, then 5 more from column 5. Mending and the curses go in curse-slots. <enchant> is the book's
+# enchantment and level; <value>, <durability> and <max> fill the buttons.
+kit-editor-enchants:
+  title: "Add enchantments"
+  curse-slots: [51, 52, 53]
+  book: {material: ENCHANTED_BOOK, name: "<aqua>Enchanted Book", lore: ["<gray><enchant>"], active-lore: ["<gray><enchant>", "<green>Applied: click to remove"]}
+  back: {slot: 45, material: ARROW, name: "<yellow>« Back"}
+  unbreakable: {slot: 47, material: STONE_BRICKS, name: "<aqua>Unbreakable", lore: ["<gray>Now: <value>", "<yellow>Click to switch"]}
+  durability: {slot: 49, material: ANVIL, name: "<aqua>Durability", lore: ["<gray>Now: <white><durability>/<max>", "<yellow>Click and type it"]}
+  clear: {slot: 50, material: BARRIER, name: "<red>Remove enchantments"}
+  values:
+    "on": "<green>On"
+    "off": "<red>Off"
+
+# Right-click on any other item. A preset is left out when it is more than the item stacks to.
+kit-editor-count:
+  title: "Change item count"
+  presets: [1, 8, 16, 32, 64]
+  first: 19
+  preset: {name: "<aqua><amount>"}
+  custom: {slot: 18, material: PAPER, name: "<aqua>Custom count", lore: ["<gray>1 to <max>", "<yellow>Click and type it"]}
+  back: {slot: 45, material: ARROW, name: "<yellow>« Back"}
+
+# Change Map, for custom kits: Random or one of the arenas the base kit takes. <arena> is the arena's name.
+# The back button sits in the bottom row (slot 1 to 7).
+kit-editor-arenas:
+  title: "Change Map"
+  rows: 4
+  random: {material: MAP, name: "<aqua>Random", lore: ["<gray>Any arena the kit takes", "<yellow>Click to pick"], selected-lore: ["<gray>Any arena the kit takes", "<green>Picked"]}
+  # Shown with the arena's icon.
+  arena: {name: "<aqua><arena>", lore: ["<yellow>Click to pick"], selected-lore: ["<green>Picked"]}
+  previous: {material: ARROW, name: "<yellow>« Previous page"}
+  next: {material: ARROW, name: "<yellow>Next page »"}
+  back: {slot: 4, material: ARROW, name: "<yellow>« Back"}
 
 # A kit's items, opened by right-clicking it in a kit menu: storage, hotbar, then armor and off hand.
 # The bottom-row buttons have a slot from 0 to 8.
@@ -550,6 +870,30 @@ history:
       - "<dark_gray>▪ <gray>Rating: <white><rating>"
       - ""
       - "<dark_gray><ago> ago"
+  # 2v2 duels: <opponent> is both opponents, <teammates> the player's teammate.
+  team-won:
+    name: "<green><bold>Won</bold> <gray>vs <white><opponent>"
+    lore:
+      - "<dark_gray>▪ <gray>With: <white><teammates>"
+      - "<dark_gray>▪ <gray>Kit: <white><kit>"
+      - "<dark_gray>▪ <gray>Arena: <white><arena>"
+      - "<dark_gray>▪ <gray>Ended by <white><how></white> after <white><time>"
+      - "<dark_gray>▪ <gray>Rating: <white><rating>"
+      - ""
+      - "<dark_gray><ago> ago"
+  team-lost:
+    name: "<red><bold>Lost</bold> <gray>vs <white><opponent>"
+    lore:
+      - "<dark_gray>▪ <gray>With: <white><teammates>"
+      - "<dark_gray>▪ <gray>Kit: <white><kit>"
+      - "<dark_gray>▪ <gray>Arena: <white><arena>"
+      - "<dark_gray>▪ <gray>Ended by <white><how></white> after <white><time>"
+      - "<dark_gray>▪ <gray>Rating: <white><rating>"
+      - ""
+      - "<dark_gray><ago> ago"
+  # Switches between 1v1 and 2v2 duels: team-duels shows in the 1v1 list, duels in the 2v2 one.
+  team-duels: {slot: 5, material: GOLDEN_SWORD, name: "<yellow><bold>2v2 duels", lore: ["<gray>Showing: 1v1 duels", "", "<yellow>▶ Click to show 2v2"]}
+  duels: {slot: 5, material: IRON_SWORD, name: "<yellow><bold>1v1 duels", lore: ["<gray>Showing: 2v2 duels", "", "<yellow>▶ Click to show 1v1"]}
   values:
     unranked: "unranked"
     eliminated: "a kill"
@@ -621,7 +965,7 @@ kit-admin:
   title: "Admin › Kits"
   rows: 5
   # One button per kit, shown with the kit's icon. <kit>, <id>, <permission>, <building>, <items>
-  # (filled slots) and <rules> (game rules changed from the default) are filled in.
+  # (filled slots), <rules> (game rules changed from the default) and <state> (on or off) are filled in.
   kit:
     name: "<gradient:#f7971e:#ffd200><bold><kit>"
     lore:
@@ -630,9 +974,12 @@ kit-admin:
       - "<dark_gray>▪ <gray>Items: <white><items>"
       - "<dark_gray>▪ <gray>Rules changed: <white><rules>"
       - "<dark_gray>▪ <building>"
+      - "<dark_gray>▪ <gray>Players can use it: <state>"
       - ""
       - "<yellow>▶ Click to edit"
   values:
+    "on": "<green>On"
+    "off": "<red>Off"
     everyone: "<gray>everyone"
   previous: {material: ARROW, name: "<yellow>« Previous page"}
   next: {material: ARROW, name: "<yellow>Next page »"}
@@ -661,6 +1008,8 @@ kit-settings:
     mode-normal: "<white>normal"
     mode-bridge: "<white>bridge"
     mode-bed-fight: "<white>bed fight"
+    mode-mlg-rush: "<white>MLG Rush"
+    mode-spleef: "<white>spleef"
   # Shown with the kit's icon; the material here is not used.
   icon:
     slot: 10
@@ -693,11 +1042,23 @@ kit-settings:
     material: BREWING_STAND
     name: "<gold><bold>Potion effects"
     lore: ["<gray>Given: <white><value>", "", "<yellow>▶ Click to open"]
+  # Off hides the kit from players: no queues, duels, party fights or events with it.
+  enabled:
+    slot: 16
+    material: LEVER
+    name: "<gold><bold>Players can use it"
+    lore: ["<gray>Now: <value>", "<dark_gray>Off hides it from every menu", "", "<yellow>▶ Click to switch"]
   save:
     slot: 20
     material: WRITABLE_BOOK
     name: "<green><bold>Save items"
     lore: ["<gray>Overwrite the kit with your", "<gray>inventory, armor and off hand", "", "<yellow>▶ Click to save"]
+  # Opens the kit in the kit editor menu.
+  edit:
+    slot: 21
+    material: CHEST
+    name: "<green><bold>Edit items"
+    lore: ["<gray>Pick and arrange the kit's", "<gray>items in a menu", "", "<yellow>▶ Click to open"]
   # <rules> counts the rules changed from the default.
   rules:
     slot: 22
@@ -722,6 +1083,7 @@ kit-settings:
 kit-rules:
   title: "<kit> › Rules"
   rows: 6
+  centered: false                # every rule on one page: up to 45
   values:
     "on": "<green>On"
     "off": "<red>Off"
@@ -757,7 +1119,8 @@ kit-rules:
   back: {slot: 3, material: ARROW, name: "<yellow>« Back"}
   close: {slot: 4, material: BARRIER, name: "<red>Close"}
 
-# /duels kit <kit> > Potion effects: one potion per effect, the kit's own first. A click asks the amplifier (0 is
+# /duels kit <kit> > Potion effects: the effects of the potions custom kits offer, in their order, then any other effect
+# the kit gives (to remove it). A click asks the amplifier (0 is
 # level I) and the seconds (0 for the whole fight) in two anvils; right-click takes a given effect away.
 # <effect>, <amplifier> and <duration> are filled in.
 kit-effects:
@@ -870,8 +1233,8 @@ arena-settings:
   modes:
     slot: 22
     material: RED_BANNER
-    name: "<gold><bold>Bridge and bed fight"
-    lore: ["<gray>Goals and beds, for kits", "<gray>with those modes", "", "<yellow>▶ Click to open"]
+    name: "<gold><bold>Modes"
+    lore: ["<gray>Bridge goals, beds, and", "<gray>the free-for-all kit", "", "<yellow>▶ Click to open"]
   upkeep:
     slot: 24
     material: WRITABLE_BOOK
@@ -936,10 +1299,11 @@ arena-points:
 # Bridge and bed fight kits (/duels kit mode): side 1 starts at spawn 1. A bed is the one you looked at
 # when you opened this menu.
 arena-modes:
-  title: "<arena> › Goals and beds"
+  title: "<arena> › Modes"
   rows: 3
   values:
     not-set: "<red>not set"
+    none: "<gray>none"
   goal-1:
     slot: 11
     material: RED_BANNER
@@ -955,6 +1319,11 @@ arena-modes:
     material: RED_BED
     name: "<aqua><bold>Bed 1"
     lore: ["<gray>At: <white><value>", "<dark_gray>Bed fight: side 1 respawns while it stands", "", "<yellow>▶ Look at the bed, open this menu, click"]
+  free-for-all:
+    slot: 13
+    material: STONE_SWORD
+    name: "<aqua><bold>Free-for-all"
+    lore: ["<gray>Kit: <white><value>", "<dark_gray>Its free-for-all arena takes no duels", "", "<yellow>▶ Left-click and type a kit", "<yellow>▶ Right-click for none"]
   bed-2:
     slot: 15
     material: BLUE_BED
@@ -1045,6 +1414,11 @@ event-settings:
     tournament: GOLDEN_SWORD
     sumo: SLIME_BALL
     double: TOTEM_OF_UNDYING
+    juggernaut: NETHERITE_CHESTPLATE
+    oitc: BOW
+    koth: GOLDEN_HELMET
+    tnt-tag: TNT
+    splegg: EGG
     name: "<gold><bold>Mode"
     lore: ["<gray>Now: <white><mode>", "", "<yellow>▶ Click to switch"]
   winners:
@@ -1160,6 +1534,58 @@ kill-message:
   back: {slot: 3, material: ARROW, name: "<yellow>« Back", command: "duel menu cosmetics"}
   close: {slot: 4, material: BARRIER, name: "<red>Close"}
 
+death-message:
+  title: "Cosmetics › Death messages"
+  rows: 4
+  entry:
+    name: "<name>"
+    lore: ["<gray>Everyone in the fight reads:", "<preview>", "", "<yellow>▶ Click to pick"]
+    chosen-lore: ["<preview>", "", "<green>✔ Picked", "<yellow>▶ Click to drop"]
+    locked-lore: ["<preview>", "", "<red>✖ Locked"]
+  previous: {material: ARROW, name: "<yellow>« Previous page"}
+  next: {material: ARROW, name: "<yellow>Next page »"}
+  back: {slot: 3, material: ARROW, name: "<yellow>« Back", command: "duel menu cosmetics"}
+  close: {slot: 4, material: BARRIER, name: "<red>Close"}
+
+win-sound:
+  title: "Cosmetics › Win sounds"
+  rows: 4
+  entry:
+    name: "<name>"
+    lore: ["<gray>Played to the fight when you win", "", "<yellow>▶ Click to pick"]
+    chosen-lore: ["<green>✔ Picked", "", "<yellow>▶ Click to drop"]
+    locked-lore: ["<red>✖ Locked"]
+  previous: {material: ARROW, name: "<yellow>« Previous page"}
+  next: {material: ARROW, name: "<yellow>Next page »"}
+  back: {slot: 3, material: ARROW, name: "<yellow>« Back", command: "duel menu cosmetics"}
+  close: {slot: 4, material: BARRIER, name: "<red>Close"}
+
+armor-trim:
+  title: "Cosmetics › Armor trims"
+  rows: 4
+  entry:
+    name: "<name>"
+    lore: ["<gray>On your kit's armor in every fight", "", "<yellow>▶ Click to pick"]
+    chosen-lore: ["<green>✔ Picked", "", "<yellow>▶ Click to drop"]
+    locked-lore: ["<red>✖ Locked"]
+  previous: {material: ARROW, name: "<yellow>« Previous page"}
+  next: {material: ARROW, name: "<yellow>Next page »"}
+  back: {slot: 3, material: ARROW, name: "<yellow>« Back", command: "duel menu cosmetics"}
+  close: {slot: 4, material: BARRIER, name: "<red>Close"}
+
+shield-pattern:
+  title: "Cosmetics › Shield patterns"
+  rows: 4
+  entry:
+    name: "<name>"
+    lore: ["<gray>On your kit's shields in every fight", "", "<yellow>▶ Click to pick"]
+    chosen-lore: ["<green>✔ Picked", "", "<yellow>▶ Click to drop"]
+    locked-lore: ["<red>✖ Locked"]
+  previous: {material: ARROW, name: "<yellow>« Previous page"}
+  next: {material: ARROW, name: "<yellow>Next page »"}
+  back: {slot: 3, material: ARROW, name: "<yellow>« Back", command: "duel menu cosmetics"}
+  close: {slot: 4, material: BARRIER, name: "<red>Close"}
+
 # /duel spectate without a player: the fights you may watch, one button each with its kit's icon.
 # <fighters>, <kit>, <arena>, <type> (values.duel, party or event), <time> (left) and <spectators>.
 spectate:
@@ -1178,6 +1604,8 @@ spectate:
     duel: "Duel"
     party: "Party fight"
     event: "Event"
+    team: "2v2"
+    ffa: "Free-for-all"
   previous: {material: ARROW, name: "<yellow>« Previous page"}
   next: {material: ARROW, name: "<yellow>Next page »"}
   back: {slot: 3, material: ARROW, name: "<yellow>« Back", command: "duel menu play"}

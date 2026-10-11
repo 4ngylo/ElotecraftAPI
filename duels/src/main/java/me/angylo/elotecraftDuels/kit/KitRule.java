@@ -43,6 +43,12 @@ public enum KitRule {
     DEATH_DROPS("death-drops", false),
     /** Seconds between ender pearls. */
     PEARL_COOLDOWN("pearl-cooldown", KitRule.MAX_SECONDS, true),
+    /** Seconds a bow or crossbow cannot be used after a shot. */
+    ARROW_COOLDOWN("arrow-cooldown", KitRule.MAX_SECONDS, true),
+    /** Seconds between golden apples. */
+    GAPPLE_COOLDOWN("gapple-cooldown", KitRule.MAX_SECONDS, true),
+    /** The experience bar counts the pearl, arrow and golden apple cooldowns down. */
+    COOLDOWN_BAR("cooldown-bar", true),
     /** Boxing: a fighter hit this many times by opponents is knocked out, so in a duel the first to land them wins; 0 is off. */
     HITS_TO_WIN("hits-to-win", KitRule.MAX_HITS, false),
     /** Duels only: the first fighter to win this many rounds wins; 0 and 1 are a single round. */
@@ -54,7 +60,9 @@ public enum KitRule {
     /** Food and saturation stay full, so health comes back fast: an endless saturation effect. */
     SATURATION("saturation", false),
     /** Placed TNT is lit at once (build kits). */
-    AUTO_IGNITE_TNT("auto-ignite-tnt", false);
+    AUTO_IGNITE_TNT("auto-ignite-tnt", false),
+    /** Right-clicking a fire charge throws a fireball (Fireball Fight). */
+    FIREBALLS("fireballs", false);
 
     public static final int MAX_SECONDS = 60;
     public static final int MAX_HEALTH_POINTS = 200;

@@ -2,7 +2,7 @@ package me.angylo.elotecraftDuels.menu;
 
 import me.angylo.elotecraftAPI.menu.Button;
 import me.angylo.elotecraftAPI.menu.PaginatedMenu;
-import me.angylo.elotecraftAPI.util.ConfigFile;
+import me.angylo.elotecraftAPI.util.LocalizedFile;
 import me.angylo.elotecraftAPI.util.Messages;
 import me.angylo.elotecraftAPI.util.Text;
 import me.angylo.elotecraftDuels.Effects;
@@ -24,12 +24,12 @@ public final class RatingsMenu {
 
     private final Plugin plugin;
     private final Messages messages;
-    private final ConfigFile menus;
+    private final LocalizedFile menus;
     private final Supplier<Settings> settings;
     private final KitRegistry kits;
     private final StatsService stats;
 
-    public RatingsMenu(Plugin plugin, Messages messages, ConfigFile menus, Supplier<Settings> settings, KitRegistry kits,
+    public RatingsMenu(Plugin plugin, Messages messages, LocalizedFile menus, Supplier<Settings> settings, KitRegistry kits,
                        StatsService stats) {
         this.plugin = plugin;
         this.messages = messages;
@@ -40,7 +40,7 @@ public final class RatingsMenu {
     }
 
     public void open(Player viewer) {
-        ConfigurationSection section = menus.get().getConfigurationSection("ratings");
+        ConfigurationSection section = menus.get(viewer).getConfigurationSection("ratings");
         try {
             Effects effects = settings.get().effects();
             Divisions divisions = settings.get().ranked().divisions();

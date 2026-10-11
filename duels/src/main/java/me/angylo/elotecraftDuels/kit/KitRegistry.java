@@ -161,7 +161,7 @@ public final class KitRegistry {
                 ItemStack[] items = ItemStack.deserializeItemsFromBytes(Base64.getDecoder().decode(section.getString("items", "")));
                 kits.put(name, new Kit(name, section.getString("display-name", name), icon(section),
                         permission(section), Arrays.asList(items), arenaCategories(section), rules(section), rewards(section),
-                        effects(section), mode(section)));
+                        effects(section), mode(section), null, section.getBoolean("disabled")));
                 legacy |= section.contains(LEGACY_BUILD) || section.contains(LEGACY_DAMAGE) || section.isList(EFFECTS);
             } catch (RuntimeException e) {
                 logger.warning("Skipping kit '" + name + "' in kits.yml: its items could not be read (" + e.getMessage() + ")");
@@ -294,6 +294,9 @@ public final class KitRegistry {
         yaml.set(path + ".permission", kit.permission() == null ? "" : kit.permission());
         if (kit.mode() != Kit.Mode.NORMAL) {
             yaml.set(path + ".mode", kit.mode().key());
+        }
+        if (kit.disabled()) {
+            yaml.set(path + ".disabled", true);
         }
         yaml.set(path + ".arena-categories", kit.arenaCategories().stream().sorted().toList());
         for (KitRule rule : KitRule.values()) {

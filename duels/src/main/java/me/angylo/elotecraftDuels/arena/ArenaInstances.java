@@ -4,12 +4,14 @@ import me.angylo.elotecraftAPI.util.Tasks;
 import me.angylo.elotecraftDuels.Settings;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
+import org.bukkit.NamespacedKey;
 import org.bukkit.World;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.FallingBlock;
 import org.bukkit.entity.Item;
 import org.bukkit.entity.Projectile;
 import org.bukkit.entity.TNTPrimed;
+import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.Plugin;
 
 import java.util.ArrayList;
@@ -33,6 +35,8 @@ public final class ArenaInstances {
     private static final long NEXT_TICK = 1;
 
     private final Plugin plugin;
+    /** Marks mobs fighters spawned with eggs, so they go with the arena's leftovers. */
+    private final NamespacedKey leftover;
     private final Logger logger;
     private final Supplier<Settings> settings;
     private final ArenaRegistry arenas;
@@ -44,6 +48,7 @@ public final class ArenaInstances {
 
     public ArenaInstances(Plugin plugin, Supplier<Settings> settings, ArenaRegistry arenas, ArenaPool pool) {
         this.plugin = plugin;
+        this.leftover = new NamespacedKey(plugin, "fight-leftover");
         this.logger = plugin.getLogger();
         this.settings = settings;
         this.arenas = arenas;
@@ -299,13 +304,19 @@ public final class ArenaInstances {
         return done;
     }
 
+    /** Makes {@code entity}, spawned in a fight, go with its arena's leftovers. */
+    public void markLeftover(Entity entity) {
+        entity.getPersistentDataContainer().set(leftover, PersistentDataType.BOOLEAN, true);
+    }
+
     /**
-     * Removes arrows, tridents, pearls, dropped items, falling blocks and lit TNT left in the arena: kit
-     * items must not be picked up later, and a pearl landing after the duel would pull its thrower back in.
+     * Removes arrows, tridents, pearls, dropped items, falling blocks, lit TNT and mobs from spawn eggs left in the arena:
+     * kit items must not be picked up later, and a pearl landing after the duel would pull its thrower back in.
      */
-    private static void clearLeftovers(ArenaInstance instance) {
+    private void clearLeftovers(ArenaInstance instance) {
         instance.world().getNearbyEntities(instance.arena().bounds(), entity -> entity instanceof Projectile
-                        || entity instanceof Item || entity instanceof FallingBlock || entity instanceof TNTPrimed)
+                        || entity instanceof Item || entity instanceof FallingBlock || entity instanceof TNTPrimed
+                        || entity.getPersistentDataContainer().has(leftover))
                 .forEach(Entity::remove);
     }
 }

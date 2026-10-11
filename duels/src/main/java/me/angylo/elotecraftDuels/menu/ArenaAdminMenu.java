@@ -4,7 +4,7 @@ import me.angylo.elotecraftAPI.menu.Button;
 import me.angylo.elotecraftAPI.menu.Menu;
 import me.angylo.elotecraftAPI.menu.MenuConfig;
 import me.angylo.elotecraftAPI.menu.PaginatedMenu;
-import me.angylo.elotecraftAPI.util.ConfigFile;
+import me.angylo.elotecraftAPI.util.LocalizedFile;
 import me.angylo.elotecraftAPI.util.Messages;
 import me.angylo.elotecraftAPI.util.Text;
 import me.angylo.elotecraftDuels.Effects;
@@ -47,12 +47,12 @@ public final class ArenaAdminMenu {
 
     private final Plugin plugin;
     private final Messages messages;
-    private final ConfigFile menus;
+    private final LocalizedFile menus;
     private final Supplier<Settings> settings;
     private final ArenaRegistry arenas;
     private final ArenaPool pool;
 
-    public ArenaAdminMenu(Plugin plugin, Messages messages, ConfigFile menus, Supplier<Settings> settings, ArenaRegistry arenas,
+    public ArenaAdminMenu(Plugin plugin, Messages messages, LocalizedFile menus, Supplier<Settings> settings, ArenaRegistry arenas,
                           ArenaPool pool) {
         this.plugin = plugin;
         this.messages = messages;
@@ -73,7 +73,7 @@ public final class ArenaAdminMenu {
 
     /** Shows every arena built by hand; clicking one opens its settings. */
     public void openList(Player viewer) {
-        ConfigurationSection section = menus.get().getConfigurationSection("arena-admin");
+        ConfigurationSection section = menus.get(viewer).getConfigurationSection("arena-admin");
         try {
             Effects effects = settings.get().effects();
             PaginatedMenu menu = MenuLayout.frame(plugin, section);
@@ -150,7 +150,7 @@ public final class ArenaAdminMenu {
 
         Editor(String key, Effects effects, Player viewer, Arena arena) {
             this.key = key;
-            this.section = menus.get().getConfigurationSection(key);
+            this.section = menus.get(viewer).getConfigurationSection(key);
             this.effects = effects;
             this.viewer = viewer;
             this.name = arena.name();
@@ -197,6 +197,8 @@ public final class ArenaAdminMenu {
             put("goal-2", arena, position(points.goal2()), change("setgoal", "2"));
             put("bed-1", arena, position(points.bed1()), change("setbed", "1"));
             put("bed-2", arena, position(points.bed2()), change("setbed", "2"));
+            put("free-for-all", arena, arena.ffa() == null ? value(section, "none") : Component.text(arena.ffa()),
+                    split(prompt("ffa", "", "admin.arena.prompt-ffa", arena), change("ffa", "none")));
             put("snapshot", arena, Component.empty(), change("snapshot"));
             put("reset", arena, Component.empty(), confirmed("reset", arena, player -> run(player, "reset " + name)));
             put("pool", arena, Component.text(copies(name)), split(change("pool"), confirmed("pool", arena,

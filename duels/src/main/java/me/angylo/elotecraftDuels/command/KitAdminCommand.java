@@ -6,6 +6,7 @@ import me.angylo.elotecraftAPI.util.Messages;
 import me.angylo.elotecraftAPI.util.Text;
 import me.angylo.elotecraftDuels.Duels;
 import me.angylo.elotecraftDuels.arena.ArenaRegistry;
+import me.angylo.elotecraftDuels.kit.GoldenHeads;
 import me.angylo.elotecraftDuels.kit.Kit;
 import me.angylo.elotecraftDuels.kit.KitRegistry;
 import me.angylo.elotecraftDuels.kit.KitRule;
@@ -42,6 +43,9 @@ final class KitAdminCommand {
     private static final String ANY = "any";
     private static final String DEFAULT = "default";
     private static final String REMOVE = "remove";
+    private static final String ON = "on";
+    private static final String OFF = "off";
+    private static final int MAX_STACK = 64;
 
     private final AdminCommand admin;
     private final Duels duels;
@@ -72,6 +76,8 @@ final class KitAdminCommand {
                     }
                     admin.save(player, kits.update(kit.withItems(player.getInventory())), "admin.kit.saved", kitTags(kit));
                 }), kitNames)
+                .playerSub("edit", null, (player, args) -> withKit(player, args, (kit, rest) -> duels.editorMenu().openAdmin(player, kit)),
+                        kitNames)
                 .playerSub("load", null, (player, args) -> withKit(player, args, (kit, rest) -> {
                     if (duels.matches().isBusy(player) || !isEmpty(player.getInventory())) {
                         messages.send(player, "admin.kit.inventory-not-empty");
@@ -94,6 +100,9 @@ final class KitAdminCommand {
                 .sub("mode", null, (sender, args) -> withKit(sender, args, (kit, rest) -> mode(sender, kit, rest)),
                         (sender, args) -> args.length == 1 ? Args.filter(kits.names(), args)
                                 : args.length == 2 ? Args.filter(Arrays.stream(Kit.Mode.values()).map(Kit.Mode::key).toList(), args) : List.of())
+                .sub("toggle", null, (sender, args) -> withKit(sender, args, (kit, rest) -> toggle(sender, kit, rest)),
+                        (sender, args) -> args.length == 1 ? Args.filter(kits.names(), args)
+                                : args.length == 2 ? Args.filter(List.of(ON, OFF), args) : List.of())
                 .sub("effect", null, (sender, args) -> withKit(sender, args, (kit, rest) -> effect(sender, kit, rest)),
                         (sender, args) -> args.length == 1 ? Args.filter(kits.names(), args)
                                 : args.length == 2 ? Args.filter(Registry.MOB_EFFECT.stream().map(Kit::effectName).sorted().toList(), args)
@@ -109,7 +118,20 @@ final class KitAdminCommand {
                 .sub("arenas", null, (sender, args) -> withKit(sender, args, (kit, rest) -> kitArenas(sender, kit, rest)),
                         (sender, args) -> args.length == 1 ? Args.filter(kits.names(), args)
                                 : Args.filter(args.length == 2 ? withAny(admin.categories()) : admin.categories(), args))
-                .sub("list", null, (sender, args) -> listKits(sender));
+                .sub("list", null, (sender, args) -> listKits(sender))
+                .playerSub("goldenhead", null, this::goldenHeads, (sender, args) -> args.length == 1 ? Args.filter(List.of("1", "3", "16", "64"), args) : List.of());
+    }
+
+    /** {@code goldenhead [amount]}: golden heads in the admin's inventory, to save into a kit; 1 to 64, 1 by default. */
+    private void goldenHeads(Player player, String[] args) {
+        OptionalInt amount = args.length == 0 ? OptionalInt.of(1) : Args.integer(args[0], 1, MAX_STACK);
+        if (amount.isEmpty()) {
+            messages.send(player, "admin.kit.golden-head-usage");
+            return;
+        }
+        player.getInventory().addItem(GoldenHeads.create(amount.getAsInt()))
+                .values().forEach(left -> player.getWorld().dropItem(player.getLocation(), left));
+        messages.send(player, "admin.kit.golden-head-given", Placeholder.unparsed("amount", String.valueOf(amount.getAsInt())));
     }
 
     /** {@code mode <kit> [mode]}: sets the mode, or the next one without it. Bridge and bed fight make it a build kit. */
@@ -123,6 +145,17 @@ final class KitAdminCommand {
         Kit changed = mode == Kit.Mode.NORMAL ? kit.withMode(mode) : kit.withMode(mode).withRule(KitRule.BUILD, true);
         admin.save(sender, kits.update(changed), "admin.kit.mode-set",
                 with(kitTags(kit), Placeholder.component("mode", messages.get(sender, "admin.kit.modes." + mode.key()))));
+    }
+
+    /** {@code toggle <kit> [on|off]}: turns the kit on or off, or flips it without an argument. */
+    private void toggle(CommandSender sender, Kit kit, String[] rest) {
+        String arg = rest.length == 0 ? (kit.disabled() ? ON : OFF) : rest[0].toLowerCase(Locale.ROOT);
+        if (rest.length > 1 || !(arg.equals(ON) || arg.equals(OFF))) {
+            messages.send(sender, "admin.kit.toggle-usage");
+            return;
+        }
+        boolean disabled = arg.equals(OFF);
+        admin.save(sender, kits.update(kit.withDisabled(disabled)), disabled ? "admin.kit.disabled" : "admin.kit.enabled", kitTags(kit));
     }
 
     private void createKit(Player player, String[] args) {

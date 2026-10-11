@@ -180,7 +180,11 @@ final class MatchDisplay {
             killMessage = cosmetics.chosen(killer, Cosmetics.Kind.KILL_MESSAGE).map(chosen -> "kill-messages." + chosen.id())
                     .filter(messages::has);
         }
-        Optional<String> key = killMessage.or(() -> fightGoesOn ? Optional.of("match.knocked-out") : Optional.empty());
+        String plain = match.type() != Match.Type.FFA ? "match.knocked-out" : killer == null ? "ffa.died" : "ffa.killed";
+        // The victim's death message stands in for a killer without a kill message.
+        Optional<String> deathMessage = cosmetics.chosen(fighter, Cosmetics.Kind.DEATH_MESSAGE)
+                .map(chosen -> "death-messages." + chosen.id()).filter(messages::has);
+        Optional<String> key = killMessage.or(() -> deathMessage).or(() -> fightGoesOn ? Optional.of(plain) : Optional.empty());
         if (key.isEmpty()) {
             return;
         }
@@ -200,6 +204,13 @@ final class MatchDisplay {
     void scored(Match match, Player scorer) {
         for (Player participant : match.participants()) {
             messages.send(participant, "match.scored", Placeholder.unparsed("player", scorer.getName()));
+        }
+    }
+
+    /** MLG Rush: {@code breaker} broke the other side's bed, which wins their side the round. */
+    void bedScored(Match match, Player breaker) {
+        for (Player participant : match.participants()) {
+            messages.send(participant, "match.bed-scored", Placeholder.unparsed("player", breaker.getName()));
         }
     }
 

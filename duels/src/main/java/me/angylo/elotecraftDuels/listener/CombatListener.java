@@ -66,8 +66,6 @@ import java.util.stream.Stream;
 public final class CombatListener implements Listener {
 
     private static final long RESPAWN_DELAY_TICKS = 1;
-    private static final long PEARL_COOLDOWN_DELAY_TICKS = 1;
-    private static final int TICKS_PER_SECOND = 20;
     /** A health potion that healed its thrower less than this was missed. */
     private static final double HALF_INTENSITY = 0.5;
     private static final double PERCENT = 100;
@@ -337,22 +335,6 @@ public final class CombatListener implements Listener {
         }
     }
 
-    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
-    public void onLaunch(PlayerLaunchProjectileEvent event) {
-        Player player = event.getPlayer();
-        Match match = matches.matchOf(player).orElse(null);
-        if (match == null || !(event.getProjectile() instanceof EnderPearl)) {
-            return;
-        }
-        match.kit().number(KitRule.PEARL_COOLDOWN, settings.get()).ifPresent(seconds ->
-                // Paper puts the vanilla cooldown on after this event, so ours goes on a tick later.
-                Tasks.later(plugin, () -> {
-                    if (player.isOnline() && matches.matchOf(player).orElse(null) == match) {
-                        player.setCooldown(Material.ENDER_PEARL, seconds * TICKS_PER_SECOND);
-                    }
-                }, PEARL_COOLDOWN_DELAY_TICKS));
-    }
-
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onSplash(PotionSplashEvent event) {
         Player thrower = event.getPotion().getShooter() instanceof Player player ? player : null;
@@ -409,7 +391,7 @@ public final class CombatListener implements Listener {
         inventory.clear();
     }
 
-    /** {@code rule} of the kit {@code player} is in a duel with, or its default outside one (the kit editor). */
+    /** {@code rule} of the kit {@code player} is in a duel with, or its default outside one. */
     private boolean rule(Player player, KitRule rule) {
         Settings current = settings.get();
         return matches.matchOf(player).map(match -> match.kit().flag(rule, current)).orElseGet(() -> rule.defaultFlag(current));

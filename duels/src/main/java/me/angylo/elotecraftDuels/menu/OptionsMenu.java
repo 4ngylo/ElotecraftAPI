@@ -1,7 +1,7 @@
 package me.angylo.elotecraftDuels.menu;
 
 import me.angylo.elotecraftAPI.menu.Menu;
-import me.angylo.elotecraftAPI.util.ConfigFile;
+import me.angylo.elotecraftAPI.util.LocalizedFile;
 import me.angylo.elotecraftAPI.util.Messages;
 import me.angylo.elotecraftAPI.util.Text;
 import me.angylo.elotecraftDuels.Effects;
@@ -24,10 +24,10 @@ public final class OptionsMenu {
 
     private final Plugin plugin;
     private final Messages messages;
-    private final ConfigFile menus;
+    private final LocalizedFile menus;
     private final Supplier<Settings> settings;
 
-    public OptionsMenu(Plugin plugin, Messages messages, ConfigFile menus, Supplier<Settings> settings) {
+    public OptionsMenu(Plugin plugin, Messages messages, LocalizedFile menus, Supplier<Settings> settings) {
         this.plugin = plugin;
         this.messages = messages;
         this.menus = menus;
@@ -35,7 +35,7 @@ public final class OptionsMenu {
     }
 
     public void open(Player player) {
-        ConfigurationSection section = menus.get().getConfigurationSection("options");
+        ConfigurationSection section = menus.get(player).getConfigurationSection("options");
         try {
             Menu menu = MenuLayout.fixed(plugin, section);
             for (PlayerOptions option : PlayerOptions.values()) {

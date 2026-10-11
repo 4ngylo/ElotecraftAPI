@@ -63,6 +63,7 @@ class TournamentTest extends DuelsTestBase {
     /** Ann hosts an event in {@code mode} that everyone joins, then starts it. */
     private void hostAndStart(HostedEvent.Mode mode) {
         assertSays(ann, "event host sword", "You're hosting a Sword event");
+        duels.events().toggleOpen(ann);
         while (duels.events().hostedBy(ann).orElseThrow().mode() != mode) {
             duels.events().toggleMode(ann);
         }
@@ -156,6 +157,7 @@ class TournamentTest extends DuelsTestBase {
     @Test
     void aDoubleEliminationFinalIsPlayedAgainWhenTheUnbeatenFinalistLoses() {
         assertSays(ann, "event host sword", "You're hosting");
+        duels.events().toggleOpen(ann);
         while (duels.events().hostedBy(ann).orElseThrow().mode() != HostedEvent.Mode.DOUBLE) {
             duels.events().toggleMode(ann);
         }
@@ -197,6 +199,7 @@ class TournamentTest extends DuelsTestBase {
     void anOddPlayerOutGoesThroughAndAQuitterLoses() {
         dee.disconnect();
         assertSays(ann, "event host sword", "You're hosting");
+        duels.events().toggleOpen(ann);
         duels.events().toggleMode(ann);
         duels.events().toggleMode(ann);
         assertSays(bob, "event join Ann", "You joined");

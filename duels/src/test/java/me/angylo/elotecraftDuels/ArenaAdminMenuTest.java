@@ -79,7 +79,7 @@ class ArenaAdminMenuTest extends DuelsTestBase {
         assertTrue(loreHas("Spawn 1", "At: 7 65 9"));
 
         click("Back", ClickType.LEFT);
-        click("Bridge and bed fight", ClickType.LEFT);
+        click("Modes", ClickType.LEFT);
         click("Bridge goal 2", ClickType.LEFT);
 
         assertEquals(new Arena.Position(7.5, 65, 9.5, 0, 0), pit().points().goal2());

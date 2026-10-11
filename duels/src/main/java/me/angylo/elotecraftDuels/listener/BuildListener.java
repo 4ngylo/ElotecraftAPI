@@ -41,6 +41,7 @@ import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.block.BlockSpreadEvent;
 import org.bukkit.event.block.SpongeAbsorbEvent;
 import org.bukkit.event.block.TNTPrimeEvent;
+import org.bukkit.event.entity.CreatureSpawnEvent;
 import org.bukkit.event.entity.EntityChangeBlockEvent;
 import org.bukkit.event.entity.EntityExplodeEvent;
 import org.bukkit.event.player.PlayerBucketEmptyEvent;
@@ -132,7 +133,7 @@ public final class BuildListener implements Listener {
     private boolean bridgeProtects(Player player, List<BlockState> replaced) {
         Match match = matches.matchOf(player).orElse(null);
         int radius = settings.get().modes().protectRadius();
-        return match != null && match.mode() == Kit.Mode.BRIDGE
+        return match != null && match.mode().points() == Kit.Mode.Points.GOALS
                 && replaced.stream().anyMatch(state -> match.nearSpawnOrGoal(state.getLocation(), radius));
     }
 
@@ -162,7 +163,7 @@ public final class BuildListener implements Listener {
         Player player = event.getPlayer();
         Block block = event.getBlock();
         Match match = matches.matchOf(player).orElse(null);
-        if (match == null || match.mode() != Kit.Mode.BED_FIGHT || !Tag.BEDS.isTagged(block.getType())
+        if (match == null || match.mode().points() != Kit.Mode.Points.BEDS || !Tag.BEDS.isTagged(block.getType())
                 || !match.instance().isBuild() || match.bedAt(block) < 0) {
             return false;
         }
@@ -283,6 +284,15 @@ public final class BuildListener implements Listener {
         natural(event.getBlock(), event, true);
     }
 
+    /** Mobs from spawn eggs in a fight belong to it: they are removed with the arena's leftovers. */
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onEggSpawn(CreatureSpawnEvent event) {
+        CreatureSpawnEvent.SpawnReason reason = event.getSpawnReason();
+        if (reason == CreatureSpawnEvent.SpawnReason.SPAWNER_EGG || reason == CreatureSpawnEvent.SpawnReason.DISPENSE_EGG) {
+            instances.at(event.getLocation()).ifPresent(instance -> instances.markLeftover(event.getEntity()));
+        }
+    }
+
     /** Sand and gravel falling and landing; changes by players were already cancelled by {@link ProtectionListener}. */
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onChangeBlock(EntityChangeBlockEvent event) {
@@ -388,7 +398,9 @@ public final class BuildListener implements Listener {
             return false;
         }
         ArenaInstance instance = buildable(player, block);
-        if (instance == null || !mayRemove(instance, block)) {
+        // Spleef: the arena's own blocks are what fighters break.
+        boolean breaksArena = matches.matchOf(player).map(match -> match.mode().breaksArena()).orElse(false);
+        if (instance == null || !(breaksArena || mayRemove(instance, block))) {
             event.setCancelled(true);
             return false;
         }

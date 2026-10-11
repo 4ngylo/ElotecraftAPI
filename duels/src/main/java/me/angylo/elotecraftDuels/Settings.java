@@ -34,11 +34,12 @@ public record Settings(int countdownSeconds, Duration maxDuration, int endDelayS
                 Duration rematchWindow, Map<KitRule, Object> kitDefaults, Set<String> allowedCommands,
                 Reward winReward, Reward lossReward, Title.Times titleTimes, Effects effects,
                 boolean breakArenaBlocks, int regenBlocksPerTick, String arenasWorld,
-                Pool pool, int partyMaxSize, Duration partyInviteExpiry, Duration kitEditorTimeout, Ranked ranked,
+                Pool pool, int partyMaxSize, Duration partyInviteExpiry, Ranked ranked,
                 Sidebars sidebars, int hologramLines, LobbyItems lobbyItems, Events events, Cosmetics cosmetics, Bets bets,
-                CustomKitOptions customKits, Modes modes, SeasonOptions seasons) {
+                CustomKitOptions customKits, Modes modes, SeasonOptions seasons, Progression progression) {
 
     private static final long MILLIS_PER_TICK = 50;
+    private static final int MAX_XP = 100_000;
     public static final String KIT_DEFAULTS = "rules.kit-defaults";
     /** A number kit rule's default that leaves the game as it is. */
     public static final String VANILLA = "vanilla";
@@ -50,6 +51,7 @@ public record Settings(int countdownSeconds, Duration maxDuration, int endDelayS
     private static final int MAX_ELO_RANGE = 5000;
     private static final int MAX_HOLOGRAM_LINES = 50;
     public static final int MAX_DAILY_RANKED = 1000;
+    private static final int MAX_REQUIRED_WINS = 10_000;
     private static final int MAX_EVENT_PLAYERS = 100;
     private static final int MAX_TOURNAMENT_REPLAYS = 10;
     public static final int MAX_CUSTOM_KITS = 9;
@@ -69,7 +71,9 @@ public record Settings(int countdownSeconds, Duration maxDuration, int endDelayS
     /** Elo rating of queue duels and how far apart two queued players may be rated. */
     /** @param divisions rating bands shown with ratings; {@link Divisions#NONE} when off */
     /** @param dailyLimit ranked duels a player may start a day; 0 for no limit */
-    public record Ranked(int kFactor, int range, int rangeGrowth, int rangeMax, Divisions divisions, int dailyLimit) {
+    /** @param requiredWins duel wins a player needs before joining a ranked queue; 0 for none */
+    public record Ranked(int kFactor, int range, int rangeGrowth, int rangeMax, Divisions divisions, int dailyLimit,
+                         int requiredWins) {
 
         /** The rating gap allowed for a player who has waited {@code seconds}. */
         public int range(long seconds) {
@@ -147,6 +151,13 @@ public record Settings(int countdownSeconds, Duration maxDuration, int endDelayS
      * to {@code max}, and the {@code tax} percent of the pot the server keeps.
      */
     public record Bets(boolean enabled, double min, double max, double tax) {
+    }
+
+    /**
+     * Experience from duels and 2v2 duels: {@code win}, {@code loss} and {@code kill} each; level {@code n} needs
+     * {@code levelXp * n * (n - 1) / 2} in all.
+     */
+    public record Progression(int win, int loss, int kill, int levelXp) {
     }
 
     /**
@@ -251,14 +262,14 @@ public record Settings(int countdownSeconds, Duration maxDuration, int endDelayS
                         duration(config, logger, "arenas.pool.idle-timeout", Duration.ofMinutes(2), Duration.ofSeconds(10))),
                 integer(config, logger, "parties.max-size", 8, 2, MAX_PARTY_SIZE),
                 duration(config, logger, "parties.invite-expiry", Duration.ofSeconds(60), Duration.ofSeconds(5)),
-                duration(config, logger, "kit-editor.timeout", Duration.ofMinutes(5), Duration.ofSeconds(30)),
                 new Ranked(
                         integer(config, logger, "ranked.k-factor", 32, 1, 100),
                         integer(config, logger, "ranked.range", 100, 0, MAX_ELO_RANGE),
                         integer(config, logger, "ranked.range-growth", 10, 0, 1000),
                         integer(config, logger, "ranked.range-max", 1000, 0, MAX_ELO_RANGE),
                         divisions(config, logger),
-                        integer(config, logger, "ranked.daily-limit", 0, 0, MAX_DAILY_RANKED)),
+                        integer(config, logger, "ranked.daily-limit", 0, 0, MAX_DAILY_RANKED),
+                        integer(config, logger, "ranked.required-wins", 0, 0, MAX_REQUIRED_WINS)),
                 new Sidebars(
                         config.getBoolean("sidebar.match", true),
                         config.getBoolean("sidebar.lobby", false),
@@ -277,7 +288,11 @@ public record Settings(int countdownSeconds, Duration maxDuration, int endDelayS
                         integer(config, logger, "modes.bridge.protect-radius", 3, 0, MAX_MODE_RADIUS),
                         config.getBoolean("modes.bridge.goal-hologram", true)),
                 new SeasonOptions(Duration.ofDays(integer(config, logger, "seasons.default-length-days", 0, 0, MAX_SEASON_DAYS)),
-                        durations(config, logger, "seasons.admin-warnings"), durations(config, logger, "seasons.player-warnings")));
+                        durations(config, logger, "seasons.admin-warnings"), durations(config, logger, "seasons.player-warnings")),
+                new Progression(integer(config, logger, "progression.win-xp", 20, 0, MAX_XP),
+                        integer(config, logger, "progression.loss-xp", 5, 0, MAX_XP),
+                        integer(config, logger, "progression.kill-xp", 5, 0, MAX_XP),
+                        integer(config, logger, "progression.level-xp", 100, 1, MAX_XP)));
     }
 
     /** A list of durations (e.g. 24h, 10m), longest first; bad entries are logged and left out. */
@@ -342,7 +357,7 @@ public record Settings(int countdownSeconds, Duration maxDuration, int endDelayS
                 };
                 Object mode = entry.get("mode");
                 schedule.add(new Scheduled(at, kit,
-                        mode == null ? HostedEvent.Mode.FFA : HostedEvent.Mode.valueOf(mode.toString().toUpperCase(Locale.ROOT))));
+                        mode == null ? HostedEvent.Mode.FFA : HostedEvent.Mode.valueOf(mode.toString().toUpperCase(Locale.ROOT).replace('-', '_'))));
             } catch (DateTimeParseException | IllegalArgumentException e) {
                 logger.warning("config.yml events.schedule: " + entry + " needs at: \"HH:mm\", a kit and a mode (ffa, teams,"
                         + " tournament or sumo); left out");

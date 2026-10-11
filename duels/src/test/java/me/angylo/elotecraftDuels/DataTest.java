@@ -39,7 +39,7 @@ class DataTest extends DuelsTestBase {
     @Test
     void keysMissingFromAnOlderConfigUseTheBundledDefaults() throws InvalidConfigurationException {
         YamlConfiguration bundled = new YamlConfiguration();
-        bundled.loadFromString("kit-editor: {timeout: 2m}\nparties: {invite-expiry: 45s}\n");
+        bundled.loadFromString("parties: {invite-expiry: 45s}\n");
         YamlConfiguration old = new YamlConfiguration();
         old.loadFromString("match: {countdown-seconds: 3}\n");
         old.setDefaults(bundled);
@@ -63,9 +63,8 @@ class DataTest extends DuelsTestBase {
 
         Settings settings = Settings.load(old, logger);
 
-        assertEquals(Duration.ofMinutes(2), settings.kitEditorTimeout());
         assertEquals(Duration.ofSeconds(45), settings.partyInviteExpiry());
-        assertTrue(warnings.stream().noneMatch(line -> line.contains("kit-editor") || line.contains("invite-expiry")), warnings.toString());
+        assertTrue(warnings.stream().noneMatch(line -> line.contains("invite-expiry")), warnings.toString());
     }
 
     @Test

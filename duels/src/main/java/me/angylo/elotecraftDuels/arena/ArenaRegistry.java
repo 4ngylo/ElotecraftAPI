@@ -193,7 +193,7 @@ public final class ArenaRegistry {
                     position(section, "corner1"), position(section, "corner2"), categories(section),
                     position(section, "center"), section.isInt("build-limit") ? section.getInt("build-limit") : null,
                     null, extraSpawns(section), new Arena.ModePoints(position(section, "goal1"), position(section, "goal2"),
-                    position(section, "bed1"), position(section, "bed2"))));
+                    position(section, "bed1"), position(section, "bed2")), section.getString("ffa")));
         }
     }
 
@@ -317,6 +317,7 @@ public final class ArenaRegistry {
         if (arena.buildLimit() != null) {
             yaml.set(path + ".build-limit", arena.buildLimit());
         }
+        yaml.set(path + ".ffa", arena.ffa());
     }
 
     private static void writePosition(YamlConfiguration yaml, String path, Position position) {

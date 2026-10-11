@@ -1,8 +1,8 @@
 package me.angylo.elotecraftDuels.menu;
 
 import me.angylo.elotecraftAPI.menu.Menu;
-import me.angylo.elotecraftAPI.util.ConfigFile;
 import me.angylo.elotecraftAPI.util.Durations;
+import me.angylo.elotecraftAPI.util.LocalizedFile;
 import me.angylo.elotecraftAPI.util.Messages;
 import me.angylo.elotecraftAPI.util.Text;
 import me.angylo.elotecraftDuels.Settings;
@@ -34,10 +34,10 @@ public final class FightInventoryMenu {
 
     private final Plugin plugin;
     private final Messages messages;
-    private final ConfigFile menus;
+    private final LocalizedFile menus;
     private final Supplier<Settings> settings;
 
-    public FightInventoryMenu(Plugin plugin, Messages messages, ConfigFile menus, Supplier<Settings> settings) {
+    public FightInventoryMenu(Plugin plugin, Messages messages, LocalizedFile menus, Supplier<Settings> settings) {
         this.plugin = plugin;
         this.messages = messages;
         this.menus = menus;
@@ -45,7 +45,7 @@ public final class FightInventoryMenu {
     }
 
     public void open(Player viewer, FighterResult fighter) {
-        ConfigurationSection section = menus.get().getConfigurationSection("fight-inventory");
+        ConfigurationSection section = menus.get(viewer).getConfigurationSection("fight-inventory");
         try {
             if (section == null) {
                 throw new IllegalArgumentException("Missing fight-inventory section");

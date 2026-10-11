@@ -94,6 +94,10 @@ final class DuelsExpansion extends PlaceholderExpansion {
             case "win_streak" -> stat(player, PlayerStats::winStreak);
             case "best_win_streak" -> stat(player, PlayerStats::bestWinStreak);
             case "win_rate" -> stat(player, PlayerStats::winRate);
+            case "kills" -> stat(player, found -> found.progress().kills());
+            case "deaths" -> stat(player, found -> found.progress().deaths());
+            case "xp" -> stat(player, found -> found.progress().xp());
+            case "level" -> stat(player, found -> found.progress().level(duels.settings().progression().levelXp()));
             case "elo" -> stat(player, found -> found.overallElo(duels.kits().names()));
             case "division" -> division(player, null);
             case "peak" -> stat(player, found -> found.peak(duels.kits().names()));

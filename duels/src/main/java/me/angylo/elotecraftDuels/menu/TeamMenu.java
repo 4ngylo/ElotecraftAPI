@@ -2,7 +2,7 @@ package me.angylo.elotecraftDuels.menu;
 
 import me.angylo.elotecraftAPI.menu.Button;
 import me.angylo.elotecraftAPI.menu.PaginatedMenu;
-import me.angylo.elotecraftAPI.util.ConfigFile;
+import me.angylo.elotecraftAPI.util.LocalizedFile;
 import me.angylo.elotecraftAPI.util.Messages;
 import me.angylo.elotecraftDuels.Effects;
 import me.angylo.elotecraftDuels.Settings;
@@ -28,10 +28,10 @@ public final class TeamMenu {
 
     private final Plugin plugin;
     private final Messages messages;
-    private final ConfigFile menus;
+    private final LocalizedFile menus;
     private final Supplier<Settings> settings;
 
-    public TeamMenu(Plugin plugin, Messages messages, ConfigFile menus, Supplier<Settings> settings) {
+    public TeamMenu(Plugin plugin, Messages messages, LocalizedFile menus, Supplier<Settings> settings) {
         this.plugin = plugin;
         this.messages = messages;
         this.menus = menus;
@@ -46,7 +46,7 @@ public final class TeamMenu {
      */
     public void open(Player viewer, List<Player> members, BiConsumer<List<UUID>, List<UUID>> onStart) {
         try {
-            new Picker(menus.get().getConfigurationSection("teams"), settings.get().effects(), members, onStart).open(viewer);
+            new Picker(menus.get(viewer).getConfigurationSection("teams"), settings.get().effects(), members, onStart).open(viewer);
         } catch (IllegalArgumentException e) {
             MenuLayout.menuError(plugin, messages, viewer, "teams", e);
         }

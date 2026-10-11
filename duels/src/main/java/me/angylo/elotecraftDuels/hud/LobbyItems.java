@@ -1,11 +1,12 @@
 package me.angylo.elotecraftDuels.hud;
 
 import me.angylo.elotecraftAPI.menu.MenuConfig;
-import me.angylo.elotecraftAPI.util.ConfigFile;
+import me.angylo.elotecraftAPI.util.LocalizedFile;
 import me.angylo.elotecraftAPI.util.Tasks;
 import me.angylo.elotecraftDuels.Settings;
 import me.angylo.elotecraftDuels.match.MatchManager;
 import me.angylo.elotecraftDuels.match.QueueManager;
+import me.angylo.elotecraftDuels.party.TeamQueue;
 import org.bukkit.Bukkit;
 import org.bukkit.NamespacedKey;
 import org.bukkit.configuration.ConfigurationSection;
@@ -38,6 +39,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.WeakHashMap;
 import java.util.function.Supplier;
 
 /**
@@ -51,9 +53,19 @@ public final class LobbyItems implements Listener {
     private static final int HOTBAR_SIZE = 9;
     private static final long NEXT_TICK = 1;
 
-    /** When an item shows: not queued, queued or waiting for an event, always, or never (a removed default). */
+    /**
+     * When an item shows: not queued, queued or waiting for an event, always, never (a removed default), or while not
+     * queued and the rematch window after a duel is open: with a rematch offer, or after a queue duel. Of items in one
+     * slot, waiting ones win, then those of the rematch window.
+     */
     private enum Show {
-        IDLE, WAITING, ALWAYS, NEVER
+        IDLE(0), WAITING(2), ALWAYS(0), NEVER(0), REMATCH(1), PLAY_AGAIN(1);
+
+        private final int priority;
+
+        Show(int priority) {
+            this.priority = priority;
+        }
     }
 
     private record Entry(String id, int slot, Show show, String permission, String command, ItemStack item) {
@@ -61,20 +73,22 @@ public final class LobbyItems implements Listener {
 
     private final Plugin plugin;
     private final Supplier<Settings> settings;
-    private final ConfigFile menus;
+    private final LocalizedFile menus;
     private final MatchManager matches;
     private final QueueManager queues;
+    private final TeamQueue teamQueue;
     private final NamespacedKey key;
-    /** Rebuilt when menus.yml was reloaded. */
-    private FileConfiguration loadedFrom;
-    private List<Entry> entries = List.of();
+    /** Per language file, so rebuilt when menus.yml was reloaded (a reload makes new files). */
+    private final Map<FileConfiguration, List<Entry>> entries = new WeakHashMap<>();
 
-    public LobbyItems(Plugin plugin, Supplier<Settings> settings, ConfigFile menus, MatchManager matches, QueueManager queues) {
+    public LobbyItems(Plugin plugin, Supplier<Settings> settings, LocalizedFile menus, MatchManager matches, QueueManager queues,
+                      TeamQueue teamQueue) {
         this.plugin = plugin;
         this.settings = settings;
         this.menus = menus;
         this.matches = matches;
         this.queues = queues;
+        this.teamQueue = teamQueue;
         this.key = new NamespacedKey(plugin, "lobby-item");
     }
 
@@ -85,7 +99,7 @@ public final class LobbyItems implements Listener {
 
     /**
      * Gives {@code player} the items their state calls for and takes away the tagged items it does not: all of
-     * them outside the lobby, in a match or the kit editor, or with the feature off.
+     * them outside the lobby, in a match, or with the feature off.
      */
     public void sync(Player player) {
         Settings current = settings.get();
@@ -122,29 +136,28 @@ public final class LobbyItems implements Listener {
 
     /** The entries {@code player} should hold now, by slot; waiting ones win over the rest in a shared slot. */
     private Map<Integer, Entry> wanted(Player player) {
-        boolean waiting = queues.queued(player.getUniqueId()).isPresent() || matches.isBusy(player);
+        boolean waiting = queues.queued(player.getUniqueId()).isPresent() || teamQueue.queued(player).isPresent()
+                || matches.isBusy(player);
         Map<Integer, Entry> bySlot = new HashMap<>();
-        for (Entry entry : entries()) {
+        for (Entry entry : entries(player)) {
             boolean shown = switch (entry.show()) {
                 case IDLE -> !waiting;
                 case WAITING -> waiting;
                 case ALWAYS -> true;
                 case NEVER -> false;
+                case REMATCH -> !waiting && matches.rematchOf(player).isPresent();
+                case PLAY_AGAIN -> !waiting && queues.lastQueue(player).isPresent();
             };
             if (shown && (entry.permission() == null || player.hasPermission(entry.permission()))) {
-                bySlot.merge(entry.slot(), entry, (first, second) -> second.show() == Show.WAITING ? second : first);
+                bySlot.merge(entry.slot(), entry, (first, second) -> second.show().priority > first.show().priority ? second : first);
             }
         }
         return bySlot;
     }
 
-    private List<Entry> entries() {
-        FileConfiguration file = menus.get();
-        if (file != loadedFrom) {
-            loadedFrom = file;
-            entries = load(file.getConfigurationSection("lobby-items"));
-        }
-        return entries;
+    /** The entries in {@code player}'s language. */
+    private List<Entry> entries(Player player) {
+        return entries.computeIfAbsent(menus.get(player), file -> load(file.getConfigurationSection("lobby-items")));
     }
 
     private List<Entry> load(ConfigurationSection section) {
@@ -154,7 +167,8 @@ public final class LobbyItems implements Listener {
         }
         for (String id : section.getKeys(false)) {
             ConfigurationSection item = section.getConfigurationSection(id);
-            if (item == null) {
+            // enabled: false turns an item off without deleting it.
+            if (item == null || !item.getBoolean("enabled", true)) {
                 continue;
             }
             try {
@@ -162,7 +176,7 @@ public final class LobbyItems implements Listener {
                 if (slot < 0 || slot >= HOTBAR_SIZE) {
                     throw new IllegalArgumentException("slot must be 0 to 8");
                 }
-                Show show = Show.valueOf(item.getString("show", "always").toUpperCase(Locale.ROOT));
+                Show show = Show.valueOf(item.getString("show", "always").toUpperCase(Locale.ROOT).replace('-', '_'));
                 String command = item.getString("command", "");
                 if (command.isBlank()) {
                     throw new IllegalArgumentException("needs a command");
@@ -206,7 +220,7 @@ public final class LobbyItems implements Listener {
         }
         String id = id(event.getItem()).orElseThrow();
         Player player = event.getPlayer();
-        entries().stream().filter(entry -> entry.id().equals(id)).findFirst()
+        entries(player).stream().filter(entry -> entry.id().equals(id)).findFirst()
                 .ifPresent(entry -> player.performCommand(entry.command()));
         syncSoon(player);
     }

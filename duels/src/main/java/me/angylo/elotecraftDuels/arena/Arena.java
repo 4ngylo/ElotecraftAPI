@@ -23,11 +23,12 @@ import java.util.Set;
  * @param copy        for a copy pasted by {@link ArenaPool}, where it was pasted from; null for an arena in arenas.yml
  * @param extraSpawns spawns for fights with more than two sides, e.g. a party FFA; used when there are enough
  * @param points      the goals and beds of the bridge and bed fight kit modes
+ * @param ffa         the kit whose free-for-all this arena holds, or null; such an arena never takes duels
  */
 public record Arena(String name, String displayName, Material icon, String world, boolean enabled,
                     Position spawn1, Position spawn2, Position spectator, Position corner1, Position corner2,
                     Set<String> categories, Position center, Integer buildLimit, Copy copy, List<Position> extraSpawns,
-                    ModePoints points) {
+                    ModePoints points, String ffa) {
 
     /** Why an arena cannot host a duel; see {@link #problems()}. */
     public enum Problem {
@@ -111,58 +112,63 @@ public record Arena(String name, String displayName, Material icon, String world
     }
 
     static Arena create(String name, String world) {
-        return new Arena(name, name, DEFAULT_ICON, world, true, null, null, null, null, null, Set.of(), null, null, null, List.of(), ModePoints.NONE);
+        return new Arena(name, name, DEFAULT_ICON, world, true, null, null, null, null, null, Set.of(), null, null, null, List.of(), ModePoints.NONE, null);
     }
 
     /** @param number 1 or 2 */
     public Arena withSpawn(int number, Position position) {
         return number == 1
-                ? new Arena(name, displayName, icon, world, enabled, position, spawn2, spectator, corner1, corner2, categories, center, buildLimit, copy, extraSpawns, points)
-                : new Arena(name, displayName, icon, world, enabled, spawn1, position, spectator, corner1, corner2, categories, center, buildLimit, copy, extraSpawns, points);
+                ? new Arena(name, displayName, icon, world, enabled, position, spawn2, spectator, corner1, corner2, categories, center, buildLimit, copy, extraSpawns, points, ffa)
+                : new Arena(name, displayName, icon, world, enabled, spawn1, position, spectator, corner1, corner2, categories, center, buildLimit, copy, extraSpawns, points, ffa);
     }
 
     /** @param number 1 or 2 */
     public Arena withCorner(int number, Position position) {
         return number == 1
-                ? new Arena(name, displayName, icon, world, enabled, spawn1, spawn2, spectator, position, corner2, categories, center, buildLimit, copy, extraSpawns, points)
-                : new Arena(name, displayName, icon, world, enabled, spawn1, spawn2, spectator, corner1, position, categories, center, buildLimit, copy, extraSpawns, points);
+                ? new Arena(name, displayName, icon, world, enabled, spawn1, spawn2, spectator, position, corner2, categories, center, buildLimit, copy, extraSpawns, points, ffa)
+                : new Arena(name, displayName, icon, world, enabled, spawn1, spawn2, spectator, corner1, position, categories, center, buildLimit, copy, extraSpawns, points, ffa);
     }
 
     public Arena withSpectator(Position position) {
-        return new Arena(name, displayName, icon, world, enabled, spawn1, spawn2, position, corner1, corner2, categories, center, buildLimit, copy, extraSpawns, points);
+        return new Arena(name, displayName, icon, world, enabled, spawn1, spawn2, position, corner1, corner2, categories, center, buildLimit, copy, extraSpawns, points, ffa);
     }
 
     public Arena withIcon(Material newIcon) {
-        return new Arena(name, displayName, newIcon, world, enabled, spawn1, spawn2, spectator, corner1, corner2, categories, center, buildLimit, copy, extraSpawns, points);
+        return new Arena(name, displayName, newIcon, world, enabled, spawn1, spawn2, spectator, corner1, corner2, categories, center, buildLimit, copy, extraSpawns, points, ffa);
     }
 
     public Arena withDisplayName(String newDisplayName) {
-        return new Arena(name, newDisplayName, icon, world, enabled, spawn1, spawn2, spectator, corner1, corner2, categories, center, buildLimit, copy, extraSpawns, points);
+        return new Arena(name, newDisplayName, icon, world, enabled, spawn1, spawn2, spectator, corner1, corner2, categories, center, buildLimit, copy, extraSpawns, points, ffa);
     }
 
     public Arena withEnabled(boolean newEnabled) {
-        return new Arena(name, displayName, icon, world, newEnabled, spawn1, spawn2, spectator, corner1, corner2, categories, center, buildLimit, copy, extraSpawns, points);
+        return new Arena(name, displayName, icon, world, newEnabled, spawn1, spawn2, spectator, corner1, corner2, categories, center, buildLimit, copy, extraSpawns, points, ffa);
     }
 
     public Arena withCategories(Set<String> newCategories) {
-        return new Arena(name, displayName, icon, world, enabled, spawn1, spawn2, spectator, corner1, corner2, newCategories, center, buildLimit, copy, extraSpawns, points);
+        return new Arena(name, displayName, icon, world, enabled, spawn1, spawn2, spectator, corner1, corner2, newCategories, center, buildLimit, copy, extraSpawns, points, ffa);
     }
 
     public Arena withCenter(Position position) {
-        return new Arena(name, displayName, icon, world, enabled, spawn1, spawn2, spectator, corner1, corner2, categories, position, buildLimit, copy, extraSpawns, points);
+        return new Arena(name, displayName, icon, world, enabled, spawn1, spawn2, spectator, corner1, corner2, categories, position, buildLimit, copy, extraSpawns, points, ffa);
     }
 
     public Arena withExtraSpawns(List<Position> newSpawns) {
-        return new Arena(name, displayName, icon, world, enabled, spawn1, spawn2, spectator, corner1, corner2, categories, center, buildLimit, copy, newSpawns, points);
+        return new Arena(name, displayName, icon, world, enabled, spawn1, spawn2, spectator, corner1, corner2, categories, center, buildLimit, copy, newSpawns, points, ffa);
     }
 
     public Arena withPoints(ModePoints newPoints) {
-        return new Arena(name, displayName, icon, world, enabled, spawn1, spawn2, spectator, corner1, corner2, categories, center, buildLimit, copy, extraSpawns, newPoints);
+        return new Arena(name, displayName, icon, world, enabled, spawn1, spawn2, spectator, corner1, corner2, categories, center, buildLimit, copy, extraSpawns, newPoints, ffa);
+    }
+
+    /** @param kit null for an arena of duels */
+    public Arena withFfa(String kit) {
+        return new Arena(name, displayName, icon, world, enabled, spawn1, spawn2, spectator, corner1, corner2, categories, center, buildLimit, copy, extraSpawns, points, kit);
     }
 
     /** @param newBuildLimit null for no limit */
     public Arena withBuildLimit(Integer newBuildLimit) {
-        return new Arena(name, displayName, icon, world, enabled, spawn1, spawn2, spectator, corner1, corner2, categories, center, newBuildLimit, copy, extraSpawns, points);
+        return new Arena(name, displayName, icon, world, enabled, spawn1, spawn2, spectator, corner1, corner2, categories, center, newBuildLimit, copy, extraSpawns, points, ffa);
     }
 
     /**
@@ -173,7 +179,7 @@ public record Arena(String name, String displayName, Material icon, String world
         return new Arena(name, displayName, icon, copyWorld, true, spawn1.offset(dx, dy, dz), spawn2.offset(dx, dy, dz),
                 offset(spectator, dx, dy, dz), corner1.offset(dx, dy, dz), corner2.offset(dx, dy, dz), categories,
                 offset(center, dx, dy, dz), buildLimit == null ? null : buildLimit + dy, new Copy(name, dx, dy, dz),
-                extraSpawns.stream().map(spawn -> spawn.offset(dx, dy, dz)).toList(), points.offset(dx, dy, dz));
+                extraSpawns.stream().map(spawn -> spawn.offset(dx, dy, dz)).toList(), points.offset(dx, dy, dz), ffa);
     }
 
     /** Everything stopping a duel here; empty means ready. */

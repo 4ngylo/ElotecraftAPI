@@ -3,6 +3,8 @@ package me.angylo.elotecraftDuels.match;
 import me.angylo.elotecraftAPI.util.Messages;
 import me.angylo.elotecraftAPI.util.Tasks;
 import me.angylo.elotecraftDuels.Settings;
+import me.angylo.elotecraftDuels.api.MatchEndEvent;
+import me.angylo.elotecraftDuels.api.MatchStartEvent;
 import me.angylo.elotecraftDuels.arena.Arena;
 import me.angylo.elotecraftDuels.arena.ArenaInstance;
 import me.angylo.elotecraftDuels.arena.ArenaInstances;
@@ -16,6 +18,7 @@ import me.angylo.elotecraftDuels.match.Match.State;
 import me.angylo.elotecraftDuels.match.Match.Type;
 import me.angylo.elotecraftDuels.state.PlayerSnapshot;
 import me.angylo.elotecraftDuels.state.SnapshotStore;
+import me.angylo.elotecraftDuels.stats.FfaStats;
 import me.angylo.elotecraftDuels.stats.MatchHistory;
 import me.angylo.elotecraftDuels.stats.StatsService;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
@@ -54,6 +57,8 @@ public final class MatchManager {
     private static final long SECOND_TICKS = 20;
     /** Hit delay of combo kits (vanilla 20): hits land almost every tick. Reset by {@link PlayerSnapshot}. */
     private static final int COMBO_NO_DAMAGE_TICKS = 2;
+    /** How long after a hit leaving a free-for-all counts as a death, credited to the hitter. */
+    private static final int FFA_COMBAT_TICKS = 15 * 20;
 
     /** The last opponent and setup of a player, for {@code /duel rematch}. */
     public record Rematch(UUID opponent, String opponentName, Kit kit, String arena, long expiresAtTick) {
@@ -71,13 +76,13 @@ public final class MatchManager {
     private final ArenaInstances instances;
     private final SnapshotStore snapshots;
     private final KitLayouts layouts;
-    /** Players busy outside matches under match rules, such as in the kit editor. */
-    private Predicate<Player> busyElsewhere = player -> false;
-    /** Players waiting for something else, such as an event: busy, but free to do anything else. */
+    private final FfaStats ffaStats;
+    /** Players waiting for something else, such as an event or the kit editor: busy, but free to do anything else. */
     private Predicate<Player> waitingElsewhere = player -> false;
     /** Told about every match once it is over and everyone was sent back, such as a tournament's fights. */
     private final List<Consumer<Match>> finished = new ArrayList<>();
     private final MatchDisplay display;
+    private final EventGames games;
     /** Fighters and spectators; read by placeholders from other threads. */
     private final Map<UUID, Match> byPlayer = new ConcurrentHashMap<>();
     private final Set<Match> running = ConcurrentHashMap.newKeySet();
@@ -86,7 +91,7 @@ public final class MatchManager {
 
     public MatchManager(Plugin plugin, Messages messages, Supplier<Settings> settings, ArenaRegistry arenas,
                         ArenaInstances instances, SnapshotStore snapshots, StatsService stats, MatchHistory history,
-                        KitLayouts layouts) {
+                        KitLayouts layouts, FfaStats ffaStats) {
         this.plugin = plugin;
         this.logger = plugin.getLogger();
         this.messages = messages;
@@ -95,7 +100,9 @@ public final class MatchManager {
         this.instances = instances;
         this.snapshots = snapshots;
         this.layouts = layouts;
+        this.ffaStats = ffaStats;
         this.display = new MatchDisplay(messages, settings);
+        this.games = new EventGames(messages, this);
         this.outcomes = new MatchResults(logger, settings, stats, history, new Rewards(plugin, messages, settings), display);
     }
 
@@ -105,16 +112,11 @@ public final class MatchManager {
     }
 
     /**
-     * Whether match rules apply to {@code player}: fighting, spectating or editing a kit. No commands,
+     * Whether match rules apply to {@code player}: fighting or spectating. No commands,
      * other menus, drops or block use.
      */
     public boolean isRestricted(Player player) {
-        return byPlayer.containsKey(player.getUniqueId()) || busyElsewhere.test(player);
-    }
-
-    /** Players {@code busy} names are busy and restricted too: they cannot be queued, challenged or spectate. */
-    public void busyElsewhere(Predicate<Player> busy) {
-        this.busyElsewhere = busy;
+        return byPlayer.containsKey(player.getUniqueId());
     }
 
     /** Players {@code waiting} names are busy, but not {@link #isRestricted restricted}. */
@@ -206,7 +208,7 @@ public final class MatchManager {
      * succeeds.
      *
      * @param teams  the fighters of each team: at least two teams, nobody twice
-     * @param ranked whether the result moves Elo ratings; duels only
+     * @param ranked whether the result moves Elo ratings; duels and team duels only
      * @return false if anyone is busy or the arena is not ready and free; callers check and explain first
      */
     public boolean start(List<List<Player>> teams, Kit kit, Arena arena, Type type, boolean ranked) {
@@ -234,7 +236,7 @@ public final class MatchManager {
             fighters.forEach(fighter -> messages.send(fighter, "match.arena-failed"));
             return true;
         }
-        Match match = new Match(instance, kit, teams, type, ranked && type == Type.DUEL, options,
+        Match match = new Match(instance, kit, teams, type, ranked && (type == Type.DUEL || type == Type.TEAM), options,
                 kit.number(KitRule.ROUNDS_TO_WIN, current).orElse(1));
         for (Player fighter : fighters) {
             match.addSnapshot(fighter, taken.get(fighter.getUniqueId()));
@@ -275,6 +277,128 @@ public final class MatchManager {
             teleportFighters(match);
         }));
         return true;
+    }
+
+    /** The free-for-all of the kit named {@code kit}, while someone fights in it. */
+    public Optional<Match> ffa(String kit) {
+        return running.stream().filter(match -> match.type() == Type.FFA && !match.isOver() && match.kit().name().equals(kit)).findFirst();
+    }
+
+    /** Whether an arena holds {@code kit}'s free-for-all ({@code /duels arena ffa}). */
+    public boolean hasFfaArena(Kit kit) {
+        return arenas.all().stream().anyMatch(arena -> kit.name().equals(arena.ffa()) && arena.isReady());
+    }
+
+    /**
+     * Brings {@code player} into {@code kit}'s free-for-all, opening it in the kit's free-for-all arena if none runs.
+     * Their state is saved first, as for a fight; they may hit and be hit once they reached the arena.
+     *
+     * @return false if {@code player} is busy or the arena is not ready and free; callers check and explain first
+     */
+    public boolean joinFfa(Player player, Kit kit) {
+        if (!available(player)) {
+            return false;
+        }
+        Match match = ffa(kit.name()).orElse(null);
+        if (match == null) {
+            ArenaInstance instance = arenas.all().stream()
+                    .filter(arena -> kit.name().equals(arena.ffa()) && arena.isReady() && instances.available(arena))
+                    .findFirst().flatMap(arena -> instances.acquire(arena, false)).orElse(null);
+            if (instance == null) {
+                return false;
+            }
+            match = new Match(instance, kit, List.of(), Type.FFA, false, Match.Options.DEFAULT, 1);
+            match.state(State.FIGHTING);
+            running.add(match);
+        }
+        Match ffa = match;
+        player.closeInventory();
+        PlayerSnapshot snapshot = PlayerSnapshot.capture(player);
+        CompletableFuture<Void> saved;
+        try {
+            saved = snapshots.save(Map.of(player.getUniqueId(), snapshot));
+        } catch (RuntimeException e) {
+            logger.log(Level.SEVERE, "Could not save " + player.getName() + " before a free-for-all", e);
+            messages.send(player, "general.storage-error");
+            if (ffa.fighters().isEmpty()) {
+                finish(ffa);
+            }
+            return true;
+        }
+        ffa.addTeam(player);
+        ffa.addSnapshot(player, snapshot);
+        byPlayer.put(player.getUniqueId(), ffa);
+        if (!ffa.instance().ready().isDone()) {
+            messages.send(player, "match.preparing-arena");
+        }
+        CompletableFuture.allOf(saved, ffa.instance().ready()).whenComplete((ignored, error) -> guardedFfa(ffa, player, () -> {
+            if (ffa.isOver() || !ffa.isParticipant(player)) {
+                return;
+            }
+            if (error != null) {
+                logger.log(Level.SEVERE, "Could not bring " + player.getName() + " into the free-for-all in " + ffa.arena().name(), error);
+                leaveFfa(ffa, player, false);
+                messages.send(player, saved.isCompletedExceptionally() ? "general.storage-error" : "match.arena-failed");
+                return;
+            }
+            teleportIn(ffa, player, ffa.spawnOf(player)).whenComplete((arrived, teleportError) -> guardedFfa(ffa, player, () -> {
+                if (ffa.isOver() || !ffa.isParticipant(player)) {
+                    return;
+                }
+                if (teleportError != null || !arrived) {
+                    leaveFfa(ffa, player, false);
+                    messages.send(player, "match.teleport-failed");
+                    return;
+                }
+                equip(ffa, player, settings.get());
+                ffa.kit().applyTimedEffects(player);
+                messages.send(player, "ffa.joined", MatchDisplay.with(MatchDisplay.setup(ffa),
+                        Placeholder.unparsed("players", String.valueOf(ffa.fighters().size()))));
+            }));
+        }));
+        return true;
+    }
+
+    /** Like {@link #guarded}, for a player joining a free-for-all: only they are sent back. */
+    private void guardedFfa(Match match, Player player, Runnable step) {
+        try {
+            step.run();
+        } catch (RuntimeException e) {
+            logger.log(Level.SEVERE, player.getName() + " could not join the free-for-all in " + match.arena().name(), e);
+            leaveFfa(match, player, false);
+            messages.send(player, "match.cancelled");
+        }
+    }
+
+    /**
+     * Takes {@code player} out of a free-for-all; one hit moments ago dies, to whoever hit them. The last one out
+     * closes it.
+     */
+    private void leaveFfa(Match match, Player player, boolean teleportNow) {
+        if (match.isFighting(player)) {
+            match.fightStats().lastHitBy(player, FFA_COMBAT_TICKS).map(Bukkit::getPlayer).filter(match::isFighter)
+                    .ifPresent(killer -> {
+                        died(match, player, killer);
+                        display.knockedOut(match, player, killer, true);
+                    });
+        }
+        match.fightStats().forget(player);
+        release(match, player, teleportNow);
+        match.removeTeam(player);
+        if (match.fighters().isEmpty()) {
+            finish(match);
+        }
+    }
+
+    /** Counts a free-for-all death, and a kill for {@code killer} if there is one. */
+    private void died(Match match, Player victim, Player killer) {
+        match.fightStats().died(victim, killer);
+        match.clearHits(victim);
+        String kit = match.kit().name();
+        ffaStats.add(victim.getUniqueId(), victim.getName(), kit, 0, 1, 0);
+        if (killer != null) {
+            ffaStats.add(killer.getUniqueId(), killer.getName(), kit, 1, 0, match.fightStats().streak(killer));
+        }
     }
 
     /** Online, alive and not already fighting or spectating. */
@@ -321,6 +445,10 @@ public final class MatchManager {
         if (match == null) {
             return;
         }
+        if (match.type() == Type.FFA && match.isFighter(player)) {
+            leaveFfa(match, player, true);
+            return;
+        }
         State state = match.state();
         boolean fighter = match.isFighter(player);
         boolean betweenRounds = match.betweenRounds();
@@ -354,6 +482,11 @@ public final class MatchManager {
             messages.send(player, "spectate.stopped");
             return true;
         }
+        if (match.type() == Type.FFA) {
+            leaveFfa(match, player, false);
+            messages.send(player, "ffa.left");
+            return true;
+        }
         if (match.betweenRounds()) {
             leftBetweenRounds(match, player, EndReason.FORFEIT);
             return true;
@@ -382,6 +515,11 @@ public final class MatchManager {
         Match match = byPlayer.get(player.getUniqueId());
         if (match == null || !match.isFighter(player)) {
             return false;
+        }
+        if (match.type() == Type.FFA) {
+            leaveFfa(match, player, false);
+            messages.send(player, "match.cancelled-admin");
+            return true;
         }
         cancel(match, "match.cancelled-admin");
         return true;
@@ -534,7 +672,7 @@ public final class MatchManager {
 
     private void beginCountdown(Match match) {
         Settings current = settings.get();
-        if (match.mode() == Kit.Mode.BRIDGE && current.modes().goalHologram()) {
+        if (match.mode().points() == Kit.Mode.Points.GOALS && current.modes().goalHologram()) {
             GoalHolograms.show(plugin, match, messages.get("match.goal-hologram"));
         }
         for (Player fighter : match.fighters()) {
@@ -561,6 +699,18 @@ public final class MatchManager {
             TeamColors.apply(fighter.getInventory(), match.teamOf(fighter.getUniqueId()));
         }
         match.kit().applyStatus(fighter, current);
+        games.equip(match, fighter);
+        current.cosmetics().dress(fighter);
+    }
+
+    /** The event games' listener, registered with the others. */
+    public EventGames games() {
+        return games;
+    }
+
+    /** An event game decided the fight: {@code team} wins. */
+    void win(Match match, int team) {
+        end(match, List.of(team), EndReason.ELIMINATED);
     }
 
     private void tick(Match match) {
@@ -574,6 +724,9 @@ public final class MatchManager {
                     match.fightSeconds(0);
                     match.fighters().stream().filter(match::isFighting).forEach(match.kit()::applyTimedEffects);
                     display.fightStarted(match);
+                    if (match.round() == 1) {
+                        Bukkit.getPluginManager().callEvent(new MatchStartEvent(match));
+                    }
                     if (match.options().border()) {
                         FightBorder border = FightBorder.around(match.arena().bounds(), settings.get().events().border());
                         match.border(border);
@@ -590,6 +743,7 @@ public final class MatchManager {
                     if (match.border() != null) {
                         match.border().tick(match, match.fightSeconds());
                     }
+                    games.tick(match);
                 }
             }
             case ROUND_OVER -> {
@@ -614,11 +768,30 @@ public final class MatchManager {
      * rounds a knockout wins the round, and the fight once a team has won enough of them.
      */
     private void knockOut(Match match, Player fighter, EndReason reason) {
-        if (reason == EndReason.ELIMINATED && match.isFighting(fighter) && match.respawns(match.teamOf(fighter.getUniqueId()))) {
-            display.knockedOut(match, fighter, killer(match, fighter), true);
+        // Free-for-all players leave through leaveFfa; a knockout there is a death and a respawn.
+        if (match.type() == Type.FFA) {
+            if (reason == EndReason.ELIMINATED && match.isFighting(fighter)) {
+                Player killer = killer(match, fighter);
+                died(match, fighter, killer);
+                display.knockedOut(match, fighter, killer, true);
+                respawn(match, fighter);
+            }
+            return;
+        }
+        if (reason == EndReason.ELIMINATED && match.isFighting(fighter) && games.respawns(match, fighter)) {
+            Player killer = killer(match, fighter);
+            match.fightStats().died(fighter, killer);
+            games.knockedOut(match, fighter, killer);
+            display.knockedOut(match, fighter, killer, true);
             respawn(match, fighter);
             return;
         }
+        // Read before died() forgets who hit the fighter last.
+        Player killer = reason == EndReason.ELIMINATED ? killer(match, fighter) : null;
+        if (reason == EndReason.ELIMINATED) {
+            match.fightStats().died(fighter, killer);
+        }
+        games.knockedOut(match, fighter, killer);
         match.recordFinal(fighter);
         match.knockOut(fighter);
         if (match.isParticipant(fighter) && !fighter.isDead()) {
@@ -626,7 +799,7 @@ public final class MatchManager {
         }
         List<Integer> left = match.teamsLeft();
         boolean fightGoesOn = left.size() > match.options().winners();
-        display.knockedOut(match, fighter, reason == EndReason.ELIMINATED ? killer(match, fighter) : null, fightGoesOn);
+        display.knockedOut(match, fighter, killer, fightGoesOn);
         if (fightGoesOn) {
             return;
         }
@@ -659,7 +832,7 @@ public final class MatchManager {
     /** Bridge: {@code scorer} walked into the other side's goal, so their side wins the round, or the fight. */
     public void score(Player scorer) {
         Match match = byPlayer.get(scorer.getUniqueId());
-        if (match == null || !match.isFighting(scorer) || match.mode() != Kit.Mode.BRIDGE) {
+        if (match == null || !match.isFighting(scorer) || match.mode().points() != Kit.Mode.Points.GOALS) {
             return;
         }
         int team = match.teamOf(scorer.getUniqueId());
@@ -671,6 +844,11 @@ public final class MatchManager {
                 scorer.teleportAsync(match.instance().middle(), TeleportCause.UNKNOWN);
             }
         }, 1);
+        winPoint(match, team);
+    }
+
+    /** A goal or a bed (MLG Rush) for {@code team}: the round, or the fight once it has won enough. */
+    private void winPoint(Match match, int team) {
         if (match.winRound(team) < match.roundsToWin()) {
             roundOver(match, team);
         } else {
@@ -679,19 +857,26 @@ public final class MatchManager {
     }
 
     /**
-     * Bed fight: {@code breaker} breaks the bed of {@code team}. Their own side's bed is refused; an enemy bed breaks,
-     * and that side's knocked-out fighters no longer come back this round.
+     * Bed fight and MLG Rush: {@code breaker} breaks the bed of {@code team}. Their own side's bed is refused; an enemy
+     * bed breaks. In MLG Rush that wins the breaker's side the round; in a bed fight that side's knocked-out fighters
+     * no longer come back this round.
      *
      * @return whether the bed may break
      */
     public boolean breakBed(Player breaker, int team) {
         Match match = byPlayer.get(breaker.getUniqueId());
-        if (match == null || !match.isFighting(breaker) || match.mode() != Kit.Mode.BED_FIGHT || !match.hasBed(team)) {
+        if (match == null || !match.isFighting(breaker) || match.mode().points() != Kit.Mode.Points.BEDS || !match.hasBed(team)) {
             return false;
         }
-        if (match.teamOf(breaker.getUniqueId()) == team) {
+        int own = match.teamOf(breaker.getUniqueId());
+        if (own == team) {
             messages.send(breaker, "match.own-bed");
             return false;
+        }
+        if (match.mode().bedScores()) {
+            display.bedScored(match, breaker);
+            winPoint(match, own);
+            return true;
         }
         match.breakBed(team);
         display.bedBroken(match, team, breaker);
@@ -716,7 +901,7 @@ public final class MatchManager {
         // A fighter killed outright respawned a tick after: round-delay-seconds is at least 1.
         match.nextRound();
         // Bridge keeps the blocks placed so far.
-        CompletableFuture<Void> reset = match.mode() == Kit.Mode.BRIDGE ? CompletableFuture.completedFuture(null)
+        CompletableFuture<Void> reset = match.mode().keepsBlocks() ? CompletableFuture.completedFuture(null)
                 : instances.resetRound(match.instance());
         reset.whenComplete((ignored, error) -> guarded(match, () -> {
             if (match.isOver() || match.state() != State.ROUND_OVER) {
@@ -746,6 +931,10 @@ public final class MatchManager {
         match.state(State.ENDING);
         match.result(winnerTeams, reason);
         outcomes.record(match, winnerTeams, reason);
+        List<Player> listeners = match.participants();
+        winnerTeams.forEach(team -> match.teams().get(team).stream().filter(match::isParticipant)
+                .forEach(winner -> settings.get().cosmetics().playWinSound(winner, listeners)));
+        Bukkit.getPluginManager().callEvent(new MatchEndEvent(match, winnerTeams, reason));
         match.secondsLeft(settings.get().endDelaySeconds());
         if (match.secondsLeft() <= 0) {
             finish(match);

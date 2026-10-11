@@ -108,11 +108,17 @@ class PlayerSettingsTest extends DuelsTestBase {
         tickUntil(() -> match.isSpectator(cid));
     }
 
+    /** What a would-be spectator's state shows, for a failure message. */
+    private String watching(Match match, TestPlayer player) {
+        return "(spectator " + match.isSpectator(player) + ", " + player.getGameMode() + ", at " + player.getLocation()
+                + ", match " + match.state() + ", said " + messages(player) + ")";
+    }
+
     @Test
     void whileWatchingTheMenuListsTheFightersAndTakesYouToOne() {
         Match match = duel();
         cid.performCommand("duel spectate Alex");
-        tickUntil(() -> match.isSpectator(cid) && cid.getGameMode() == GameMode.SPECTATOR);
+        tickUntil(() -> match.isSpectator(cid) && cid.getGameMode() == GameMode.SPECTATOR, () -> watching(match, cid));
 
         cid.performCommand("duel spectate");
         tick();
@@ -127,7 +133,7 @@ class PlayerSettingsTest extends DuelsTestBase {
     void watchersGetAnItemThatOpensTheFighterMenuAndLoseItAfter() {
         Match match = duel();
         cid.performCommand("duel spectate Alex");
-        tickUntil(() -> match.isSpectator(cid) && cid.getGameMode() == GameMode.SPECTATOR);
+        tickUntil(() -> match.isSpectator(cid) && cid.getGameMode() == GameMode.SPECTATOR, () -> watching(match, cid));
         ticks(20);
         ItemStack item = cid.getInventory().getItem(22);
         assertEquals(Material.COMPASS, item.getType());

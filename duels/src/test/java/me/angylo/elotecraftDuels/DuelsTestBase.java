@@ -35,6 +35,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.BooleanSupplier;
+import java.util.function.Supplier;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
@@ -146,10 +147,15 @@ abstract class DuelsTestBase {
     }
 
     protected void tickUntil(BooleanSupplier condition) {
+        tickUntil(condition, () -> "");
+    }
+
+    /** Like {@link #tickUntil(BooleanSupplier)}, failing with {@code detail}: what the test can tell about why. */
+    protected void tickUntil(BooleanSupplier condition, Supplier<String> detail) {
         long deadline = System.currentTimeMillis() + TIMEOUT_MILLIS;
         while (!condition.getAsBoolean()) {
             if (System.currentTimeMillis() > deadline) {
-                fail("Condition not met in time");
+                fail("Condition not met in time " + detail.get());
             }
             tick();
             Thread.onSpinWait();

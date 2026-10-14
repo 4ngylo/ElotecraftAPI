@@ -14,7 +14,6 @@
     <modules>
         <module>api</module>
         <module>example</module>
-        <module>duels</module>
     </modules>
 
     <properties>

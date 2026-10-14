@@ -2,6 +2,23 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Model routing and delegation
+
+Act as an adaptive model orchestrator. Classify each task by complexity, risk, scope, and required reasoning.
+
+- Use simple-tasks (Haiku) proactively for repetitive, mechanical, low-risk, well-defined tasks.
+- Use complex-tasks (Opus) for architecture, difficult debugging, concurrency, API design, security, complex integrations, and decisions with broad impact.
+- Handle trivial requests directly when spawning an agent would cost more than the task.
+- Delegate independent tasks in parallel when useful. Avoid parallel edits to the same files.
+- Split large tasks into small, independently verifiable subtasks.
+- Keep the main context focused on requirements, decisions, integration, and final verification.
+- Review all delegated results before accepting them. Verify code changes and run relevant tests.
+- Escalate tasks when an agent encounters ambiguity, repeated failures, unexpected dependencies, or complexity beyond its assigned role.
+- Never delegate sensitive architectural decisions to a low-cost agent without independent review.
+- Do not spawn agents unnecessarily. Optimize total cost and correctness, not agent count.
+
+Before starting, decide whether the task should be handled directly or delegated. Choose the cheapest suitable model that can reliably complete each subtask.
+
 ## Project
 
 ElotecraftAPI is a PaperMC (Minecraft server) plugin targeting Paper API `1.21.11-R0.1-SNAPSHOT` on Java 21. It is a shared library plugin: other Elotecraft plugins declare `depend: [ElotecraftAPI]` and compile against it with `provided` scope.
@@ -10,7 +27,7 @@ Multi-module Maven build (parent `pom.xml` holds versions, Paper/JUnit/MockBukki
 
 - `api/` — artifact `elotecraft-api`, the library plugin (package `me.angylo.elotecraftAPI`). Only library code goes here.
 - `example/` — artifact `elotecraft-example`, a separate demo plugin (package `me.angylo.elotecraftExample`) that depends on `elotecraft-api` with `provided` scope, exactly like a consumer plugin. Demo code, `messages.yml` and `example.yml` live here so they never ship in the library jar.
-- `duels/` — artifact `elotecraft-duels`, ElotecraftDuels (package `me.angylo.elotecraftDuels`), a real plugin consuming the API like `example/`; its notes are in `duels/CLAUDE.md`.
+- ElotecraftDuels (`elotecraft-duels`) lives in its own private repo, `4ngylo/elotecraft-duels`; it consumes this API like `example/`.
 
 Library packages (under `api/src/main/java/me/angylo/elotecraftAPI/`):
 

@@ -6,7 +6,8 @@
 
     <groupId>me.angylo</groupId>
     <artifactId>elotecraft-parent</artifactId>
-    <version>1.5.0</version>
+    <!-- One source tree, two builds: 1.21.11 by default, 26.3 with -Pmc26.3 (adds the -mc26.3 suffix). -->
+    <version>${revision}${changelist}</version>
     <packaging>pom</packaging>
 
     <name>ElotecraftAPI Parent</name>
@@ -17,10 +18,32 @@
     </modules>
 
     <properties>
-        <java.version>21</java.version>
+        <revision>1.6.0</revision>
+        <changelist></changelist>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <!-- Minecraft 1.21.11 build; the mc26.3 profile below overrides all five. -->
+        <minecraft.version>1.21.11</minecraft.version>
+        <java.version>21</java.version>
         <paper.version>1.21.11-R0.1-SNAPSHOT</paper.version>
+        <mockbukkit.artifact>mockbukkit-v1.21</mockbukkit.artifact>
+        <mockbukkit.version>4.116.3</mockbukkit.version>
     </properties>
+
+    <profiles>
+        <profile>
+            <id>mc26.3</id>
+            <properties>
+                <changelist>-mc26.3</changelist>
+                <minecraft.version>26.3</minecraft.version>
+                <java.version>25</java.version>
+                <!-- The build MockBukkit targets (its gradle.properties); newer builds fail with
+                     "MockBukkit / MC version mismatch". Bump both together. The jar runs on any 26.3 build. -->
+                <paper.version>26.3.build.200-stable</paper.version>
+                <mockbukkit.artifact>mockbukkit-v26.3</mockbukkit.artifact>
+                <mockbukkit.version>4.123.0</mockbukkit.version>
+            </properties>
+        </profile>
+    </profiles>
 
     <repositories>
         <repository>
@@ -65,11 +88,11 @@
         </dependency>
         <dependency>
             <groupId>org.mockbukkit.mockbukkit</groupId>
-            <artifactId>mockbukkit-v1.21</artifactId>
-            <version>4.116.3</version>
+            <artifactId>${mockbukkit.artifact}</artifactId>
+            <version>${mockbukkit.version}</version>
             <scope>test</scope>
         </dependency>
-        <!-- The server supplies the driver at runtime; same version Paper 1.21.11 bundles. -->
+        <!-- The server supplies the driver at runtime; same version Paper 1.21.11 and 26.3 bundle. -->
         <dependency>
             <groupId>org.xerial</groupId>
             <artifactId>sqlite-jdbc</artifactId>
@@ -91,7 +114,8 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-shade-plugin</artifactId>
-                    <version>3.5.3</version>
+                    <!-- 3.6.2 (ASM 9.9) reads Java 25 classes, needed to relocate HikariCP in the mc26.3 build. -->
+                    <version>3.6.2</version>
                     <executions>
                         <execution>
                             <phase>package</phase>
@@ -122,6 +146,33 @@
                     <forkCount>1</forkCount>
                     <reuseForks>false</reuseForks>
                 </configuration>
+            </plugin>
+            <!-- Installed POMs get the real version instead of ${revision}${changelist}, so consumers resolve
+                 the parent. -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>flatten-maven-plugin</artifactId>
+                <version>1.7.3</version>
+                <configuration>
+                    <updatePomFile>true</updatePomFile>
+                    <flattenMode>resolveCiFriendliesOnly</flattenMode>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>flatten</id>
+                        <phase>process-resources</phase>
+                        <goals>
+                            <goal>flatten</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>flatten-clean</id>
+                        <phase>clean</phase>
+                        <goals>
+                            <goal>clean</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
             <plugin>
                 <groupId>org.jacoco</groupId>

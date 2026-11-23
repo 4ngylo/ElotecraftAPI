@@ -1,6 +1,11 @@
 # ElotecraftAPI
 
-Shared library plugin for Elotecraft Paper plugins (Paper 1.21.11, Java 21).
+Shared library plugin for Elotecraft Paper plugins. One source tree, two builds:
+
+| Minecraft | Java | Version | Build |
+|---|---|---|---|
+| 1.21.11 | 21 | `1.6.0` | `mvn clean install` |
+| 26.3 | 25 | `1.6.0-mc26.3` | `mvn clean install -Pmc26.3` |
 
 | Package | What |
 |---|---|
@@ -18,7 +23,7 @@ The `duels` module is ElotecraftDuels, a production 1v1 duels plugin built on th
 
 ## Server
 
-Put `elotecraft-api-<version>.jar` in `plugins/`. Add `elotecraft-example-<version>.jar` only to try the demo.
+Put `elotecraft-api-<version>.jar` in `plugins/`, the build matching the server (`-mc26.3` for Paper 26.3). Add `elotecraft-example-<version>.jar` only to try the demo.
 
 ## Using it in a plugin
 
@@ -38,6 +43,9 @@ Put `elotecraft-api-<version>.jar` in `plugins/`. Add `elotecraft-example-<versi
 </dependency>
 ```
 
+JitPack builds the 1.21.11 version only. For Paper 26.3, run `mvn clean install -Pmc26.3` here and depend on
+`me.angylo:elotecraft-api:1.6.0-mc26.3` from your local Maven repository.
+
 `plugin.yml`:
 
 ```yaml
@@ -49,6 +57,7 @@ Always pass your own plugin instance to the utils, so tasks, listeners and menus
 ## Build
 
 ```bash
-mvn            # clean package, all modules
-mvn verify     # what CI runs; coverage in <module>/target/site/jacoco/
+mvn                          # clean package, all modules, Minecraft 1.21.11
+mvn clean verify             # what CI runs; coverage in <module>/target/site/jacoco/
+mvn clean verify -Pmc26.3    # the same for Minecraft 26.3 (needs JDK 25)
 ```

@@ -2,6 +2,6 @@ name: ElotecraftAPI
 version: '${version}'
 
 main: me.angylo.elotecraftAPI.ElotecraftAPI
-api-version: '1.21.11'
+api-version: '${minecraft.version}'
 load: POSTWORLD
 softdepend: [PlaceholderAPI]

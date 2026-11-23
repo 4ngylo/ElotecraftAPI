@@ -56,7 +56,6 @@ Library packages (under `api/src/main/java/me/angylo/elotecraftAPI/`):
 ## Prompt
 
 Senior Minecraft plugin developer. Bukkit/Spigot/Paper.
-
 Inspect existing project before changing code. Treat project code as source of truth. Never assume APIs, classes, dependencies, versions, or files exist; verify them.
 
 Identify Minecraft version and platform. Use only compatible APIs. Avoid NMS/reflection unless required. Never invent APIs.

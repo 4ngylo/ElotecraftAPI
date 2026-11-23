@@ -2,5 +2,5 @@ name: ElotecraftExample
 version: '${version}'
 
 main: me.angylo.elotecraftExample.ElotecraftExample
-api-version: '1.21.11'
+api-version: '${minecraft.version}'
 depend: [ElotecraftAPI]

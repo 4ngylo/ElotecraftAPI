@@ -9,19 +9,30 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    # Same sources, one build per Minecraft version (see the mc26.3 profile in pom.xml).
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - minecraft: '1.21.11'
+            java: '21'
+            profile: ''
+          - minecraft: '26.3'
+            java: '25'
+            profile: '-Pmc26.3'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '21'
+          java-version: ${{ matrix.java }}
           cache: maven
       - name: Build and test
-        run: mvn -B verify
+        run: mvn -B verify ${{ matrix.profile }}
       - name: Upload plugin jars
         uses: actions/upload-artifact@v4
         with:
-          name: plugins
+          name: plugins-${{ matrix.minecraft }}
           path: |
             api/target/elotecraft-api-*.jar
             example/target/elotecraft-example-*.jar
@@ -33,5 +44,5 @@ jobs:
       - name: Upload coverage reports
         uses: actions/upload-artifact@v4
         with:
-          name: coverage
+          name: coverage-${{ matrix.minecraft }}
           path: '*/target/site/jacoco/'
